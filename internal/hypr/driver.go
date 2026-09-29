@@ -37,6 +37,13 @@ type ConfigDriver interface {
 	FocusMonitorCmd(name string) string
 	WorkspaceCmd(id int) string
 	MoveCursorCmd(x, y int) string
+	// SendShortcutCmd, FocusWindowCmd and MoveWindowCmd act on one of the
+	// human's windows by address. send_shortcut moves keyboard focus to the
+	// window and back for each key (verified in the 0.56.2 source), so the
+	// human's window sees a leave/enter pair.
+	SendShortcutCmd(mods, key, address string) string
+	FocusWindowCmd(address string) string
+	MoveWindowCmd(address string, workspace int) string
 }
 
 // Driver detects the configuration mode: HYPRCAGE_DRIVER=lua|classic wins;
@@ -124,6 +131,20 @@ func (d *luaDriver) MoveCursorCmd(x, y int) string {
 	return fmt.Sprintf("dispatch hl.dsp.cursor.move({ x = %d, y = %d })", x, y)
 }
 
+func (d *luaDriver) SendShortcutCmd(mods, key, address string) string {
+	return fmt.Sprintf("dispatch hl.dsp.send_shortcut({ mods = %s, key = %s, window = %s })",
+		LuaString(mods), LuaString(key), LuaString("address:"+address))
+}
+
+func (d *luaDriver) FocusWindowCmd(address string) string {
+	return "dispatch hl.dsp.focus({ window = " + LuaString("address:"+address) + " })"
+}
+
+func (d *luaDriver) MoveWindowCmd(address string, workspace int) string {
+	return fmt.Sprintf(`dispatch hl.dsp.window.move({ workspace = "%d", follow = false, window = %s })`,
+		workspace, LuaString("address:"+address))
+}
+
 // luaExecCode builds the hl.exec_cmd call for a command and its rules.
 func luaExecCode(command string, rules ExecRules) string {
 	var opts []string
@@ -181,6 +202,18 @@ func (d *classicDriver) WorkspaceCmd(id int) string { return fmt.Sprintf("dispat
 
 func (d *classicDriver) MoveCursorCmd(x, y int) string {
 	return fmt.Sprintf("dispatch movecursor %d %d", x, y)
+}
+
+func (d *classicDriver) SendShortcutCmd(mods, key, address string) string {
+	return fmt.Sprintf("dispatch sendshortcut %s, %s, address:%s", mods, key, address)
+}
+
+func (d *classicDriver) FocusWindowCmd(address string) string {
+	return "dispatch focuswindow address:" + address
+}
+
+func (d *classicDriver) MoveWindowCmd(address string, workspace int) string {
+	return fmt.Sprintf("dispatch movetoworkspacesilent %d,address:%s", workspace, address)
 }
 
 // classicExecCommand builds the `dispatch exec [rules] cmd` request.
