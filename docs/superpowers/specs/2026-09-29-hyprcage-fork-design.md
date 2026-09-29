@@ -63,10 +63,8 @@ The fork adds these tools:
 
 | Tool | Implementation |
 |---|---|
-| `record_start`, `record_stop` for an agent screen | Send the frames from hyprcage's existing wlr-screencopy capture to `ffmpeg`. |
-| `record_start`, `record_stop` for the desktop | Run `wf-recorder` against the Hyprland display. |
+| `record_start`, `record_stop` for an agent screen or the desktop | Run `hyprcage _record`, which sends frames from hyprcage's wlr-screencopy capture to `ffmpeg`. |
 | `clipboard_get`, `clipboard_set` | Run `wl-paste` and `wl-copy` with `WAYLAND_DISPLAY` set to the screen's inner display. |
-| `file_put`, `file_get` | Copy files in and out of a per-screen working folder. |
 | `browser_open` | Launch Chrome on a screen with `--remote-debugging-port=9222`, `--remote-debugging-address=127.0.0.1` and a temporary profile. |
 | `desktop_windows`, `desktop_focus`, `desktop_move` | Call `hyprctl clients -j` and Hyprland dispatchers. |
 | `desktop_type`, `desktop_key` | Call `hl.dsp.send_shortcut` for each key, aimed at the window address. |
@@ -93,7 +91,7 @@ The script `waybar-agents` works like the existing `waybar-wispr` script. It pri
 - Look up every external tool on `PATH`. Never hard-code a path.
 - Teach the installer two package managers: `zypper` on openSUSE and `pacman` on Arch. The upstream installer supports only Arch.
 - Keep machine-specific values in `~/.config/hyprcage/config.toml`. Examples are the mirror workspaces, the recording folder and the Chrome binary.
-- Ship the waybar module and the Hyprland rules as stand-alone files. Each machine includes them from its own configuration. The installer does not edit the existing configuration.
+- Ship the waybar module as a stand-alone file. Each machine includes it from its own configuration. The installer does not edit the existing configuration.
 
 State of the two machines on 2026-09-29:
 
@@ -101,10 +99,20 @@ State of the two machines on 2026-09-29:
 |---|---|---|
 | Hyprland | 0.56.2, Lua configuration | 0.56.2, Lua configuration |
 | `cage` | 0.3.1 installed | missing |
-| `wf-recorder` | missing, in the openSUSE repositories | missing |
+| `wf-recorder` | broken on openSUSE (libavformat symbol error), not used | not used |
 | `ffmpeg`, Go, Google Chrome | present | present |
 
 To verify: `cage` and `wf-recorder` are in the Arch repositories.
+
+## Amendments 2026-09-29
+
+These verified facts were found while planning. They override the sections above where the two differ.
+
+1. **Recording uses `ffmpeg` for both targets.** `wf-recorder` 0.6.0 on openSUSE fails with `symbol lookup error: /lib64/libavformat.so.62: undefined symbol: rist_peer_config_defaults_set_versioned`. hyprcage's own screencopy capture feeds `ffmpeg` instead, for agent screens and for the desktop.
+2. **`file_put` and `file_get` are dropped.** Applications on an agent screen run as the human's user and see the same file system. A file picker on an agent screen already reaches every path. The tools would add nothing.
+3. **No stand-alone Hyprland rules file.** hyprcage places the mirror window itself. No rule is needed.
+4. **Clipboard works in cage (verified).** `wl-copy` and `wl-paste` with `WAYLAND_DISPLAY` set to the inner display round-tripped the text `clip-test-123`. No extra window appeared on the screen.
+5. **`ffmpeg` encoders differ per distribution.** openSUSE's `ffmpeg` 9.0.1 offers `libopenh264` and `mpeg4`, but not `libx264`. The recorder picks the first of `libx264`, `libopenh264`, `mpeg4`.
 
 ## Testing
 
