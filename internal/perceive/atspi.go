@@ -241,7 +241,9 @@ func actErr(key string, err error, unsupported string) error {
 	return screen.Errf(screen.CodeNoSource, atspiHint, "%s: %v", key, err)
 }
 
-const pointerHint = "click the node with the pointer"
+// noPosHint answers a refused Reveal or Press: act uses them only for a node
+// without usable coordinates, so the pointer is no way out.
+const noPosHint = "this element has no position; try key navigation"
 
 func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 	s.mu.Lock()
@@ -251,7 +253,7 @@ func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 		return Node{}, err
 	}
 	if err := s.t.Scroll(ctx, o.Bus, o.Path); err != nil {
-		return Node{}, actErr(key, err, pointerHint)
+		return Node{}, actErr(key, err, noPosHint)
 	}
 	// ponytail: tree has no single-object read, so Reveal walks everything; add one if Reveal is slow.
 	objs, err := s.walk(ctx)
@@ -276,7 +278,7 @@ func (s *atspiSource) Press(ctx context.Context, key string) error {
 		return err
 	}
 	if err := s.t.DoAction(ctx, o.Bus, o.Path, 0); err != nil {
-		hint := pointerHint
+		hint := noPosHint
 		if s.menu[key] { // a popup item has no reliable coordinates for the pointer
 			hint = "use key to navigate the menu"
 		}

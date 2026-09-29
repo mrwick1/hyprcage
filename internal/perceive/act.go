@@ -145,24 +145,8 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 					"%s %q has no reliable coordinates for %s", n.Role, n.Name, op.Op)
 			}
 			press = true
-		} else if n = stable(ctx, src, n); n.Offscreen {
-			r, err := src.Reveal(ctx, n.Key)
-			if err != nil {
-				return Diff{}, err
-			}
-			n = r
-			if n.Offscreen {
-				if src.Name() != "atspi" || op.Op != "click" {
-					return Diff{}, screen.Errf(screen.CodeRefOffscreen, "scroll the node into view, then take a new snapshot",
-						"%s %q stays off screen", n.Role, n.Name)
-				}
-				press = true
-			}
-		}
-		if h, ok := src.(hitTester); ok && !press {
-			if err := h.HitTest(ctx, n.Key); err != nil {
-				return Diff{}, err
-			}
+		} else if n, press, err = aim(ctx, src, n, op.Op); err != nil {
+			return Diff{}, err
 		}
 	}
 
@@ -177,10 +161,12 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		click := func() error { return pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }) }
 		// OCR has no focus state: click, then type. Other sources click once
 		// more, at a fresh stable centre, when the field does not report focused.
+		// The second click passes the same guards as the first.
 		if err = click(); err == nil && src.Name() != "ocr" && !waitFocus(ctx, src, n.Key) {
-			n = stable(ctx, src, n)
-			if err = click(); err == nil {
-				waitFocus(ctx, src, n.Key)
+			if n, _, err = aim(ctx, src, n, op.Op); err == nil {
+				if err = click(); err == nil {
+					waitFocus(ctx, src, n.Key)
+				}
 			}
 		}
 		if err == nil {
@@ -209,25 +195,62 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	return DiffNodes(before, after), nil
 }
 
+// aim readies n for the pointer input of op. It waits for a stable
+// centre, reveals an off-screen node, and checks that no other element
+// covers it. press is true when the caller must use src.Press instead of
+// the pointer: an AT-SPI click on a node that Reveal cannot bring on screen.
+func aim(ctx context.Context, src Source, n Node, op string) (Node, bool, error) {
+	n, err := stable(ctx, src, n)
+	if err != nil {
+		return n, false, err
+	}
+	if n.Offscreen {
+		r, err := src.Reveal(ctx, n.Key)
+		switch {
+		case err == nil && !r.Offscreen:
+			n = r
+		case src.Name() == "atspi" && op == "click":
+			return n, true, nil // DoAction needs no coordinates
+		case err != nil:
+			return n, false, err
+		default:
+			return n, false, screen.Errf(screen.CodeRefOffscreen, "scroll the node into view, then take a new snapshot",
+				"%s %q stays off screen", r.Role, r.Name)
+		}
+	}
+	if h, ok := src.(hitTester); ok {
+		if err := h.HitTest(ctx, n.Key); err != nil {
+			return n, false, err
+		}
+	}
+	return n, false, nil
+}
+
 // stable reads the nodes every settlePoll until the centre of n is the
 // same on two reads in a row, or until typeFocusWait, and returns n from
-// the last read. Right after a window maps, Chrome has not laid out its
-// toolbar yet, so the first centre can be stale. OCR positions come from
-// one screenshot, so an OCR n is returned as is. A read that fails or
-// lacks n is skipped.
-func stable(ctx context.Context, src Source, n Node) Node {
+// the last read that holds it. Right after a window maps, Chrome has not
+// laid out its toolbar yet, so the first centre can be stale. OCR
+// positions come from one screenshot, so an OCR n is returned as is. When
+// no successful read holds n, it returns the last non-stale read error,
+// else stale_ref: the node vanished and must not be clicked.
+func stable(ctx context.Context, src Source, n Node) (Node, error) {
 	if src.Name() == "ocr" {
-		return n
+		return n, nil
 	}
+	seen := false
+	var readErr error
 	deadline := time.Now().Add(typeFocusWait)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return n
+			return n, ctx.Err()
 		case <-time.After(settlePoll):
 		}
 		nodes, err := src.Nodes(ctx)
 		if err != nil {
+			if !isStale(err) {
+				readErr = err
+			}
 			continue
 		}
 		i := slices.IndexFunc(nodes, func(x Node) bool { return x.Key == n.Key })
@@ -235,12 +258,18 @@ func stable(ctx context.Context, src Source, n Node) Node {
 			continue
 		}
 		prev := n
-		n = nodes[i]
+		n, seen = nodes[i], true
 		if n.X == prev.X && n.Y == prev.Y {
-			return n
+			return n, nil
 		}
 	}
-	return n
+	switch {
+	case seen:
+		return n, nil
+	case readErr != nil:
+		return n, readErr
+	}
+	return n, screen.Errf(screen.CodeStaleRef, "take a new snapshot", "%s %q is gone", n.Role, n.Name)
 }
 
 // pressAt moves the pointer to n, waits pointerSettle, then runs press.

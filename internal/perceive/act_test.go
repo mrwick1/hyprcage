@@ -245,7 +245,8 @@ func TestActReturnsDiff(t *testing.T) {
 	fastTiming(t)
 	before := []Node{button("k1", "Play", 10, 10), button("k2", "Stop", 30, 10)}
 	after := []Node{button("k1", "Pause", 10, 10), button("k2", "Stop", 30, 10)}
-	src := &fakeSource{name: "cdp", reads: [][]Node{before, after}}
+	// read 0 is act's own, read 1 is stable's, the click removes k1
+	src := &fakeSource{name: "cdp", reads: [][]Node{before, before, after}}
 	tb := NewTable()
 	tb.Assign(append([]Node(nil), before...))
 	d, err := act(context.Background(), &fakeInput{}, src, tb, ActOp{Ref: "e1", Op: "click"})
@@ -833,7 +834,8 @@ func TestActDiffRemovedKeepsRef(t *testing.T) {
 	fastTiming(t)
 	before := []Node{button("k1", "Continue", 10, 10), button("k2", "Stop", 30, 10)}
 	after := []Node{button("k2", "Stop", 30, 10)}
-	src := &fakeSource{name: "cdp", reads: [][]Node{before, after}}
+	// read 0 is act's own, read 1 is stable's, the click removes k1
+	src := &fakeSource{name: "cdp", reads: [][]Node{before, before, after}}
 	tb := NewTable()
 	tb.Assign(append([]Node(nil), before...))
 	d, err := act(context.Background(), &fakeInput{}, src, tb, ActOp{Ref: "e1", Op: "click"})
@@ -882,5 +884,101 @@ func TestFindAutoTimeoutKeepsSource(t *testing.T) {
 	got, err := FindAuto(context.Background(), choose, tb, regexp.MustCompile("Back"), "", 20*time.Millisecond)
 	if err != nil || len(got) != 0 || tb.SourceName() != "auto" {
 		t.Fatalf("got %+v, %v, source %q", got, err, tb.SourceName())
+	}
+}
+
+// vanishing returns first on its first read, then after on every read, or
+// err when after is nil.
+type vanishing struct {
+	fakeSource
+	first, after []Node
+	err          error
+}
+
+func (v *vanishing) Nodes(context.Context) ([]Node, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.n++
+	if v.n == 1 {
+		return v.first, nil
+	}
+	if v.after == nil {
+		return nil, v.err
+	}
+	return v.after, nil
+}
+
+func TestActStableVanished(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = 20 * time.Millisecond
+	b := button("k1", "B", 5, 6)
+	boom := errors.New("bus down")
+	for _, tc := range []struct {
+		after []Node
+		err   error
+		code  screen.Code
+	}{
+		{after: []Node{button("k2", "Other", 1, 1)}, code: screen.CodeStaleRef},
+		{err: boom},
+	} {
+		tb := NewTable()
+		tb.Assign([]Node{b})
+		in := &fakeInput{}
+		src := &vanishing{fakeSource: fakeSource{name: "cdp"}, first: []Node{b}, after: tc.after, err: tc.err}
+		_, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"})
+		var se *screen.Error
+		if tc.err != nil && !errors.Is(err, tc.err) || tc.err == nil && (!errors.As(err, &se) || se.Code != tc.code) {
+			t.Errorf("got %v, want %v %v", err, tc.code, tc.err)
+		}
+		if len(in.calls) != 0 {
+			t.Errorf("input %v sent to a vanished node", in.calls)
+		}
+	}
+}
+
+// occludedLater is a CDP-like source whose field never takes the focus and
+// whose hit test reports occluded from the second call on.
+type occludedLater struct {
+	fakeSource
+	hits int
+}
+
+func (o *occludedLater) HitTest(context.Context, string) error {
+	o.hits++
+	if o.hits > 1 {
+		return screen.Errf(screen.CodeRefOccluded, "", "covered")
+	}
+	return nil
+}
+
+func TestActTypeReclickHitTests(t *testing.T) {
+	fastTiming(t)
+	field := Node{Key: "k1", Role: "textbox", Name: "query", X: 5, Y: 6}
+	src := &occludedLater{fakeSource: fakeSource{name: "cdp", reads: [][]Node{{field}}}}
+	tb := NewTable()
+	tb.Assign([]Node{field})
+	in := &fakeInput{}
+	_, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hi"})
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeRefOccluded {
+		t.Fatalf("got %v, want ref_occluded", err)
+	}
+	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1"}) {
+		t.Fatalf("calls %v, want one click and no type", in.calls)
+	}
+}
+
+func TestActRevealErrorPressFallback(t *testing.T) {
+	fastTiming(t)
+	off := Node{Key: "k1", Role: "button", Name: "Hidden", Offscreen: true}
+	src := &fakeSource{name: "atspi", reads: [][]Node{{off}}} // Reveal fails
+	tb := NewTable()
+	tb.Assign([]Node{off})
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.calls) != 0 || !slices.Equal(src.pressed, []string{"k1"}) {
+		t.Fatalf("input %v, pressed %v", in.calls, src.pressed)
 	}
 }

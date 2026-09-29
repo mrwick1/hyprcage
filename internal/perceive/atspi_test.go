@@ -215,7 +215,7 @@ func TestATSPIPressMenuHint(t *testing.T) {
 	}
 	for _, tc := range []struct{ key, hint string }{
 		{nodes[1].Key, "use key to navigate the menu"},
-		{nodes[0].Key, "click the node with the pointer"},
+		{nodes[0].Key, "this element has no position; try key navigation"},
 	} {
 		var se *screen.Error
 		if err := src.Press(context.Background(), tc.key); !errors.As(err, &se) || se.Hint != tc.hint {
