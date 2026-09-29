@@ -33,6 +33,9 @@ type fakeCaller struct {
 	ownerErr error  // returned by DOM.getFrameOwner when set
 	cancel   func() // called by DOM.getFrameOwner when set
 	viewport string // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
+	hit      int    // backend id that DOM.getNodeForLocation returns; 0 is the node asked about
+	hitErr   error  // returned by DOM.getNodeForLocation when set
+	contains bool   // Runtime.callFunctionOn answer
 
 	mu       sync.Mutex
 	detached []string
@@ -93,6 +96,17 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 			return nil, err
 		}
 		return f.trees[session], nil
+	case "DOM.getNodeForLocation":
+		if f.hitErr != nil {
+			return nil, f.hitErr
+		}
+		return fmt.Appendf(nil, `{"backendNodeId":%d}`, f.hit), nil
+	case "DOM.resolveNode":
+		return fmt.Appendf(nil, `{"object":{"type":"object","objectId":"obj-%d"}}`, p.BackendNodeID), nil
+	case "Runtime.callFunctionOn":
+		return fmt.Appendf(nil, `{"result":{"type":"boolean","value":%t}}`, f.contains), nil
+	case "Runtime.releaseObjectGroup":
+		return json.RawMessage(`{}`), nil
 	case "DOM.getFrameOwner":
 		if f.cancel != nil {
 			f.cancel()
@@ -471,5 +485,43 @@ func TestCDPToolbarOffsetZoomed(t *testing.T) {
 	// Electron at 150% zoom: no toolbar.
 	if n := at(`{"dpr":1.5,"w":853,"h":533,"ow":1280,"oh":800}`); abs(n.X-150) > 1 || abs(n.Y-150) > 1 || n.Offscreen {
 		t.Fatalf("zoomed Electron: %+v, want (150,150)", n)
+	}
+}
+
+func TestCDPActHitTest(t *testing.T) {
+	fastTiming(t)
+	run := func(f *fakeCaller) ([]string, error) {
+		t.Helper()
+		src := newCDPWith(f, cdpTargetTypes)
+		nodes, err := src.Nodes(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		tb := NewTable()
+		all := Filter(nodes, ModeInteractive, "")
+		tb.Assign(all)
+		i := slices.IndexFunc(all, func(n Node) bool { return n.Key == "cdp:T1:929" })
+		in := &fakeInput{}
+		_, err = act(context.Background(), in, src, tb, ActOp{Ref: all[i].Ref, Op: "click"})
+		return in.calls, err
+	}
+
+	f := newFake(t)
+	f.hit = 1 // the dialog backdrop covers the button
+	calls, err := run(f)
+	wantCode(t, err, screen.CodeRefOccluded)
+	if len(calls) != 0 {
+		t.Fatalf("input sent to an occluded node: %v", calls)
+	}
+
+	f.contains = true // the hit is the button's own label
+	if calls, err = run(f); err != nil || len(calls) != 1 {
+		t.Fatalf("contains: calls %v, err %v", calls, err)
+	}
+
+	f = newFake(t)
+	f.hitErr = &cdpError{Code: -32000, Message: "No node found at given location"}
+	if calls, err = run(f); err != nil || len(calls) != 1 {
+		t.Fatalf("protocol error: calls %v, err %v", calls, err)
 	}
 }

@@ -22,6 +22,13 @@ type Source interface {
 	Close() error
 }
 
+// hitTester is a Source that can tell whether another element covers a
+// node. Act calls it before pointer input. Only CDP implements it.
+type hitTester interface {
+	// HitTest returns CodeRefOccluded when the node's centre hits another element.
+	HitTest(ctx context.Context, key string) error
+}
+
 // The probes of Choose, replaced in tests so that no test dials a real bus.
 var (
 	ocrData  = OCRData

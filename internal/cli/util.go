@@ -16,7 +16,7 @@ func (e *Env) fail(err error) int {
 	if errors.As(err, &se) {
 		switch se.Code {
 		case screen.CodeNotFound, screen.CodeDead, screen.CodeNotRecording, screen.CodeRecording,
-			screen.CodeStaleRef, screen.CodeRefOffscreen:
+			screen.CodeStaleRef, screen.CodeRefOffscreen, screen.CodeRefOccluded:
 			return ExitScreen
 		case screen.CodeNotOwner:
 			return ExitNotOwner

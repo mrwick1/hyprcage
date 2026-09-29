@@ -28,6 +28,7 @@ const (
 	CodeStaleRef     Code = "stale_ref" // the ref no longer matches exactly one node
 	CodeNoSource     Code = "no_source"
 	CodeRefOffscreen Code = "ref_offscreen"
+	CodeRefOccluded  Code = "ref_occluded" // another element covers the node
 	CodeCDP          Code = "cdp_unreachable"
 )
 

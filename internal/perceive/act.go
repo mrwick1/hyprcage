@@ -151,6 +151,11 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 				press = true
 			}
 		}
+		if h, ok := src.(hitTester); ok && !press {
+			if err := h.HitTest(ctx, n.Key); err != nil {
+				return Diff{}, err
+			}
+		}
 	}
 
 	switch {

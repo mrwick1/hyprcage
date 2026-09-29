@@ -573,6 +573,79 @@ func (s *cdpSource) Reveal(ctx context.Context, k string) (Node, error) {
 	return n, nil
 }
 
+// HitTest checks that the element at the node's centre is the node or a
+// descendant of it, so that a dialog over the node never takes the click.
+// A CDP error reply skips the check: it must not block the act.
+func (s *cdpSource) HitTest(ctx context.Context, k string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t := target(k)
+	backend, err := strconv.Atoi(strings.TrimPrefix(k, "cdp:"+t+":"))
+	se := s.sessions[t]
+	if err != nil || se == nil {
+		return screen.Errf(screen.CodeStaleRef, "take a new snapshot", "no CDP target for %q", k)
+	}
+	covered, err := s.covered(ctx, se.id, backend)
+	switch {
+	case isProto(err):
+		return nil
+	case err != nil:
+		return unreachable(err)
+	case covered:
+		return screen.Errf(screen.CodeRefOccluded, "another element covers it; close the dialog or act on the covering element",
+			"%s is covered by another element", k)
+	}
+	return nil
+}
+
+// covered hit-tests the node's centre in its own session, in CSS pixels.
+func (s *cdpSource) covered(ctx context.Context, session string, backend int) (bool, error) {
+	c, err := s.centre(ctx, session, backend)
+	if err != nil {
+		return false, err
+	}
+	var hit struct {
+		BackendNodeID int `json:"backendNodeId"`
+	}
+	if err := s.call(ctx, session, "DOM.getNodeForLocation", map[string]any{
+		"x": int(math.Round(c[0])), "y": int(math.Round(c[1])),
+		"includeUserAgentShadowDOM": true, "ignorePointerEventsNone": false,
+	}, &hit); err != nil {
+		return false, err
+	}
+	if hit.BackendNodeID == backend {
+		return false, nil
+	}
+	const group = "hyprcage-hit"
+	defer s.call(ctx, session, "Runtime.releaseObjectGroup", map[string]any{"objectGroup": group}, nil)
+	var ids [2]string
+	for i, b := range []int{backend, hit.BackendNodeID} {
+		var r struct {
+			Object struct {
+				ObjectID string `json:"objectId"`
+			} `json:"object"`
+		}
+		if err := s.call(ctx, session, "DOM.resolveNode", map[string]any{"backendNodeId": b, "objectGroup": group}, &r); err != nil {
+			return false, err
+		}
+		ids[i] = r.Object.ObjectID
+	}
+	var res struct {
+		Result struct {
+			Value bool `json:"value"`
+		} `json:"result"`
+	}
+	if err := s.call(ctx, session, "Runtime.callFunctionOn", map[string]any{
+		"objectId":            ids[0],
+		"functionDeclaration": "function(h){return this===h||this.contains(h)}",
+		"arguments":           []map[string]any{{"objectId": ids[1]}},
+		"returnByValue":       true,
+	}, &res); err != nil {
+		return false, err
+	}
+	return !res.Result.Value, nil
+}
+
 func (s *cdpSource) Press(context.Context, string) error {
 	return screen.Errf(screen.CodeUnsupported, "click the node with the pointer", "CDP has no press without the pointer")
 }
