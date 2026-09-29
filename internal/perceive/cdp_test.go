@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -22,23 +23,25 @@ import (
 // fakeCaller answers from per-session trees and boxes. Session "S-<id>"
 // belongs to target <id>. It is safe for concurrent use.
 type fakeCaller struct {
-	targets  string                                // JSON of targetInfos
-	trees    map[string]json.RawMessage            // by session
-	boxes    map[string]map[string]json.RawMessage // by session, then backend id
-	owners   map[string]map[string]int             // by session, then frameId: owner backend id
-	failTree map[string]error                      // by session
-	failEval map[string]error                      // by session
-	failBox  map[int]error                         // by backend id, any session
-	scroll   error
-	ownerErr error  // returned by DOM.getFrameOwner when set
-	cancel   func() // called by DOM.getFrameOwner when set
-	viewport string // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
-	hit      int    // backend id that DOM.getNodeForLocation returns; 0 is the node asked about
-	hitErr   error  // returned by DOM.getNodeForLocation when set
-	contains bool   // Runtime.callFunctionOn answer
+	targets   string                                // JSON of targetInfos
+	trees     map[string]json.RawMessage            // by session
+	boxes     map[string]map[string]json.RawMessage // by session, then backend id
+	owners    map[string]map[string]int             // by session, then frameId: owner backend id
+	failTree  map[string]error                      // by session
+	failEval  map[string]error                      // by session
+	failBox   map[int]error                         // by backend id, any session
+	scroll    error
+	ownerErr  error           // returned by DOM.getFrameOwner when set
+	cancel    func()          // called by DOM.getFrameOwner when set
+	viewport  string          // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
+	hit       map[string]int  // by session: backend id that DOM.getNodeForLocation returns; missing: the node whose box centre is there
+	hitErr    error           // returned by DOM.getNodeForLocation when set
+	contains  map[string]bool // by session: the target holds the hit in the composed tree
+	exception bool            // Runtime.callFunctionOn throws
 
 	mu       sync.Mutex
 	detached []string
+	called   []string // DOM.resolveNode and Runtime.callFunctionOn calls
 }
 
 func newFake(t *testing.T) *fakeCaller {
@@ -100,11 +103,37 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		if f.hitErr != nil {
 			return nil, f.hitErr
 		}
-		return fmt.Appendf(nil, `{"backendNodeId":%d}`, f.hit), nil
+		if id, ok := f.hit[session]; ok {
+			return fmt.Appendf(nil, `{"backendNodeId":%d}`, id), nil
+		}
+		var at struct{ X, Y float64 }
+		json.Unmarshal(b, &at)
+		for id, raw := range f.boxes[session] {
+			var box struct{ Model struct{ Border []float64 } }
+			json.Unmarshal(raw, &box)
+			q := box.Model.Border
+			if len(q) == 8 && math.Round((q[0]+q[2]+q[4]+q[6])/4) == at.X && math.Round((q[1]+q[3]+q[5]+q[7])/4) == at.Y {
+				return json.RawMessage(`{"backendNodeId":` + id + `}`), nil
+			}
+		}
+		return nil, &cdpError{Code: -32000, Message: "No node found at given location"}
 	case "DOM.resolveNode":
+		f.mu.Lock()
+		f.called = append(f.called, method)
+		f.mu.Unlock()
 		return fmt.Appendf(nil, `{"object":{"type":"object","objectId":"obj-%d"}}`, p.BackendNodeID), nil
 	case "Runtime.callFunctionOn":
-		return fmt.Appendf(nil, `{"result":{"type":"boolean","value":%t}}`, f.contains), nil
+		f.mu.Lock()
+		f.called = append(f.called, method)
+		f.mu.Unlock()
+		if f.exception {
+			return json.RawMessage(`{"result":{"type":"object"},"exceptionDetails":{"text":"Uncaught"}}`), nil
+		}
+		// The hit sits in a shadow root of the target: only a walk through .host finds it.
+		var fn struct{ FunctionDeclaration string }
+		json.Unmarshal(b, &fn)
+		in := f.contains[session] && strings.Contains(fn.FunctionDeclaration, ".host")
+		return fmt.Appendf(nil, `{"result":{"type":"boolean","value":%t}}`, in), nil
 	case "Runtime.releaseObjectGroup":
 		return json.RawMessage(`{}`), nil
 	case "DOM.getFrameOwner":
@@ -507,14 +536,14 @@ func TestCDPActHitTest(t *testing.T) {
 	}
 
 	f := newFake(t)
-	f.hit = 1 // the dialog backdrop covers the button
+	f.hit = map[string]int{"S-T1": 1} // the dialog backdrop covers the button
 	calls, err := run(f)
 	wantCode(t, err, screen.CodeRefOccluded)
 	if len(calls) != 0 {
 		t.Fatalf("input sent to an occluded node: %v", calls)
 	}
 
-	f.contains = true // the hit is the button's own label
+	f.contains = map[string]bool{"S-T1": true} // the hit is in the button's shadow tree
 	if calls, err = run(f); err != nil || len(calls) != 1 {
 		t.Fatalf("contains: calls %v, err %v", calls, err)
 	}
@@ -523,5 +552,59 @@ func TestCDPActHitTest(t *testing.T) {
 	f.hitErr = &cdpError{Code: -32000, Message: "No node found at given location"}
 	if calls, err = run(f); err != nil || len(calls) != 1 {
 		t.Fatalf("protocol error: calls %v, err %v", calls, err)
+	}
+}
+
+func hitTest(t *testing.T, f *fakeCaller, key string) error {
+	t.Helper()
+	src := newCDPWith(f, cdpTargetTypes)
+	if _, err := src.Nodes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return src.(*cdpSource).HitTest(context.Background(), key)
+}
+
+func TestCDPHitTestSameNode(t *testing.T) {
+	f := newFake(t)
+	if err := hitTest(t, f, "cdp:T1:929"); err != nil || len(f.called) != 0 {
+		t.Fatalf("err %v, calls %v; want the fast path", err, f.called)
+	}
+}
+
+func TestCDPHitTestException(t *testing.T) {
+	f := newFake(t)
+	f.hit = map[string]int{"S-T1": 1}
+	f.exception = true
+	if err := hitTest(t, f, "cdp:T1:929"); err != nil {
+		t.Fatalf("err = %v; an exception skips the check", err)
+	}
+}
+
+func TestCDPHitTestParentFrame(t *testing.T) {
+	quad := func(x1, y1, x2, y2 int) json.RawMessage {
+		q := fmt.Sprintf("[%d,%d,%d,%d,%d,%d,%d,%d]", x1, y1, x2, y1, x2, y2, x1, y2)
+		return json.RawMessage(`{"model":{"content":` + q + `,"border":` + q + `}}`)
+	}
+	f := &fakeCaller{
+		targets: `[{"targetId":"P","type":"page"},{"targetId":"F","type":"iframe"}]`,
+		trees: map[string]json.RawMessage{
+			"S-P": json.RawMessage(`{"nodes":[
+				{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+				{"nodeId":"5","role":{"value":"Iframe"},"parentId":"1","backendDOMNodeId":5}]}`),
+			"S-F": json.RawMessage(`{"nodes":[
+				{"nodeId":"7","role":{"value":"button"},"name":{"value":"OK"},"backendDOMNodeId":7}]}`),
+		},
+		boxes: map[string]map[string]json.RawMessage{
+			"S-P": {"5": quad(100, 200, 400, 500)},
+			"S-F": {"7": quad(0, 0, 20, 20)},
+		},
+		owners: map[string]map[string]int{"S-P": {"F": 5}},
+		hit:    map[string]int{"S-P": 9}, // a dialog in the page covers the iframe
+	}
+	wantCode(t, hitTest(t, f, "cdp:F:7"), screen.CodeRefOccluded)
+
+	f.contains = map[string]bool{"S-P": true}
+	if err := hitTest(t, f, "cdp:F:7"); err != nil {
+		t.Fatalf("err = %v; the hit is inside the iframe element", err)
 	}
 }

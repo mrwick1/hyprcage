@@ -438,6 +438,24 @@ func (s *cdpSource) origin(ctx context.Context, target string, depth int) (x, y 
 	if se.typ == "page" {
 		return 0, 0, se, "", nil
 	}
+	id, backend, err := s.owner(ctx, target)
+	if err != nil {
+		return 0, 0, nil, "", err
+	}
+	q, err := s.quad(ctx, s.sessions[id].id, backend, "content")
+	if err != nil {
+		return 0, 0, nil, "", err
+	}
+	px, py, root, _, err := s.origin(ctx, id, depth+1)
+	if err != nil {
+		return 0, 0, nil, "", err
+	}
+	return px + q[0], py + q[1], root, key(id, backend), nil
+}
+
+// owner finds the attached target whose document holds the frame of target,
+// and the backend id of the owner element. No owner gives errNoOwner.
+func (s *cdpSource) owner(ctx context.Context, target string) (string, int, error) {
 	for id, o := range s.sessions {
 		if id == target {
 			continue
@@ -450,19 +468,11 @@ func (s *cdpSource) origin(ctx context.Context, target string, depth int) (x, y 
 			continue
 		}
 		if err != nil {
-			return 0, 0, nil, "", err
+			return "", 0, err
 		}
-		q, err := s.quad(ctx, o.id, fo.BackendNodeID, "content")
-		if err != nil {
-			return 0, 0, nil, "", err
-		}
-		px, py, root, _, err := s.origin(ctx, id, depth+1)
-		if err != nil {
-			return 0, 0, nil, "", err
-		}
-		return px + q[0], py + q[1], root, key(id, fo.BackendNodeID), nil
+		return id, fo.BackendNodeID, nil
 	}
-	return 0, 0, nil, "", errNoOwner
+	return "", 0, errNoOwner
 }
 
 // place sets the centre of n in window pixels: page pixels plus the
@@ -585,17 +595,29 @@ func (s *cdpSource) HitTest(ctx context.Context, k string) error {
 	if err != nil || se == nil {
 		return screen.Errf(screen.CodeStaleRef, "take a new snapshot", "no CDP target for %q", k)
 	}
-	covered, err := s.covered(ctx, se.id, backend)
-	switch {
-	case isProto(err):
-		return nil
-	case err != nil:
-		return unreachable(err)
-	case covered:
-		return screen.Errf(screen.CodeRefOccluded, "another element covers it; close the dialog or act on the covering element",
-			"%s is covered by another element", k)
+	// The node, then the <iframe> element of each parent frame up to the page.
+	for depth := 0; ; depth++ {
+		covered, err := s.covered(ctx, se.id, backend)
+		switch {
+		case isProto(err):
+			return nil
+		case err != nil:
+			return unreachable(err)
+		case covered:
+			return screen.Errf(screen.CodeRefOccluded, "another element covers it; close the dialog or act on the covering element",
+				"%s is covered by another element", k)
+		}
+		if se.typ == "page" || depth > len(s.sessions) {
+			return nil
+		}
+		if t, backend, err = s.owner(ctx, t); err != nil {
+			if isProto(err) {
+				return nil
+			}
+			return unreachable(err)
+		}
+		se = s.sessions[t]
 	}
-	return nil
 }
 
 // covered hit-tests the node's centre in its own session, in CSS pixels.
@@ -634,14 +656,19 @@ func (s *cdpSource) covered(ctx context.Context, session string, backend int) (b
 		Result struct {
 			Value bool `json:"value"`
 		} `json:"result"`
+		Exception json.RawMessage `json:"exceptionDetails"`
 	}
 	if err := s.call(ctx, session, "Runtime.callFunctionOn", map[string]any{
-		"objectId":            ids[0],
-		"functionDeclaration": "function(h){return this===h||this.contains(h)}",
+		"objectId": ids[0],
+		// Walk the composed tree: the hit may sit in a (user-agent) shadow root of the node.
+		"functionDeclaration": "function(h){for(;h;h=h.parentNode||h.host){if(h===this)return true}return false}",
 		"arguments":           []map[string]any{{"objectId": ids[1]}},
 		"returnByValue":       true,
 	}, &res); err != nil {
 		return false, err
+	}
+	if res.Exception != nil {
+		return false, nil // the check threw: do not block the act
 	}
 	return !res.Result.Value, nil
 }
