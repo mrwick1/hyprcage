@@ -36,3 +36,7 @@ Register the Chrome DevTools MCP once per machine:
 ```sh
 claude mcp add --scope user agent-chrome -- npx -y chrome-devtools-mcp@latest --browserUrl http://127.0.0.1:9222
 ```
+
+The port in `--browserUrl` must be the `browser.port` of the hyprcage config
+(default 9222). When you change `browser.port`, register agent-chrome again
+with the new port.

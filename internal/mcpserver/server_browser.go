@@ -1,6 +1,8 @@
 package mcpserver
 
 import (
+	"fmt"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/browser"
@@ -13,7 +15,8 @@ type browserIn struct {
 
 // registerBrowser adds browser_open.
 func (s *Server) registerBrowser(srv *mcp.Server) {
-	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen with DevTools on 127.0.0.1:9222 and a throwaway profile. Then drive it with the agent-chrome MCP tools (DOM, console, network, JavaScript). One agent Chrome at a time; it closes with its screen.", s.browserOpen)
+	desc := fmt.Sprintf("Open the agent's Chrome on a screen with DevTools on 127.0.0.1:%d and a throwaway profile. Then drive it with the agent-chrome MCP tools (DOM, console, network, JavaScript). One agent Chrome at a time; it closes with its screen.", s.cfg.BrowserPort)
+	tool(s, srv, "browser_open", desc, s.browserOpen)
 }
 
 func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {

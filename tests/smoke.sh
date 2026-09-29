@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Smoke test of the fork on a live Hyprland session: a screen, the agent
 # Chrome, input, recording (also through destroy), clipboard, teardown.
-# Assumes the default config (browser.port 9222).
+# Assumes the default screen size (1280x800): the click aims at its center.
+# It reads the DevTools port from `hyprcage browser`.
 set -euo pipefail
 HC=${HC:-hyprcage}
 S=hc-smoke
-page="" out="" out2=""
+page="" out="" out2="" port=""
 fail() { echo "FAIL: $*" >&2; exit 1; }
 cleanup() {
   $HC destroy $S >/dev/null 2>&1 || true
@@ -18,13 +19,14 @@ page=$(mktemp --suffix=.html)
 cat >"$page" <<'EOF'
 <textarea style="position:fixed;inset:0" oninput="document.title = this.value"></textarea>
 EOF
-$HC browser $S "file://$page" >/dev/null || fail "browser"
+port=$($HC browser $S "file://$page" | jq -r .port) || fail "browser"
+[ -n "$port" ] && [ "$port" != null ] || fail "browser reported no port"
 $HC wait $S --stable 500ms --timeout 15s >/dev/null || fail "page did not settle"
 # The textarea fills the page, so the center of the screen is below the Chrome toolbar.
 $HC click $S 640 400 >/dev/null || fail "click"
 $HC type $S 'smoke ok' >/dev/null || fail "type"
 sleep 1
-title=$(curl -sf http://127.0.0.1:9222/json | jq -r '[.[] | select(.type == "page")][0].title') || fail "read page title"
+title=$(curl -sf http://127.0.0.1:$port/json | jq -r '[.[] | select(.type == "page")][0].title') || fail "read page title"
 [ "$title" = "smoke ok" ] || fail "typed text: got title '$title'"
 
 $HC record start $S >/dev/null || fail "record start"
@@ -50,5 +52,5 @@ frames2=$(ffprobe -v error -count_frames -select_streams v -show_entries stream=
 # Environ files are binary, so grep needs -a.
 left=$(grep -la "HYPRCAGE_SCREEN=$S" /proc/[0-9]*/environ 2>/dev/null | wc -l || true)
 [ "$left" -eq 0 ] || fail "$left processes of $S remain"
-curl -sf --max-time 1 http://127.0.0.1:9222/json/version >/dev/null && fail "Chrome outlived its screen"
+curl -sf --max-time 1 http://127.0.0.1:$port/json/version >/dev/null && fail "Chrome outlived its screen"
 echo "SMOKE OK"
