@@ -15,7 +15,7 @@ func innerEnv(rec *registry.Screen, base []string) []string {
 	var env []string
 	for _, kv := range base {
 		k, _, _ := strings.Cut(kv, "=")
-		if k == "WAYLAND_DISPLAY" || k == "HYPRLAND_INSTANCE_SIGNATURE" || k == "HYPRCAGE_SCREEN" {
+		if k == "WAYLAND_DISPLAY" || k == "WAYLAND_SOCKET" || k == "HYPRLAND_INSTANCE_SIGNATURE" || k == "HYPRCAGE_SCREEN" {
 			continue
 		}
 		env = append(env, kv)
@@ -32,6 +32,9 @@ func withInner(rec *registry.Screen) error {
 		return errf(CodeDead, "", "screen %s has no inner socket", rec.Name)
 	}
 	rec.InnerDisplay = inner["WAYLAND_DISPLAY"]
+	if rec.InnerDisplay == "" {
+		return errf(CodeDead, "", "screen %s has no inner display", rec.Name)
+	}
 	return nil
 }
 
@@ -47,7 +50,7 @@ func ClipboardSet(rec *registry.Screen, text string) error {
 	// Wait would block on a pipe until the clipboard is replaced.
 	errFile, err := os.CreateTemp("", "hyprcage-wl-copy-*")
 	if err != nil {
-		return err
+		return errf(CodeCapture, "", "%v", err)
 	}
 	defer os.Remove(errFile.Name())
 	defer errFile.Close()
