@@ -31,7 +31,12 @@ set -euo pipefail
 REPO=${HYPRCAGE_REPO:-mrwick1/hyprcage}
 BIN_DIR=${HYPRCAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${HYPRCAGE_AGENTS:-all}
-SRC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")
+# The checkout this script runs from. Piped from curl, BASH_SOURCE is empty
+# and there is no checkout: the current directory is never taken for one.
+SRC_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SRC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")
+fi
 PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
@@ -76,14 +81,20 @@ install_packages() {
 # --- 2. binary -------------------------------------------------------------------
 
 latest_version() {
-  # The release page of "latest" redirects to the tagged one.
-  curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" | sed 's|.*/tag/||'
+  # The release page of "latest" redirects to the tagged one. A repository
+  # without a release redirects to its release list instead: no version.
+  local url
+  url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest") || return 1
+  case $url in */tag/*) echo "${url##*/tag/}" ;; *) return 1 ;; esac
 }
+
+# is_checkout reports whether SRC_DIR is a hyprcage source checkout.
+is_checkout() { [ -f "$SRC_DIR/go.mod" ] && [ -f "$SRC_DIR/cmd/hyprcage/main.go" ]; }
 
 build_from_source() {
   have go || return 1
   local src=$SRC_DIR
-  if [ ! -f "$src/go.mod" ]; then
+  if ! is_checkout; then
     src=$(mktemp -d); say "cloning $REPO"; git clone -q --depth 1 "https://github.com/$REPO" "$src" || return 1
   fi
   say "building from source in $src"
@@ -92,12 +103,16 @@ build_from_source() {
 
 install_binary() {
   mkdir -p "$BIN_DIR"
-  local from_source=0; [ -f "$SRC_DIR/go.mod" ] && from_source=1
+  local from_source=0; is_checkout && from_source=1
   if [ "${HYPRCAGE_FROM_SOURCE:-$from_source}" = 1 ]; then build_from_source || die "build failed"; return; fi
   local version=${HYPRCAGE_VERSION:-} a tmp
   a=$(arch)
   if [ -z "$version" ]; then version=$(latest_version) || true; fi
-  [ -n "$version" ] || die "cannot find the latest release of $REPO (offline?); HYPRCAGE_FROM_SOURCE=1 builds it with go"
+  if [ -z "$version" ]; then
+    warn "no release of $REPO found; building from source"
+    build_from_source || die "no release of $REPO and no go toolchain to build it: install go, or HYPRCAGE_VERSION=vX.Y.Z"
+    return
+  fi
   VERSION=$version
   if [ -x "$BIN_DIR/hyprcage" ] && [ "$("$BIN_DIR/hyprcage" version 2>/dev/null)" = "$version" ]; then
     say "hyprcage $version already in $BIN_DIR"; return
