@@ -29,6 +29,8 @@ type fakeCaller struct {
 	failEval map[string]error                      // by session
 	failBox  map[int]error                         // by backend id, any session
 	scroll   error
+	ownerErr error  // returned by DOM.getFrameOwner when set
+	cancel   func() // called by DOM.getFrameOwner when set
 
 	mu       sync.Mutex
 	detached []string
@@ -89,6 +91,13 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		}
 		return f.trees[session], nil
 	case "DOM.getFrameOwner":
+		if f.cancel != nil {
+			f.cancel()
+			return nil, context.Canceled
+		}
+		if f.ownerErr != nil {
+			return nil, f.ownerErr
+		}
 		if id, ok := f.owners[session][p.FrameID]; ok {
 			return fmt.Appendf(nil, `{"backendNodeId":%d}`, id), nil
 		}
@@ -382,5 +391,34 @@ func TestCDPSkipsBrokenTarget(t *testing.T) {
 
 	f.failTree["S-T1"] = errors.New("connection reset")
 	_, err = newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	wantCode(t, err, screen.CodeCDP)
+}
+
+func TestCDPOriginTransportError(t *testing.T) {
+	tree := json.RawMessage(`{"nodes":[{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1}]}`)
+	f := &fakeCaller{
+		targets:  `[{"targetId":"P","type":"page"},{"targetId":"F","type":"iframe"}]`,
+		trees:    map[string]json.RawMessage{"S-P": tree, "S-F": tree},
+		ownerErr: errors.New("connection reset"),
+	}
+	src := newCDPWith(f, cdpTargetTypes)
+	nodes, err := src.Nodes(context.Background())
+	if err != nil || len(nodes) != 1 || nodes[0].Key != "cdp:P:1" {
+		t.Fatalf("Nodes = %+v, %v; want only the page node", nodes, err)
+	}
+	if !slices.Contains(f.detached, "S-F") || src.(*cdpSource).sessions["F"] != nil {
+		t.Fatalf("iframe not evicted: detached = %v", f.detached)
+	}
+
+	// Two iframes and no page: both fail to place, so every target failed.
+	f.targets = `[{"targetId":"F","type":"iframe"},{"targetId":"G","type":"iframe"}]`
+	f.trees["S-G"] = tree
+	_, err = newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	wantCode(t, err, screen.CodeCDP)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	f.targets = `[{"targetId":"P","type":"page"},{"targetId":"F","type":"iframe"}]`
+	f.cancel = cancel
+	_, err = newCDPWith(f, cdpTargetTypes).Nodes(ctx)
 	wantCode(t, err, screen.CodeCDP)
 }

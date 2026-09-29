@@ -297,7 +297,7 @@ func (s *cdpSource) Nodes(ctx context.Context) ([]Node, error) {
 	live := map[string]bool{}
 	var frames []*frame
 	var lastErr error
-	tried := 0
+	tried, failed := 0, 0
 	for _, t := range tl.TargetInfos {
 		if !slices.Contains(s.types, t.Type) {
 			continue
@@ -305,10 +305,14 @@ func (s *cdpSource) Nodes(ctx context.Context) ([]Node, error) {
 		live[t.TargetID] = true
 		tried++
 		f, err := s.read(ctx, t.TargetID, t.Type)
+		if ctx.Err() != nil {
+			return nil, unreachable(ctx.Err())
+		}
 		if err != nil {
 			// One broken target does not fail the snapshot.
 			s.evict(ctx, t.TargetID)
 			lastErr = err
+			failed++
 			continue
 		}
 		frames = append(frames, f)
@@ -318,21 +322,34 @@ func (s *cdpSource) Nodes(ctx context.Context) ([]Node, error) {
 			s.evict(ctx, id)
 		}
 	}
-	if tried > 0 && len(frames) == 0 {
-		return nil, unreachable(lastErr)
-	}
 	var out []Node
+	var broken []string           // placed after the loop, so that every frame asks the same sessions
 	owners := map[string]string{} // child target → Key of its owner node
 	for _, f := range frames {
 		ox, oy, root, owner, err := s.origin(ctx, f.target, 0)
-		if err != nil {
+		if ctx.Err() != nil {
+			return nil, unreachable(ctx.Err())
+		}
+		if isProto(err) {
 			continue // ponytail: a frame without a known owner has no page coordinates; skip it.
+		}
+		if err != nil {
+			broken = append(broken, f.target)
+			lastErr = err
+			failed++
+			continue
 		}
 		owners[f.target] = owner
 		for i := range f.nodes {
 			place(&f.nodes[i], f.boxes[i], ox, oy, root)
 		}
 		out = append(out, f.nodes...)
+	}
+	for _, t := range broken {
+		s.evict(ctx, t)
+	}
+	if tried > 0 && failed == tried {
+		return nil, unreachable(lastErr)
 	}
 	keys := make(map[string]bool, len(out))
 	for _, n := range out {
