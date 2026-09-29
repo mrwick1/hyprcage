@@ -63,8 +63,10 @@ func thunarTree(t *testing.T) *fakeTree {
 	return f
 }
 
+// obj builds a showing object; the source drops objects that are not showing.
 func obj(path, role, name string, ext [4]int, states ...string) accessible {
-	return accessible{Bus: ":1.5", Path: path, Role: role, Name: name, Extents: ext, States: states, PID: 1}
+	return accessible{Bus: ":1.5", Path: path, Role: role, Name: name, Extents: ext,
+		States: append(states, "showing"), PID: 1}
 }
 
 func nodesOf(t *testing.T, f *fakeTree, pids ...int) []Node {
@@ -81,8 +83,8 @@ func TestATSPIFiltersForeignPIDs(t *testing.T) {
 	f.objs = append(f.objs, accessible{Bus: ":1.99", Path: "/org/a11y/atspi/accessible/1", Role: "push button",
 		Name: "Human's secret", Extents: [4]int{0, 0, 10, 10}, PID: 999999})
 	nodes := nodesOf(t, f, thunarPID)
-	if len(nodes) != len(f.objs)-1 {
-		t.Fatalf("got %d nodes, want %d", len(nodes), len(f.objs)-1)
+	if want := len(nodesOf(t, thunarTree(t), thunarPID)); len(nodes) != want {
+		t.Fatalf("got %d nodes, want %d", len(nodes), want)
 	}
 	for _, n := range nodes {
 		if n.Name == "Human's secret" {
@@ -112,6 +114,70 @@ func TestATSPIRoleMap(t *testing.T) {
 	for i, n := range nodes {
 		if n.Role != want[i] {
 			t.Errorf("%s: role %q, want %q", n.Name, n.Role, want[i])
+		}
+	}
+}
+
+func TestATSPIMenuRole(t *testing.T) {
+	nodes := nodesOf(t, &fakeTree{objs: []accessible{
+		obj("/m", "menu", "File", [4]int{0, 0, 10, 10}),
+		obj("/c", "check menu item", "Hidden files", [4]int{0, 0, 10, 10}),
+		obj("/r", "radio menu item", "List View", [4]int{0, 0, 10, 10}),
+	}}, 1)
+	got := Filter(nodes, ModeInteractive, "")
+	want := []string{"menuitem", "menuitemcheckbox", "menuitemradio"}
+	if len(got) != len(want) {
+		t.Fatalf("interactive nodes %+v, want roles %v", got, want)
+	}
+	for i, n := range got {
+		if n.Role != want[i] {
+			t.Errorf("%s: role %q, want %q", n.Name, n.Role, want[i])
+		}
+	}
+}
+
+func TestATSPISkipsNotShowing(t *testing.T) {
+	hidden := obj("/h", "button", "Hidden", [4]int{0, 0, 10, 10})
+	hidden.States = []string{"enabled"}
+	child := obj("/k", "button", "Child", [4]int{0, 0, 10, 10})
+	child.Parent = "/h"
+	unknown := accessible{Bus: ":1.5", Path: "/u", Role: "button", Name: "Unknown", NoStates: true, PID: 1}
+	app := accessible{Bus: ":1.5", Path: "/app", Role: "application", Name: "app", PID: 1}
+	nodes := nodesOf(t, &fakeTree{objs: []accessible{
+		app, obj("/s", "button", "Shown", [4]int{0, 0, 10, 10}), hidden, child, unknown,
+	}}, 1)
+	var names []string
+	for _, n := range nodes {
+		names = append(names, n.Name)
+	}
+	if !slices.Equal(names, []string{"app", "Shown", "Unknown"}) {
+		t.Fatalf("names %v, want [app Shown Unknown]", names)
+	}
+}
+
+func TestATSPIHiddenCoordsZero(t *testing.T) {
+	const hidden = -2147483648
+	n := nodesOf(t, &fakeTree{objs: []accessible{
+		obj("/a", "button", "A", [4]int{hidden, hidden, 1, 1}),
+		obj("/b", "button", "B", [4]int{50, 60, 0, 0}),
+	}}, 1)
+	for _, x := range n {
+		if x.X != 0 || x.Y != 0 || !x.Offscreen {
+			t.Errorf("%s: got (%d,%d) offscreen=%v, want (0,0) offscreen", x.Name, x.X, x.Y, x.Offscreen)
+		}
+	}
+}
+
+func TestATSPIFixtureMenus(t *testing.T) {
+	got := Filter(nodesOf(t, thunarTree(t), thunarPID), ModeInteractive, "")
+	for _, name := range []string{"File", "Edit", "View", "Go", "Help"} {
+		if !slices.ContainsFunc(got, func(n Node) bool { return n.Role == "menuitem" && n.Name == name }) {
+			t.Errorf("no menuitem %q in the interactive snapshot", name)
+		}
+	}
+	for _, n := range got {
+		if n.Name == "Icon View" || n.Name == "List View" { // closed-menu items lack showing
+			t.Errorf("non-showing %q in the snapshot", n.Name)
 		}
 	}
 }

@@ -40,7 +40,8 @@ var atspiRoles = map[string]string{
 	"button": "button", "push button": "button", "toggle button": "button",
 	"check box": "checkbox", "radio button": "radio",
 	"text": "textbox", "entry": "textbox", "password text": "textbox",
-	"combo box": "combobox", "list item": "option", "menu item": "menuitem",
+	"combo box": "combobox", "list item": "option", "menu item": "menuitem", "menu": "menuitem",
+	"check menu item": "menuitemcheckbox", "radio menu item": "menuitemradio",
 	"page tab": "tab", "tree item": "treeitem", "heading": "heading",
 	"dialog": "dialog", "link": "link", "slider": "slider", "spin button": "spinbutton",
 }
@@ -108,16 +109,29 @@ func (s *atspiSource) walk(ctx context.Context) ([]accessible, error) {
 	}
 	// The guarantee: whatever Walk returns, a foreign PID never leaves here.
 	seen := make(map[string]bool, len(objs))
+	dropped := map[string]bool{}
 	out := objs[:0]
 	for _, o := range objs {
 		k := atspiKey(o.Bus, o.Path)
 		if !slices.Contains(pids, o.PID) || seen[k] {
 			continue
 		}
+		// ponytail: one pass, so a parent must come before its children (Walk is preorder).
+		if !showing(o) || (o.Parent != "" && dropped[atspiKey(o.Bus, o.Parent)]) {
+			dropped[k] = true
+			continue
+		}
 		seen[k] = true
 		out = append(out, o)
 	}
 	return out, nil
+}
+
+// showing reports whether o is on screen. An object without the showing
+// state is hidden, and so is its subtree. The application root never has
+// the state but holds the Parent chain. Unknown states keep the object.
+func showing(o accessible) bool {
+	return o.NoStates || o.Role == "application" || slices.Contains(o.States, "showing")
 }
 
 func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
@@ -182,7 +196,9 @@ func atspiNodes(objs []accessible) []Node {
 		const hidden = -2147483648 // GTK3 extents of a widget that is not shown
 		x, y, w, h := o.Extents[0], o.Extents[1], o.Extents[2], o.Extents[3]
 		n.X, n.Y = x+w/2, y+h/2
-		n.Offscreen = w <= 0 || x == hidden || y == hidden
+		if n.Offscreen = w <= 0 || x == hidden || y == hidden; n.Offscreen {
+			n.X, n.Y = 0, 0 // no usable centre
+		}
 		nodes = append(nodes, n)
 	}
 	return nodes
@@ -298,7 +314,7 @@ var stateBits = []struct {
 	nick string
 }{
 	{4, "checked"}, {7, "editable"}, {8, "enabled"}, {10, "expanded"}, {12, "focused"},
-	{23, "selected"}, {24, "sensitive"}, {33, "required"}, {36, "invalid-entry"},
+	{23, "selected"}, {24, "sensitive"}, {25, "showing"}, {33, "required"}, {36, "invalid-entry"},
 }
 
 // dbusTree walks the real a11y bus.
@@ -369,6 +385,9 @@ func (d *dbusTree) Walk(ctx context.Context, pids []int) ([]accessible, error) {
 			o, kids, err := d.read(ctx, it.ref, app.pid)
 			if err != nil {
 				continue // ponytail: an object that vanished mid-walk is skipped with its subtree.
+			}
+			if !showing(o) {
+				continue // its subtree is not showing either
 			}
 			o.Parent = it.parent
 			out = append(out, o)
