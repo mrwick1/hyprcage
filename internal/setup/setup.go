@@ -18,6 +18,8 @@ import (
 // package is present.
 var Packages = []struct{ Package, Binary string }{
 	{"cage", "cage"},
+	{"ffmpeg", "ffmpeg"},        // recording
+	{"wl-clipboard", "wl-copy"}, // clipboard of a screen
 }
 
 // Report says what Run found and did.
@@ -39,9 +41,25 @@ func Missing() []string {
 	return out
 }
 
+// InstallArgv returns the command that installs pkgs with the first known
+// package manager on PATH: pacman (Arch) or zypper (openSUSE).
+func InstallArgv(lookPath func(string) (string, error), pkgs []string) ([]string, error) {
+	if _, err := lookPath("pacman"); err == nil {
+		return append([]string{"pacman", "-S", "--needed", "--noconfirm"}, pkgs...), nil
+	}
+	if _, err := lookPath("zypper"); err == nil {
+		return append([]string{"zypper", "--non-interactive", "install", "--no-recommends"}, pkgs...), nil
+	}
+	return nil, errors.New("no known package manager (pacman or zypper): install " + strings.Join(pkgs, " and ") + " by hand")
+}
+
 // ManualCommand is what the human can run themselves.
 func ManualCommand(pkgs []string) string {
-	return "sudo pacman -S --needed " + strings.Join(pkgs, " ")
+	argv, err := InstallArgv(exec.LookPath, pkgs)
+	if err != nil {
+		return err.Error()
+	}
+	return "sudo " + strings.Join(argv, " ")
 }
 
 // Run installs the missing packages. It tries sudo without a password
@@ -53,11 +71,11 @@ func Run() (Report, error) {
 	if len(rep.Missing) == 0 {
 		return rep, nil
 	}
-	if _, err := exec.LookPath("pacman"); err != nil {
-		rep.Manual = "install " + strings.Join(rep.Missing, " and ") + " with your package manager"
-		return rep, errors.New("not an Arch-based system: " + rep.Manual)
+	pm, err := InstallArgv(exec.LookPath, rep.Missing)
+	if err != nil {
+		rep.Manual = err.Error()
+		return rep, err
 	}
-	pacman := append([]string{"pacman", "-S", "--needed", "--noconfirm"}, rep.Missing...)
 	var attempts []struct {
 		method string
 		argv   []string
@@ -66,18 +84,18 @@ func Run() (Report, error) {
 		attempts = append(attempts, struct {
 			method string
 			argv   []string
-		}{"sudo", append([]string{"sudo", "-n"}, pacman...)})
+		}{"sudo", append([]string{"sudo", "-n"}, pm...)})
 	} else if stdinIsTerminal() {
 		attempts = append(attempts, struct {
 			method string
 			argv   []string
-		}{"sudo", append([]string{"sudo"}, pacman...)})
+		}{"sudo", append([]string{"sudo"}, pm...)})
 	}
 	if _, err := exec.LookPath("pkexec"); err == nil {
 		attempts = append(attempts, struct {
 			method string
 			argv   []string
-		}{"pkexec", append([]string{"pkexec"}, pacman...)})
+		}{"pkexec", append([]string{"pkexec"}, pm...)})
 	}
 	var last error
 	for _, a := range attempts {
