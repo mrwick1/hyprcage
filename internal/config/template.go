@@ -40,6 +40,15 @@ safety_timer = "15m"  # close a screen this long after the session that opened i
 [cage]
 renderer = "auto"     # auto tries the GPU first and falls back, gles or pixman forces one
 render_device = ""    # DRM node cage renders on, empty to follow your compositor's GPU
+
+[record]
+dir = "~/Videos/agent" # recordings of screens and of the desktop go here
+max = "30m"           # a recording stops by itself after this long
+fps = 10              # frames per second of a recording
+
+[browser]
+command = ""          # Chrome binary for browser_open, empty to look one up on PATH
+port = 9222           # DevTools port of the agent's Chrome, always on 127.0.0.1
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and

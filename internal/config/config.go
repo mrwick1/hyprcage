@@ -50,6 +50,12 @@ type Config struct {
 	ShotMaxBytes    int     // encoded size budget
 	StableThreshold float64 // wait --stable: max percent of changed pixels (8x reduced)
 
+	RecordDir      string        // where recordings go; ~ is the home directory
+	RecordMax      time.Duration // a recording stops by itself after this long
+	RecordFPS      int           // frames per second of a recording
+	BrowserCommand string        // Chrome binary; empty to look one up on PATH
+	BrowserPort    int           // DevTools port of the agent's Chrome, on 127.0.0.1
+
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
 }
@@ -81,6 +87,11 @@ func Default() Config {
 		ShotMaxSide:     2000,
 		ShotMaxBytes:    1 << 20,
 		StableThreshold: 0.02,
+
+		RecordDir:   "~/Videos/agent",
+		RecordMax:   30 * time.Minute,
+		RecordFPS:   10,
+		BrowserPort: 9222,
 	}
 }
 
@@ -162,6 +173,15 @@ type file struct {
 		Renderer     string `toml:"renderer"`
 		RenderDevice string `toml:"render_device"`
 	} `toml:"cage"`
+	Record struct {
+		Dir string `toml:"dir"`
+		Max string `toml:"max"`
+		FPS *int   `toml:"fps"`
+	} `toml:"record"`
+	Browser struct {
+		Command *string `toml:"command"`
+		Port    *int    `toml:"port"`
+	} `toml:"browser"`
 }
 
 // Apply overrides cfg with the TOML text and validates the result.
@@ -215,6 +235,21 @@ func Apply(cfg *Config, text string) error {
 		cfg.MirrorGroup = strings.ToLower(strings.TrimSpace(f.Mirror.Group))
 	}
 	setInt(&cfg.MirrorPerWorkspace, f.Mirror.PerWorkspace)
+	if f.Record.Dir != "" {
+		cfg.RecordDir = f.Record.Dir
+	}
+	if f.Record.Max != "" {
+		d, err := time.ParseDuration(f.Record.Max)
+		if err != nil {
+			return fmt.Errorf("record.max: %w", err)
+		}
+		cfg.RecordMax = d
+	}
+	setInt(&cfg.RecordFPS, f.Record.FPS)
+	if f.Browser.Command != nil {
+		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
+	}
+	setInt(&cfg.BrowserPort, f.Browser.Port)
 	return cfg.Validate()
 }
 
@@ -246,6 +281,12 @@ func (c Config) Validate() error {
 		return fmt.Errorf("mirror.per_workspace: %d is below 1", c.MirrorPerWorkspace)
 	case c.SafetyTimer < time.Minute:
 		return fmt.Errorf("lifecycle.safety_timer: %s is below 1m", c.SafetyTimer)
+	case c.RecordFPS < 1 || c.RecordFPS > 60:
+		return fmt.Errorf("record.fps: %d is not between 1 and 60", c.RecordFPS)
+	case c.RecordMax < time.Second:
+		return fmt.Errorf("record.max: %s is below 1s", c.RecordMax)
+	case c.BrowserPort < 1024 || c.BrowserPort > 65535:
+		return fmt.Errorf("browser.port: %d is not between 1024 and 65535", c.BrowserPort)
 	}
 	switch c.Renderer {
 	case "auto", "gles", "pixman":
@@ -258,4 +299,14 @@ func (c Config) Validate() error {
 		return fmt.Errorf("mirror.group: %q is not session, pack or screen", c.MirrorGroup)
 	}
 	return nil
+}
+
+// ExpandHome replaces a leading ~/ with the home directory.
+func ExpandHome(p string) string {
+	if rest, ok := strings.CutPrefix(p, "~/"); ok {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, rest)
+		}
+	}
+	return p
 }
