@@ -106,6 +106,8 @@ func TestNothingReachesHyprland(t *testing.T) {
 	}
 	wantCode(t, "type aé", d.Type("0xabc", "aé"), screen.CodeUnsupported)
 	wantCode(t, "key bad", d.Key("0xabc", []string{"Return", "hyper+x"}), screen.CodeUnsupported)
+	wantCode(t, "move ws 0", d.Move("0xabc", 0), screen.CodeUnsupported)
+	wantCode(t, "move ws -1", d.Move("0xabc", -1), screen.CodeUnsupported)
 	// A valid call does reach the dead socket, which proves the check above.
 	wantCode(t, "focus valid", d.Focus("0xabc"), screen.CodeHyprland)
 	_, err := d.Windows()

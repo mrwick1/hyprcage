@@ -173,6 +173,9 @@ func (d Desktop) Move(addr string, ws int) error {
 	if err := d.ready(addr); err != nil {
 		return err
 	}
+	if ws < 1 {
+		return screen.Errf(screen.CodeUnsupported, "workspaces start at 1", "workspace %d", ws)
+	}
 	return d.command(d.D.MoveWindowCmd(addr, ws))
 }
 
