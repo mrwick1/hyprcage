@@ -363,14 +363,14 @@ func TestActTypeWaitsForFocus(t *testing.T) {
 	focused := field
 	focused.States = []string{"focused"}
 	in := &fakeInput{}
-	// read 0 is Act's own read; the focus polls are reads 1, 2 and 3.
+	// read 0 is Act's own read, read 1 finds the centre stable, the focus polls are reads 2 and 3.
 	src := &logSource{fakeSource{name: "cdp", reads: [][]Node{{field}, {field}, {field}, {focused}}}, &in.calls}
 	tb := NewTable()
 	tb.Assign([]Node{field})
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hello"}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"read 0", "move 5,6", "click 5,6 x1", "read 1", "read 2", "read 3", "type hello"}
+	want := []string{"read 0", "read 1", "move 5,6", "click 5,6 x1", "read 2", "read 3", "type hello"}
 	if len(in.calls) < len(want) || !slices.Equal(in.calls[:len(want)], want) {
 		t.Fatalf("order %v, want prefix %v", in.calls, want)
 	}
@@ -437,6 +437,76 @@ func TestActTypeClicksAgain(t *testing.T) {
 			in.calls[lastClick] != "click 5,6 x1" || in.calls[lastClick+1] != "read" {
 			t.Errorf("focused after %d clicks: %v, want %d clicks, then one read, then one type", after, in.calls, after)
 		}
+	}
+}
+
+// TestActClickWaitsForStableCentre: right after a window maps, Chrome's
+// toolbar is not laid out yet, so the first centre is stale.
+func TestActClickWaitsForStableCentre(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = time.Second
+	tb := NewTable()
+	tb.Assign([]Node{button("k1", "query", 208, 36)})
+	// read 0 is Act's own read; read 1 moves, read 2 agrees with read 1.
+	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "query", 208, 36)}, {button("k1", "query", 208, 115)}}}
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(in.calls, []string{"move 208,115", "click 208,115 x1"}) {
+		t.Fatalf("calls %v, want the click at the stable centre", in.calls)
+	}
+}
+
+// drifting moves the button one pixel right on every read and logs the read.
+type drifting struct {
+	fakeSource
+	log *[]string
+}
+
+func (d *drifting) Nodes(context.Context) ([]Node, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.n++
+	*d.log = append(*d.log, fmt.Sprint("read ", d.n))
+	return []Node{button("k1", "B", d.n, 10)}, nil
+}
+
+func TestActClickNeverStable(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = 20 * time.Millisecond
+	tb := NewTable()
+	tb.Assign([]Node{button("k1", "B", 1, 10)})
+	in := &fakeInput{}
+	src := &drifting{fakeSource{name: "cdp"}, &in.calls}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(in.calls, func(c string) bool { return strings.HasPrefix(c, "click ") })
+	if i < 2 || in.calls[i-2] != "read "+strings.TrimSuffix(strings.Fields(in.calls[i])[1], ",10") {
+		t.Fatalf("calls %v: the click must use the last read before it", in.calls)
+	}
+	if !strings.HasPrefix(in.calls[i-2], "read ") || in.calls[i-2] == "read 1" {
+		t.Fatalf("calls %v: no stability reads", in.calls)
+	}
+}
+
+func TestActOCRTypeClicksOnce(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = time.Second
+	line := Node{Key: "ocr:1", Role: "text", Name: "query", X: 5, Y: 6}
+	tb := NewTable()
+	tb.Assign([]Node{line})
+	in := &fakeInput{}
+	start := time.Now()
+	if _, err := act(context.Background(), in, &fakeSource{name: "ocr", reads: [][]Node{{line}}}, tb, ActOp{Ref: "o1", Op: "type", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	if el := time.Since(start); el > typeFocusWait/2 {
+		t.Fatalf("OCR type took %v: it must not wait for focus", el)
+	}
+	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1", "type hi"}) {
+		t.Fatalf("calls %v", in.calls)
 	}
 }
 

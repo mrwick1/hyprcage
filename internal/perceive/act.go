@@ -145,7 +145,7 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 					"%s %q has no reliable coordinates for %s", n.Role, n.Name, op.Op)
 			}
 			press = true
-		} else if n.Offscreen {
+		} else if n = stable(ctx, src, n); n.Offscreen {
 			r, err := src.Reveal(ctx, n.Key)
 			if err != nil {
 				return Diff{}, err
@@ -174,10 +174,11 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	case op.Op == "double_click":
 		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 2) })
 	case op.Op == "type":
-		// A click in the first second after the window maps can be dropped:
-		// click once more when the field does not report focused.
 		click := func() error { return pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }) }
-		if err = click(); err == nil && !waitFocus(ctx, src, n.Key) {
+		// OCR has no focus state: click, then type. Other sources click once
+		// more, at a fresh stable centre, when the field does not report focused.
+		if err = click(); err == nil && src.Name() != "ocr" && !waitFocus(ctx, src, n.Key) {
+			n = stable(ctx, src, n)
 			if err = click(); err == nil {
 				waitFocus(ctx, src, n.Key)
 			}
@@ -206,6 +207,40 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	}
 	t.Assign(after)
 	return DiffNodes(before, after), nil
+}
+
+// stable reads the nodes every settlePoll until the centre of n is the
+// same on two reads in a row, or until typeFocusWait, and returns n from
+// the last read. Right after a window maps, Chrome has not laid out its
+// toolbar yet, so the first centre can be stale. OCR positions come from
+// one screenshot, so an OCR n is returned as is. A read that fails or
+// lacks n is skipped.
+func stable(ctx context.Context, src Source, n Node) Node {
+	if src.Name() == "ocr" {
+		return n
+	}
+	deadline := time.Now().Add(typeFocusWait)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return n
+		case <-time.After(settlePoll):
+		}
+		nodes, err := src.Nodes(ctx)
+		if err != nil {
+			continue
+		}
+		i := slices.IndexFunc(nodes, func(x Node) bool { return x.Key == n.Key })
+		if i < 0 {
+			continue
+		}
+		prev := n
+		n = nodes[i]
+		if n.X == prev.X && n.Y == prev.Y {
+			return n
+		}
+	}
+	return n
 }
 
 // pressAt moves the pointer to n, waits pointerSettle, then runs press.
