@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # hyprcage installer: one command, everything in place.
 #
-#   curl -fsSL https://raw.githubusercontent.com/hexadecimil/hyprcage/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/mrwick1/hyprcage/main/install.sh | bash
+#
+# Run from a checkout, it builds the binary from that source with go.
 #
 # What it does, in order, skipping what is already there:
-#   1. cage, the agent's compositor,
-#      through pacman. sudo asks for your password once.
+#   1. cage (the agent's compositor), ffmpeg and wl-clipboard, through pacman
+#      or zypper. sudo asks for your password once.
 #   2. the hyprcage binary for this machine, from the GitHub release, checksum
 #      verified against the SHA256SUMS published with it, into ~/.local/bin.
-#   3. the agents it finds: the Claude Code plugin (this repository is its own
-#      marketplace), and the MCP server plus the skill for Codex, Cursor,
-#      Gemini CLI, Windsurf and OpenCode.
+#   3. the agents it finds: the MCP server for Claude Code, and the MCP server
+#      plus the skill for Codex, Cursor, Gemini CLI, Windsurf and OpenCode.
 #   4. hyprcage doctor.
 #
 # Options and environment:
@@ -18,15 +19,16 @@
 #                            claude, codex, gemini, cursor, windsurf, opencode,
 #                            or none (default: every agent found on the machine)
 #   --binary-only            step 2 only (what the plugin's launcher runs)
-#   --uninstall              remove the binary, the plugin and hyprcage's state
+#   --uninstall              remove the binary, the registrations and hyprcage's state
 #   HYPRCAGE_VERSION=vX.Y.Z  pin a release (default: the latest)
-#   HYPRCAGE_FROM_SOURCE=1   build with go instead of downloading
+#   HYPRCAGE_FROM_SOURCE=1|0 build with go (1) or download (0); default 1 in a
+#                            checkout, 0 elsewhere
 #   HYPRCAGE_BIN_DIR=DIR     where the binary goes (default ~/.local/bin)
 #   HYPRCAGE_RELEASE_BASE=URL  where the assets are fetched from (tests; default
 #                            the GitHub release of the version)
 set -euo pipefail
 
-REPO=${HYPRCAGE_REPO:-hexadecimil/hyprcage}
+REPO=${HYPRCAGE_REPO:-mrwick1/hyprcage}
 BIN_DIR=${HYPRCAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${HYPRCAGE_AGENTS:-all}
 SRC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")
@@ -90,7 +92,8 @@ build_from_source() {
 
 install_binary() {
   mkdir -p "$BIN_DIR"
-  if [ "${HYPRCAGE_FROM_SOURCE:-0}" = 1 ]; then build_from_source || die "build failed"; return; fi
+  local from_source=0; [ -f "$SRC_DIR/go.mod" ] && from_source=1
+  if [ "${HYPRCAGE_FROM_SOURCE:-$from_source}" = 1 ]; then build_from_source || die "build failed"; return; fi
   local version=${HYPRCAGE_VERSION:-} a tmp
   a=$(arch)
   if [ -z "$version" ]; then version=$(latest_version) || true; fi
@@ -119,7 +122,7 @@ write_config() {
 
 check_path() {
   case ":$PATH:" in *":$BIN_DIR:"*) return ;; esac
-  warn "$BIN_DIR is not on your PATH; add it to your shell profile and to your graphical session (Hyprland's env), or the plugin will not find hyprcage"
+  warn "$BIN_DIR is not on your PATH; add it to your shell profile and to your graphical session (Hyprland's env), or the agents will not find hyprcage"
 }
 
 # --- 3. agents -------------------------------------------------------------------
@@ -170,17 +173,20 @@ install_skill() {
 }
 
 # Each agent gets the MCP server (the absolute path, so PATH does not matter)
-# and, outside Claude Code, a copy of the skill. Claude Code alone gets the
-# session hooks through its plugin; elsewhere screens of a finished session
-# are closed by the safety timer.
+# and, outside Claude Code, a copy of the skill. The safety timer closes the
+# screens of a finished session.
 # wanted NAME: is this agent selected by --agents (default: all found)?
 wanted() { case ",$AGENTS," in *,all,* | *,"$1",*) return 0 ;; esac; return 1; }
 
 register_agents() {
   local bin=$BIN_DIR/hyprcage found=0
   [ "$AGENTS" = none ] && { say "no agent registration asked (--agents none)"; return; }
-  if wanted claude && have claude; then found=1; register_plugin
-  elif wanted claude && [ -d "$HOME/.claude" ]; then found=1; say "Claude Code (no claude CLI in PATH): in a session run  /plugin marketplace add $REPO  then  /plugin install hyprcage@hyprcage"
+  if wanted claude && have claude; then
+    found=1
+    if claude mcp get hyprcage >/dev/null 2>&1; then say "claude: already registered"
+    elif claude mcp add --scope user hyprcage -- "$bin" mcp >/dev/null 2>&1; then say "claude: MCP server registered"
+    else warn "claude: run  claude mcp add --scope user hyprcage -- $bin mcp"; fi
+  elif wanted claude && [ -d "$HOME/.claude" ]; then found=1; say "Claude Code (no claude CLI in PATH): run  claude mcp add --scope user hyprcage -- $bin mcp"
   fi
   if wanted codex && have codex; then
     found=1
@@ -211,10 +217,7 @@ register_agents() {
 }
 
 unregister_agents() {
-  if have claude; then
-    claude plugin uninstall hyprcage >/dev/null 2>&1 || true
-    claude plugin marketplace remove hyprcage >/dev/null 2>&1 || true
-  fi
+  have claude && claude mcp remove --scope user hyprcage >/dev/null 2>&1
   have codex && codex mcp remove hyprcage >/dev/null 2>&1
   have gemini && gemini mcp remove -s user hyprcage >/dev/null 2>&1
   json_unset "$HOME/.cursor/mcp.json" mcpServers
@@ -224,23 +227,10 @@ unregister_agents() {
   return 0
 }
 
-register_plugin() {
-  if ! have claude; then
-    say "claude CLI not found; in Claude Code run:  /plugin marketplace add $REPO  then  /plugin install hyprcage@hyprcage"
-    return
-  fi
-  if claude plugin marketplace list 2>/dev/null | grep -q '^hyprcage\b\|hyprcage'; then
-    say "marketplace hyprcage already known"
-  else
-    say "adding the plugin marketplace"; claude plugin marketplace add "$REPO" >/dev/null || warn "could not add the marketplace; run: claude plugin marketplace add $REPO"
-  fi
-  say "installing the plugin"; claude plugin install hyprcage@hyprcage >/dev/null 2>&1 && say "plugin installed (takes effect in a new session)" || warn "could not install the plugin; run: claude plugin install hyprcage@hyprcage"
-}
-
 # --- uninstall ---------------------------------------------------------------------
 
 uninstall() {
-  say "removing hyprcage from the agents, the binary and hyprcage's state (cage is left)"
+  say "removing hyprcage from the agents, the binary and hyprcage's state (the packages stay)"
   unregister_agents
   if [ -x "$BIN_DIR/hyprcage" ]; then "$BIN_DIR/hyprcage" gc --all >/dev/null 2>&1 || true; fi
   rm -f "$BIN_DIR/hyprcage"
