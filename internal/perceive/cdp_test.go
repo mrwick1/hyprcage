@@ -31,13 +31,14 @@ type fakeCaller struct {
 	failEval  map[string]error                      // by session
 	failBox   map[int]error                         // by backend id, any session
 	scroll    error
-	ownerErr  error           // returned by DOM.getFrameOwner when set
-	cancel    func()          // called by DOM.getFrameOwner when set
-	viewport  string          // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
-	hit       map[string]int  // by session: backend id that DOM.getNodeForLocation returns; missing: the node whose box centre is there
-	hitErr    error           // returned by DOM.getNodeForLocation when set
-	contains  map[string]bool // by session: the target holds the hit in the composed tree
-	exception bool            // Runtime.callFunctionOn throws
+	ownerErr  error             // returned by DOM.getFrameOwner when set
+	cancel    func()            // called by DOM.getFrameOwner when set
+	viewport  string            // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
+	viewports map[string]string // by session: overrides viewport
+	hit       map[string]int    // by session: backend id that DOM.getNodeForLocation returns; missing: the node whose box centre is there
+	hitErr    error             // returned by DOM.getNodeForLocation when set
+	contains  map[string]bool   // by session: the target holds the hit in the composed tree
+	exception bool              // Runtime.callFunctionOn throws
 
 	mu       sync.Mutex
 	detached []string
@@ -92,7 +93,7 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		if err := f.failEval[session]; err != nil {
 			return nil, err
 		}
-		vp := cmp.Or(f.viewport, `{"dpr":1,"w":1280,"h":800,"ow":1280,"oh":800}`)
+		vp := cmp.Or(f.viewports[session], f.viewport, `{"dpr":1,"w":1280,"h":800,"ow":1280,"oh":800}`)
 		return json.Marshal(map[string]any{"result": map[string]any{"type": "string", "value": vp}})
 	case "Accessibility.getFullAXTree":
 		if err := f.failTree[session]; err != nil {
@@ -410,6 +411,42 @@ func TestCDPIframeOffset(t *testing.T) {
 	nodes, err = newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
 	if err != nil || slices.ContainsFunc(nodes, func(n Node) bool { return strings.HasPrefix(n.Key, "cdp:F:") }) {
 		t.Fatalf("ownerless frame: %v, %+v", err, nodes)
+	}
+}
+
+// TestCDPIframeClips: a node below the iframe's own viewport is off
+// screen, even when its page position is inside the top viewport.
+func TestCDPIframeClips(t *testing.T) {
+	quad := func(x1, y1, x2, y2 int) json.RawMessage {
+		q := fmt.Sprintf("[%d,%d,%d,%d,%d,%d,%d,%d]", x1, y1, x2, y1, x2, y2, x1, y2)
+		return json.RawMessage(`{"model":{"content":` + q + `,"border":` + q + `}}`)
+	}
+	f := &fakeCaller{
+		targets: `[{"targetId":"P","type":"page"},{"targetId":"F","type":"iframe"}]`,
+		trees: map[string]json.RawMessage{
+			"S-P": json.RawMessage(`{"nodes":[
+				{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+				{"nodeId":"5","role":{"value":"Iframe"},"parentId":"1","backendDOMNodeId":5}]}`),
+			"S-F": json.RawMessage(`{"nodes":[
+				{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+				{"nodeId":"7","role":{"value":"button"},"name":{"value":"In"},"parentId":"1","backendDOMNodeId":7},
+				{"nodeId":"8","role":{"value":"button"},"name":{"value":"Below"},"parentId":"1","backendDOMNodeId":8}]}`),
+		},
+		boxes: map[string]map[string]json.RawMessage{
+			"S-P": {"5": quad(100, 100, 400, 300)},
+			"S-F": {"7": quad(0, 0, 20, 20), "8": quad(0, 250, 20, 270)}, // 8 sits at page y 360, below the 200 px iframe
+		},
+		owners:    map[string]map[string]int{"S-P": {"F": 5}},
+		viewports: map[string]string{"S-F": `{"dpr":1,"w":300,"h":200,"ow":300,"oh":200}`},
+	}
+	nodes, err := newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if n.Key == "cdp:F:7" && n.Offscreen || n.Key == "cdp:F:8" && !n.Offscreen {
+			t.Errorf("%s %q: Offscreen %v", n.Key, n.Name, n.Offscreen)
+		}
 	}
 }
 

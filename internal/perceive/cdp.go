@@ -348,7 +348,7 @@ func (s *cdpSource) Nodes(ctx context.Context) ([]Node, error) {
 		}
 		owners[f.target] = owner
 		for i := range f.nodes {
-			place(&f.nodes[i], f.boxes[i], ox, oy, root)
+			place(&f.nodes[i], f.boxes[i], ox, oy, root, s.sessions[f.target])
 		}
 		out = append(out, f.nodes...)
 	}
@@ -476,16 +476,22 @@ func (s *cdpSource) owner(ctx context.Context, target string) (string, int, erro
 }
 
 // place sets the centre of n in window pixels: page pixels plus the
-// browser toolbar of the top page. A node without a box keeps (0,0) and is
-// offscreen. Offscreen is judged against the viewport of the top page.
-func place(n *Node, c *[2]float64, ox, oy float64, root *cdpSession) {
+// browser toolbar of the top page. c is in the CSS pixels of own, the
+// session of the node's target. A node without a box keeps (0,0) and is
+// offscreen. Offscreen is judged against the viewport of the top page and
+// against own's viewport, which clips a node inside an iframe.
+func place(n *Node, c *[2]float64, ox, oy float64, root, own *cdpSession) {
 	n.X, n.Y, n.Offscreen = 0, 0, true
 	if c == nil {
 		return
 	}
+	out := func(x, y float64, se *cdpSession) bool {
+		return x < 0 || y < 0 || x >= float64(se.w) || y >= float64(se.h)
+	}
 	x, y := ox+c[0], oy+c[1]
 	n.X, n.Y = int(math.Round(x*root.dpr+root.chromeX)), int(math.Round(y*root.dpr+root.chromeY))
-	n.Offscreen = x < 0 || y < 0 || x >= float64(root.w) || y >= float64(root.h)
+	// ponytail: only the node's own frame clips; an iframe nested in a clipped iframe is not checked.
+	n.Offscreen = out(x, y, root) || out(c[0], c[1], own)
 }
 
 func key(target string, backend int) string { return fmt.Sprintf("cdp:%s:%d", target, backend) }
@@ -578,7 +584,7 @@ func (s *cdpSource) Reveal(ctx context.Context, k string) (Node, error) {
 	if !ok {
 		n = Node{Key: k}
 	}
-	place(&n, c, ox, oy, root)
+	place(&n, c, ox, oy, root, se)
 	s.last[k] = n
 	return n, nil
 }
