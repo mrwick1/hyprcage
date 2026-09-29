@@ -59,6 +59,12 @@ type Screen struct {
 	// DebugPort is the DevTools port of the screen's application on
 	// 127.0.0.1, 0 when it has none.
 	DebugPort int `json:"debug_port,omitempty"`
+	// DebugPID is the process that opened DebugPort, and DebugPIDStart its
+	// start time. Chromium clears its environment and leaves the screen's
+	// cgroup, so the port belongs to the screen by this process, not by
+	// HYPRCAGE_SCREEN.
+	DebugPID      int    `json:"debug_pid,omitempty"`
+	DebugPIDStart uint64 `json:"debug_pid_start,omitempty"`
 }
 
 // Dir is the registry directory.

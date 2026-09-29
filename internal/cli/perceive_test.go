@@ -40,7 +40,7 @@ func TestCDPCheck(t *testing.T) {
 	u, _ := url.Parse(srv.URL)
 	port, _ := strconv.Atoi(u.Port())
 	// the test process answers but belongs to no screen
-	if st, d := cdpCheck(&registry.Screen{Name: "hc-1", DebugPort: port}); st != "warn" || !strings.Contains(d, "does not belong") {
+	if st, d := cdpCheck(&registry.Screen{Name: "hc-1", DebugPort: port}); st != "warn" || !strings.Contains(d, "no longer holds it") {
 		t.Errorf("foreign listener: %s %s", st, d)
 	}
 	free, _ := screen.FreePort()

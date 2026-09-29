@@ -89,14 +89,16 @@ A new parameter, `debug` (boolean, default `false`), applies to Chromium and Ele
 1. It picks a free TCP port on `127.0.0.1`.
 2. It adds `--remote-debugging-port=<port>`, `--remote-debugging-address=127.0.0.1` and `--force-renderer-accessibility`.
 3. It waits until `/json/version` answers on the port.
-4. It checks that a process of the screen listens on the port. Another program on the port gives `cdp_unreachable`.
-5. It stores the port in the screen record as the screen's DevTools port.
+4. It finds the process that listens on the port. Its command line must carry `--remote-debugging-port=<port>`. Otherwise `app_launch` fails with `cdp_unreachable` and records nothing.
+5. It stores the port, that process's PID and its start time in the screen record. This process owns the port.
+
+The owner is recorded by PID, not by the `HYPRCAGE_SCREEN` variable (verified 2026-09-29). The Chromium or Electron process that listens on the port clears its environment. It also moves to its own `app-*.scope` cgroup and is reparented to `systemd --user`. The environment, the cgroup and the process ancestry therefore all miss it. `screen_destroy` sends SIGTERM to the recorded owner before it stops cage, and SIGKILL after 2 s. It does this only while the PID still has the recorded start time.
 
 `app_launch` also always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1`.
 
-`browser_open` keeps its configured port, `browser.port` (default `9222`), for `chrome-devtools-mcp`. It refuses a port that another program holds. It checks that the Chrome it launched listens on the port, then records the port as the screen's DevTools port. `snapshot` then reads the agent Chrome through CDP.
+`browser_open` keeps its configured port, `browser.port` (default `9222`), for `chrome-devtools-mcp`. It refuses a port that another program holds. It checks that the Chrome it launched listens on the port, then records the port and its owner process as the screen's DevTools port. `snapshot` then reads the agent Chrome through CDP.
 
-Before each use, `snapshot`, `act` and `find` check that a process of the screen still listens on the DevTools port. Another screen's application or the human's Chrome can take a port after its first owner exits. A port that another program holds counts as no port: `auto` goes on to AT-SPI and OCR, and `source: cdp` fails with `cdp_unreachable`.
+Before each use, `snapshot`, `act` and `find` check that the recorded owner still listens on the DevTools port: the listener has the recorded PID and start time. The check reads only the fds of the recorded PID. Another screen's application or the human's Chrome can take a port after its first owner exits. A port that another program holds counts as no port: `auto` goes on to AT-SPI and OCR, and `source: cdp` fails with `cdp_unreachable`.
 
 ### `snapshot` (new)
 
@@ -191,7 +193,7 @@ A node has these fields: ref, role, name, value, description, level, states, the
 
 ### CDP source
 
-1. Check that a process of the screen listens on the screen's port, then read `/json/version` and dial the browser websocket.
+1. Check that the recorded owner process still listens on the screen's port, then read `/json/version` and dial the browser websocket.
 2. Call `Target.getTargets` on every read. Attach to each `page`, `iframe` and `webview` target with `Target.attachToTarget` and `flatten: true`. Detach from the targets that are gone.
 3. Call `Accessibility.getFullAXTree` for each attached target.
 4. Call `DOM.getBoxModel` for each kept node to get its box.
@@ -223,7 +225,7 @@ A node has these fields: ref, role, name, value, description, level, states, the
 | `ref_offscreen`   | The element is off screen, and scrolling did not bring it into view.                        |
 | `ref_occluded`    | Another element covers the element centre (CDP hit-test, before the first click and before the `type` re-click). Close the dialog or act on the covering element. |
 | `unsupported_input` | The source cannot do the op on this element, for example `hover` on an `(action)` node.     |
-| `cdp_unreachable` | The screen has a port, but CDP does not answer, or a process outside the screen holds the port. |
+| `cdp_unreachable` | The screen has a port, but CDP does not answer, or the recorded owner process no longer holds the port. |
 
 A snapshot that reaches `max_nodes` sets `truncated=true` in its first line. It is not an error.
 
@@ -232,7 +234,7 @@ A snapshot that reaches `max_nodes` sets `truncated=true` in its first line. It 
 - `github.com/godbus/dbus/v5` for AT-SPI.
 - One websocket library for CDP. The plan chooses it.
 - The `tesseract-data-eng` package on Arch, and the equivalent package on openSUSE. `install.sh` and `hyprcage setup` install it.
-- `hyprcage doctor` checks the AT-SPI bus and the OCR language data. For each screen with a DevTools port, it checks that `/json/version` answers and that a process of the screen holds the port.
+- `hyprcage doctor` checks the AT-SPI bus and the OCR language data. For each screen with a DevTools port, it checks that `/json/version` answers and that the recorded owner process holds the port.
 
 ## Testing
 

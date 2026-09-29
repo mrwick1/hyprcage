@@ -626,7 +626,7 @@ func TestFindTimeout(t *testing.T) {
 func stubChoose(t *testing.T, apps bool, ocrPresent bool) {
 	t.Helper()
 	h, d, a, o := hasApps, ocrData, newATSPI, ownsPort
-	ownsPort = func(string, int) bool { return true }
+	ownsPort = func(*registry.Screen) bool { return true }
 	hasApps = func(context.Context, string) bool { return apps }
 	newATSPI = func(context.Context, string, int, int) (Source, error) { return &fakeSource{name: "atspi"}, nil }
 	ocrData = filepath.Join(t.TempDir(), "eng.traineddata")
@@ -806,7 +806,7 @@ func TestChooseSkipsForeignPort(t *testing.T) {
 	newCDP = func(context.Context, int) (Source, error) { dialled = true; return &fakeSource{name: "cdp"}, nil }
 	t.Cleanup(func() { newCDP = c })
 	var asked string
-	ownsPort = func(name string, port int) bool { asked = fmt.Sprintf("%s:%d", name, port); return false }
+	ownsPort = func(r *registry.Screen) bool { asked = fmt.Sprintf("%s:%d", r.Name, r.DebugPort); return false }
 	rec := &registry.Screen{Name: "s", DebugPort: 9222}
 	src, err := Choose(context.Background(), rec, nil, "auto")
 	if err != nil || src.Name() != "ocr" || dialled || asked != "s:9222" {

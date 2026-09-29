@@ -30,6 +30,7 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 
 	CloseConn(rec.Name)
 	StopMirror(rec.Name)
+	killDebug(rec) // before cage: Chromium left the slice and survives it
 	if sysd.Available() {
 		sysd.StopScreen(rec.Name) // applications, mirror, cage, slice, reset-failed
 		sysd.DisarmTimer(sysd.GCTimerName(rec.Name))

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"reflect"
 	"slices"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/hyprcage/internal/session"
 )
 
 func TestDebugArgs(t *testing.T) {
@@ -83,12 +85,28 @@ func debugServer(t *testing.T) int {
 	return port
 }
 
+// selfOwned returns a record whose DevTools owner is the test process,
+// listening on port.
+func selfOwned(t *testing.T, port int) *registry.Screen {
+	t.Helper()
+	start, err := session.ProcStart(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &registry.Screen{Name: "t", DebugPort: port, DebugPID: os.Getpid(), DebugPIDStart: start}
+}
+
 func TestPrepareDebugRefusesLivePort(t *testing.T) {
-	rec := &registry.Screen{Name: "t", DebugPort: debugServer(t)}
+	rec := selfOwned(t, debugServer(t))
 	_, _, err := PrepareDebug(rec, []string{"code"})
 	var se *Error
 	if !errors.As(err, &se) || se.Code != CodeLimit {
 		t.Fatalf("err = %v, want code %s", err, CodeLimit)
+	}
+	// Another process now answers on the port: it is replaced, not refused.
+	rec.DebugPID++
+	if _, port, err := PrepareDebug(rec, []string{"code"}); err != nil || port == rec.DebugPort {
+		t.Fatalf("foreign owner: port %d, err %v", port, err)
 	}
 }
 
@@ -120,24 +138,95 @@ func TestListenerPID(t *testing.T) {
 	if pid, err := ListenerPID(port); err != nil || pid != os.Getpid() {
 		t.Fatalf("ListenerPID = %d, %v, want %d", pid, err, os.Getpid())
 	}
-	// ScreenProcesses never lists the caller: the test process owns no screen.
-	if OwnsPort("t", port) {
-		t.Fatal("OwnsPort: the test process belongs to no screen")
-	}
 	free, _ := FreePort()
 	if pid, err := ListenerPID(free); err != nil || pid != 0 {
 		t.Fatalf("ListenerPID(free) = %d, %v, want 0", pid, err)
 	}
 }
 
+func TestOwnsPort(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	rec := selfOwned(t, l.Addr().(*net.TCPAddr).Port)
+	if !OwnsPort(rec) {
+		t.Fatal("OwnsPort = false for the recorded PID and start")
+	}
+	other := *rec
+	other.DebugPID = os.Getppid()
+	if OwnsPort(&other) {
+		t.Error("OwnsPort = true for another PID")
+	}
+	other = *rec
+	other.DebugPIDStart++
+	if OwnsPort(&other) {
+		t.Error("OwnsPort = true for another start time")
+	}
+	other = *rec
+	other.DebugPort, _ = FreePort()
+	if OwnsPort(&other) {
+		t.Error("OwnsPort = true for a port with no listener")
+	}
+}
+
+// stubCmdline makes the DevTools flag check of ConfirmDebug answer ok.
+func stubCmdline(t *testing.T, ok bool) {
+	c := debugCmdlineOK
+	debugCmdlineOK = func(int, int) bool { return ok }
+	t.Cleanup(func() { debugCmdlineOK = c })
+}
+
+func TestConfirmDebugRecordsOwner(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	stubCmdline(t, true)
+	rec := &registry.Screen{Name: "t"}
+	port := debugServer(t)
+	if err := ConfirmDebug(rec, port, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	want := selfOwned(t, port)
+	if rec.DebugPort != port || rec.DebugPID != want.DebugPID || rec.DebugPIDStart != want.DebugPIDStart {
+		t.Fatalf("recorded port %d pid %d start %d, want %+v", rec.DebugPort, rec.DebugPID, rec.DebugPIDStart, want)
+	}
+}
+
 func TestConfirmDebugRefusesForeignListener(t *testing.T) {
+	stubCmdline(t, false) // the listener lacks --remote-debugging-port=<port>
 	rec := &registry.Screen{Name: "t"}
 	err := ConfirmDebug(rec, debugServer(t), time.Second)
 	var se *Error
 	if !errors.As(err, &se) || se.Code != CodeCDP {
 		t.Fatalf("err = %v, want code %s", err, CodeCDP)
 	}
-	if rec.DebugPort != 0 {
-		t.Fatalf("DebugPort = %d, want unchanged", rec.DebugPort)
+	if rec.DebugPort != 0 || rec.DebugPID != 0 || rec.DebugPIDStart != 0 {
+		t.Fatalf("recorded %+v, want nothing", rec)
+	}
+}
+
+func TestKillDebug(t *testing.T) {
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { cmd.Wait(); close(done) }()
+	start, err := session.ProcStart(cmd.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	killDebug(&registry.Screen{Name: "t", DebugPID: cmd.Process.Pid, DebugPIDStart: start + 1}) // another process: spared
+	select {
+	case <-done:
+		t.Fatal("killDebug killed a process whose start time differs")
+	case <-time.After(100 * time.Millisecond):
+	}
+	killDebug(&registry.Screen{Name: "t", DebugPID: cmd.Process.Pid, DebugPIDStart: start})
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		cmd.Process.Kill()
+		t.Fatal("the recorded DevTools process still runs")
 	}
 }

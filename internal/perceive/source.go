@@ -45,8 +45,8 @@ const foreignPortHint = "the DevTools port no longer belongs to this screen; rel
 const noSourceHint = "launch the app with debug=true, or run hyprcage setup for OCR"
 
 // Choose picks the source. want is "auto", "cdp", "atspi" or "ocr".
-// auto tries CDP when rec.DebugPort > 0, a process of the screen listens
-// on it and it answers, then AT-SPI when
+// auto tries CDP when rec.DebugPort > 0, the process recorded as its
+// owner still listens on it and it answers, then AT-SPI when
 // HasApps, then OCR when OCRData exists. It returns CodeNoSource otherwise.
 func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want string) (Source, error) {
 	ocrOK := func() bool { _, err := os.Stat(ocrData); return err == nil }
@@ -55,8 +55,8 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		if rec.DebugPort == 0 {
 			return nil, screen.Errf(screen.CodeNoSource, "launch the app with debug=true", "screen %s has no DevTools port", rec.Name)
 		}
-		if !ownsPort(rec.Name, rec.DebugPort) {
-			return nil, screen.Errf(screen.CodeCDP, foreignPortHint, "no process of screen %s listens on 127.0.0.1:%d", rec.Name, rec.DebugPort)
+		if !ownsPort(rec) {
+			return nil, screen.Errf(screen.CodeCDP, foreignPortHint, "the process that opened 127.0.0.1:%d for screen %s no longer listens on it", rec.DebugPort, rec.Name)
 		}
 		return newCDP(ctx, rec.DebugPort)
 	case "atspi":
@@ -68,7 +68,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		return newOCR(cl), nil
 	case "auto":
 		cdpNote := ""
-		if rec.DebugPort > 0 && !ownsPort(rec.Name, rec.DebugPort) {
+		if rec.DebugPort > 0 && !ownsPort(rec) {
 			// another screen's app or the human's Chrome may hold the port now
 			cdpNote = " (CDP: " + foreignPortHint + ")"
 		} else if rec.DebugPort > 0 {

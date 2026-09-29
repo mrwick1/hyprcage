@@ -185,7 +185,9 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 		ws, err = Ready(base, 5*time.Second)
 	}
 	if err == nil {
-		rec.DebugPort = port
+		err = screen.ClaimDebug(rec, port) // the port belongs to the screen by this Chrome's PID
+	}
+	if err == nil {
 		err = registry.Save(rec)
 	}
 	if err != nil {

@@ -161,16 +161,16 @@ func runDoctor(e *Env) int {
 	return worst
 }
 
-// cdpCheck reports whether the DevTools port of rec answers and whether a
-// process of the screen listens on it.
+// cdpCheck reports whether the DevTools port of rec answers and whether
+// the process recorded as its owner still listens on it.
 func cdpCheck(rec *registry.Screen) (string, string) {
 	if err := screen.WaitDebug(rec.DebugPort, 300*time.Millisecond); err != nil {
 		return "warn", fmt.Sprintf("no answer on 127.0.0.1:%d; snapshot falls back to AT-SPI or OCR", rec.DebugPort)
 	}
-	if !screen.OwnsPort(rec.Name, rec.DebugPort) {
-		return "warn", fmt.Sprintf("127.0.0.1:%d answers but does not belong to the screen; relaunch the app with debug=true", rec.DebugPort)
+	if !screen.OwnsPort(rec) {
+		return "warn", fmt.Sprintf("127.0.0.1:%d answers but its recorded owner no longer holds it; relaunch the app with debug=true", rec.DebugPort)
 	}
-	return "ok", fmt.Sprintf("127.0.0.1:%d answers and belongs to the screen", rec.DebugPort)
+	return "ok", fmt.Sprintf("127.0.0.1:%d answers and its recorded owner holds it", rec.DebugPort)
 }
 
 func keys(m map[int]int) []int {
