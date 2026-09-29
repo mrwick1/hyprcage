@@ -1,7 +1,7 @@
 # hyprcage perception: drive agent screens by text, not screenshots
 
 Date: 2026-09-29
-Status: design approved in conversation, waiting for spec review
+Status: approved; task 1 facts recorded
 Base branch: `feat/computer-use`
 
 ## Goal
@@ -26,11 +26,9 @@ Target applications on `archMachine` (from the installed `.desktop` files):
 
 | Source | Applications                                                                     |
 | ------ | -------------------------------------------------------------------------------- |
-| CDP    | Google Chrome, VS Code, Cursor, Antigravity, figma-linux, Postman, balena-etcher |
-| AT-SPI | Firefox, Thunar, Wireshark, qBittorrent, pavucontrol, blueman                    |
+| CDP    | Google Chrome, VS Code, Cursor, Antigravity, figma-linux, balena-etcher          |
+| AT-SPI | Firefox, Postman, Thunar, Wireshark, qBittorrent, pavucontrol, blueman           |
 | OCR    | Zed, and any application with no accessibility tree                              |
-
-Hypothesis: Firefox exposes a full AT-SPI tree. Zed exposes none. Task 1 verifies both.
 
 ## Success criteria
 
@@ -49,15 +47,25 @@ Hypothesis: Firefox exposes a full AT-SPI tree. Zed exposes none. Task 1 verifie
 - `tesseract` 5.5.3 is installed, but only `afr` and `osd` language data exist. OCR needs the `tesseract-data-eng` package (22.38 MiB).
 - `at-spi2-core` 2.60.6 is installed. `org.a11y.Bus` runs on the session bus.
 
-## To verify (hypotheses, task 1 of the plan)
+## Verified in task 1 (2026-09-29)
 
-- Applications in a cage join the human's single AT-SPI bus. Filtering by the screen's process list isolates them.
-- AT-SPI window coordinates equal screen pixels for GTK3, GTK4 and Qt6 in a cage, because cage shows the window full screen at (0,0).
-- GTK4 implements `Component.GetExtents`.
-- Qt applications need `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1` to publish a tree.
-- Every Electron application in the table accepts `--remote-debugging-port`. Some applications disable this through an Electron fuse.
+- **Shared bus: verified.** Caged applications join the human's single AT-SPI bus. `xdg-desktop-portal-gtk` from the human's session appeared next to them. Each caged application's PID carries `HYPRCAGE_SCREEN=<name>`, so the PID filter isolates it.
+- **GTK3 coordinates: verified.** Thunar 4.20.9 buttons in window coordinates matched a screenshot exactly (Back at (22,48), Home at (133,48)).
+- **GTK4 coordinates: verified, window type only.** pavucontrol 6.2 window extents matched within 5 px. Its screen extents are all (0,0), so the source uses the window coordinate type.
+- **Qt6 coordinates: verified.** qBittorrent 5.2.3 "OK" was at (1229,776) through AT-SPI and at (1224,776) on the screenshot. It ran with `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`. A run without the variable was not tested. The question is moot, because `app_launch` always sets it.
+- **Hidden widgets: new fact.** GTK3 reports extents of (-2147483648, -2147483648, 1, 1) for hidden widgets. The source treats any negative-infinity extent as off screen.
+- **Role names: new fact.** at-spi2-core 2.60 names push buttons `button`, not `push button`. Observed roles include `button`, `toggle button`, `radio button`, `check box`, `menu item`, `page tab`, `text`, `combo box`, `slider`, `table cell`, `label` and `alert`.
+- **Electron apps: 5 of 6 verified.** VS Code, Cursor, Antigravity, figma-linux and balena-etcher answer on `--remote-debugging-port`. Postman ignores the flag (hypothesis: an Electron fuse).
+- **Postman fallback: verified.** With `ACCESSIBILITY_ENABLED=1` and `--force-renderer-accessibility`, Postman publishes a 410-node AT-SPI tree. Without the variable it publishes none. Its AT-SPI coordinates are not verified yet.
+- **Firefox: verified.** Firefox publishes a 449-node tree only with `GNOME_ACCESSIBILITY=1`. Back button coordinates matched a screenshot.
+- **Zed: verified.** Zed publishes no AT-SPI tree, even with both variables. It uses OCR.
+- **OCR: verified.** `tesseract-data-eng` is installed. On a VS Code screenshot, the words of "Continue without Signing In" had confidences of 79–88.
 
-Every design point that depends on one of these hypotheses has a fallback. The spec is updated with the result of task 1.
+Changes that follow from these facts:
+
+- `app_launch` always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1`.
+- Postman moves from the CDP row to the AT-SPI row.
+- The AT-SPI role table maps `button` as well as `push button`.
 
 ## Decisions
 
@@ -82,7 +90,7 @@ A new parameter, `debug` (boolean, default `false`), applies to Chromium and Ele
 2. It adds `--remote-debugging-port=<port>`, `--remote-debugging-address=127.0.0.1` and `--force-renderer-accessibility`.
 3. It stores the port in the screen record.
 
-`app_launch` also always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`.
+`app_launch` also always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1`.
 
 `browser_open` uses the same per-screen port. The fixed port `9222` stays the default only for `chrome-devtools-mcp`.
 

@@ -18,7 +18,7 @@
 - CDP refs are `e<n>`. AT-SPI refs are also `e<n>`. OCR refs are `o<n>`.
 - `act` waits until the tree has not changed for 300 ms, with a timeout of 3 s.
 - The DevTools port binds to `127.0.0.1` only.
-- `app_launch` always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`.
+- `app_launch` always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1` (verified in task 1).
 - New error codes: `stale_ref`, `no_source`, `ref_offscreen`, `cdp_unreachable`.
 - Existing tools keep their behavior and their tests keep passing.
 - The AT-SPI source never returns a node from an application outside the screen's process list.
@@ -47,7 +47,7 @@ This task produces facts and fixtures, not product code. Probe scripts stay in `
 
 **Interfaces:**
 
-- Produces: the three fixtures, which later tasks load in their tests. The JSON shape of `atspi_thunar.json` is `[{"bus":"...","path":"...","role":"push button","name":"...","states":["focused"],"extents":[x,y,w,h],"parent":"<path or empty>","pid":123}]`. This matches `fakeAccessible` in task 6.
+- Produces: the three fixtures, which later tasks load in their tests. The fixture `bus` values are placeholders (`:fixture.<pid>`), because the Python probe cannot read bus names. The JSON shape of `atspi_thunar.json` is `[{"bus":"...","path":"...","role":"push button","name":"...","states":["focused"],"extents":[x,y,w,h],"parent":"<path or empty>","pid":123}]`. This matches `fakeAccessible` in task 6.
 
 - [ ] **Step 1: Install the OCR language data.** Run `sudo -n pacman -S --needed --noconfirm tesseract-data-eng`. Expected: `tesseract --list-langs` lists `eng`.
 - [ ] **Step 2: Check the shared AT-SPI bus and the PID filter.** Create a hyprcage screen. Launch `thunar` on it. On the session bus, list the applications under `org.a11y.atspi.Registry` with `busctl --user --address=$(busctl --user call org.a11y.Bus /org/a11y/bus org.a11y.Bus GetAddress | cut -d'"' -f2)` or with a short Python `gi.repository.Atspi` script. Record whether Thunar appears next to the human's applications and whether its PID is in the processes that carry `HYPRCAGE_SCREEN=<name>`.
@@ -185,7 +185,7 @@ func ReResolve(old Node, fresh []Node) (Node, error)  // error is *screen.Error 
 
 - Modify: `internal/registry/registry.go` — add `DebugPort int \`json:"debug_port,omitempty"\``to`Screen`.
 - Create: `internal/screen/debug.go`
-- Modify: `internal/screen/launch.go` — always set `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1` in `env`.
+- Modify: `internal/screen/launch.go` — always set `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1` in `env`, before `extraEnv` so a caller can override them.
 - Modify: `internal/mcpserver/server.go` — `launchIn` gains `Debug bool \`json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"\``; `appLaunch`calls`screen.DebugArgs`and`screen.WaitDebug` when it is true.
 - Modify: `internal/browser/browser.go` — `Open` sets `rec.DebugPort = port` and saves the record.
 - Modify: `internal/cli/launch.go` — a `-debug` flag with the same effect.
@@ -319,8 +319,8 @@ Behavior:
 
 1. `NewATSPI` gets the bus address from `org.a11y.Bus.GetAddress` on the session bus and connects to it.
 2. `Walk` lists the children of `/org/a11y/atspi/accessible/root` on `org.a11y.atspi.Registry`. It skips every application whose PID (from `org.freedesktop.DBus.GetConnectionUnixProcessID`) is not in `ScreenProcesses(screenName)`. It walks the kept applications depth first, with a cap of 5 000 objects.
-3. A role maps to the ARIA-style name through a table in `atspi.go`: `push button`→`button`, `toggle button`→`button`, `check box`→`checkbox`, `radio button`→`radio`, `text`/`entry`/`password text`→`textbox`, `combo box`→`combobox`, `list item`→`option`, `menu item`→`menuitem`, `page tab`→`tab`, `tree item`/`table cell` inside a tree→`treeitem`, `heading`→`heading`, `dialog`→`dialog`, `link`→`link`, `slider`→`slider`, `spin button`→`spinbutton`. Other roles keep their AT-SPI name with spaces replaced by `_`.
-4. The centre is (x + w/2, y + h/2). An object with `w == 0` gets `Offscreen = true`.
+3. A role maps to the ARIA-style name through a table in `atspi.go`: `button`→`button` (at-spi2-core 2.60 name), `push button`→`button`, `toggle button`→`button`, `check box`→`checkbox`, `radio button`→`radio`, `text`/`entry`/`password text`→`textbox`, `combo box`→`combobox`, `list item`→`option`, `menu item`→`menuitem`, `page tab`→`tab`, `tree item`/`table cell` inside a tree→`treeitem`, `heading`→`heading`, `dialog`→`dialog`, `link`→`link`, `slider`→`slider`, `spin button`→`spinbutton`. Other roles keep their AT-SPI name with spaces replaced by `_`.
+4. Extents use the window coordinate type (GTK4 returns (0,0) for the screen type). The centre is (x + w/2, y + h/2). An object with `w == 0`, or with x or y equal to -2147483648 (GTK3 hidden widgets), gets `Offscreen = true`.
 5. `Reveal` calls `Scroll`, then re-walks the one object.
 6. `Press` calls `DoAction` with index 0.
 
@@ -328,9 +328,10 @@ Use the result of task 1 for the coordinate type. If task 1 found that window co
 
 - [ ] **Step 1: Write the failing tests** with a `fakeTree` loaded from `atspi_thunar.json`:
   - `TestATSPIFiltersForeignPIDs`: add an object with PID 999999 to the fake. `Nodes` with `pids = []int{<thunar pid from fixture>}` never returns it.
-  - `TestATSPIRoleMap`: a `push button` object becomes a node with role `button`.
+  - `TestATSPIRoleMap`: a `push button` object and a `button` object both become nodes with role `button`.
   - `TestATSPICentre`: extents (100,200,40,20) give (120,210).
-  - `TestATSPINoExtents`: `w == 0` gives `Offscreen == true`.
+  - `TestATSPINoExtents`: `w == 0` gives `Offscreen == true`, and so do extents (-2147483648,-2147483648,1,1).
+  - `TestATSPIFixtureButtons`: the Thunar fixture yields a `button` named `Back` at (22,48) and one named `Home` at (133,48).
   - `TestATSPIPress`: `Press` calls `DoAction` on the object's bus and path with index 0.
 - [ ] **Step 2: Run `go test ./internal/perceive/ -run ATSPI`.** Expected: FAIL.
 - [ ] **Step 3: Implement `atspi.go` and export `ScreenProcesses`.**
