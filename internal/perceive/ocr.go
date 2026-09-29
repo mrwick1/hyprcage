@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
@@ -16,7 +17,7 @@ import (
 // OCRData is the path of the English language data.
 const OCRData = setup.OCRData
 
-const ocrHint = "install tesseract-data-eng"
+const ocrHint = "run hyprcage setup"
 
 // ocrMinConf is the confidence below which a word is dropped as noise.
 const ocrMinConf = 60
@@ -25,6 +26,7 @@ const ocrMinConf = 60
 // applications with no accessibility tree.
 type ocrSource struct {
 	cl    *wl.Client
+	mu    sync.Mutex
 	nodes map[string]Node // last Nodes result, by Key
 }
 
@@ -34,10 +36,18 @@ func NewOCR(cl *wl.Client) Source { return &ocrSource{cl: cl} }
 func (s *ocrSource) Name() string { return "ocr" }
 
 func (s *ocrSource) Nodes(ctx context.Context) ([]Node, error) {
+	nodes, err := s.read(ctx)
+	s.store(nodes) // a failure clears the cache: old keys become stale
+	return nodes, err
+}
+
+func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 	if _, err := exec.LookPath("tesseract"); err != nil {
 		return nil, screen.Errf(screen.CodeNoSource, ocrHint, "tesseract is not installed")
 	}
-	shot, err := screen.Shot(s.cl, screen.ShotOptions{Scale: 1, Format: "png"})
+	// Full size and PNG only: a downscaled or JPEG image reads worse, and
+	// the node coordinates must be screen pixels.
+	shot, err := screen.Shot(s.cl, screen.ShotOptions{Scale: 1, Format: "png", MaxSide: 1 << 20, MaxBytes: 1 << 30})
 	if err != nil {
 		return nil, err
 	}
@@ -55,16 +65,38 @@ func (s *ocrSource) Nodes(ctx context.Context) ([]Node, error) {
 		return nil, screen.Errf(screen.CodeNoSource, ocrHint, "tesseract: %v: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	nodes := parseTSV(out)
-	s.nodes = make(map[string]Node, len(nodes))
-	for _, n := range nodes {
-		s.nodes[n.Key] = n
-	}
+	scaleNodes(nodes, shot.Scale)
 	return nodes, nil
+}
+
+// store replaces the cache that Reveal reads.
+func (s *ocrSource) store(nodes []Node) {
+	m := make(map[string]Node, len(nodes))
+	for _, n := range nodes {
+		m[n.Key] = n
+	}
+	s.mu.Lock()
+	s.nodes = m
+	s.mu.Unlock()
+}
+
+// scaleNodes turns image pixels into screen pixels when the capture was
+// downscaled by scale.
+func scaleNodes(nodes []Node, scale float64) {
+	if scale <= 0 || scale == 1 {
+		return
+	}
+	for i := range nodes {
+		nodes[i].X = int(float64(nodes[i].X)/scale + 0.5)
+		nodes[i].Y = int(float64(nodes[i].Y)/scale + 0.5)
+	}
 }
 
 // Reveal returns the node unchanged: OCR only sees what is on screen.
 func (s *ocrSource) Reveal(_ context.Context, key string) (Node, error) {
+	s.mu.Lock()
 	n, ok := s.nodes[key]
+	s.mu.Unlock()
 	if !ok {
 		return Node{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot", "no OCR node %q", key)
 	}

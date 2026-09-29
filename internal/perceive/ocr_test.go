@@ -1,10 +1,15 @@
 package perceive
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 func fixtureTSV(t *testing.T) []byte {
@@ -58,4 +63,43 @@ func TestParseTSVKeys(t *testing.T) {
 			t.Fatalf("node %d key %q, want %q", i, n.Key, want)
 		}
 	}
+}
+
+func TestScaleNodes(t *testing.T) {
+	nodes := []Node{{X: 100, Y: 50}, {X: 3, Y: 7}}
+	scaleNodes(nodes, 0.5)
+	if nodes[0].X != 200 || nodes[0].Y != 100 || nodes[1].X != 6 || nodes[1].Y != 14 {
+		t.Fatalf("scale 0.5: %+v", nodes)
+	}
+	scaleNodes(nodes, 1)
+	if nodes[0].X != 200 || nodes[0].Y != 100 {
+		t.Fatalf("scale 1 changed %+v", nodes[0])
+	}
+}
+
+func TestOCRRevealAfterFailureIsStale(t *testing.T) {
+	s := &ocrSource{}
+	s.store(parseTSV(fixtureTSV(t)))
+	if _, err := s.Reveal(context.Background(), "ocr:0"); err != nil {
+		t.Fatalf("Reveal after store: %v", err)
+	}
+	s.store(nil) // what a failed Nodes does
+	_, err := s.Reveal(context.Background(), "ocr:0")
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeStaleRef {
+		t.Fatalf("Reveal after a failure: %v, want stale_ref", err)
+	}
+}
+
+// TestOCRCacheConcurrent fails under -race without the cache mutex.
+func TestOCRCacheConcurrent(t *testing.T) {
+	s := &ocrSource{}
+	nodes := parseTSV(fixtureTSV(t))
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); s.store(nodes) }()
+		go func() { defer wg.Done(); _, _ = s.Reveal(context.Background(), "ocr:0") }()
+	}
+	wg.Wait()
 }
