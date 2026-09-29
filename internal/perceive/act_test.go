@@ -423,3 +423,108 @@ func TestOCRKeepsTextNodes(t *testing.T) {
 		t.Fatalf("find %+v, %v", found, err)
 	}
 }
+
+func TestActOCRLayoutShiftReResolves(t *testing.T) {
+	fastTiming(t)
+	old := Node{Key: "ocr:3", Role: "text", Name: "Save", X: 10, Y: 10}
+	tb := NewTable()
+	tb.Assign([]Node{old})
+	src := &fakeSource{name: "ocr", reads: [][]Node{{
+		{Key: "ocr:3", Role: "text", Name: "Toast text", X: 10, Y: 10},
+		{Key: "ocr:4", Role: "text", Name: "Save", X: 10, Y: 40},
+	}}}
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "o1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.calls) != 1 || in.calls[0] != "click 10,40 x1" {
+		t.Fatalf("calls %v", in.calls)
+	}
+
+	tb = NewTable()
+	tb.Assign([]Node{old})
+	src = &fakeSource{name: "ocr", reads: [][]Node{{
+		{Key: "ocr:3", Role: "text", Name: "Toast text", X: 10, Y: 10},
+		{Key: "ocr:4", Role: "text", Name: "Save", X: 10, Y: 40},
+		{Key: "ocr:5", Role: "text", Name: "Save", X: 10, Y: 70},
+	}}}
+	in = &fakeInput{}
+	_, err := act(context.Background(), in, src, tb, ActOp{Ref: "o1", Op: "click"})
+	stale(t, err)
+	if len(in.calls) != 0 {
+		t.Fatalf("input sent: %v", in.calls)
+	}
+}
+
+func TestActCDPKeyIsIdentity(t *testing.T) {
+	fastTiming(t)
+	tb := NewTable()
+	tb.Assign([]Node{button("k1", "Play", 1, 1)})
+	in := &fakeInput{}
+	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "Pause", 2, 2), button("k2", "Play", 3, 3)}}}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil || in.calls[0] != "click 2,2 x1" {
+		t.Fatalf("calls %v, %v", in.calls, err)
+	}
+}
+
+func TestSnapshotVanishedRoot(t *testing.T) {
+	first := []Node{{Key: "root", Role: "main", Name: "m"}, {Key: "b", Parent: "root", Role: "button", Name: "B"}}
+	src := &fakeSource{name: "cdp", reads: [][]Node{first, {{Key: "b", Role: "button", Name: "B"}}}}
+	tb := NewTable()
+	if _, _, err := Snapshot(context.Background(), src, tb, SnapOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := Snapshot(context.Background(), src, tb, SnapOpts{RootRef: "e1"})
+	stale(t, err)
+	if _, ok := tb.Lookup("e2"); !ok {
+		t.Fatal("refs wiped by the failed snapshot")
+	}
+}
+
+func TestActUnknownOpReadsNothing(t *testing.T) {
+	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "OK", 1, 1)}}}
+	tb := NewTable()
+	tb.Assign([]Node{button("k1", "OK", 1, 1)})
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "wave"}); err == nil {
+		t.Fatal("unknown op accepted")
+	}
+	if src.n != 0 || len(in.calls) != 0 {
+		t.Fatalf("reads %d, input %v", src.n, in.calls)
+	}
+}
+
+func TestActKeySkipsResolve(t *testing.T) {
+	fastTiming(t)
+	// The node is gone and would be off screen: key must not care.
+	tb := NewTable()
+	tb.Assign([]Node{{Key: "gone", Role: "textbox", Offscreen: true}})
+	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "OK", 1, 1)}}}
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "key", Keys: []string{"Return"}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.calls) != 1 || in.calls[0] != "keys Return" {
+		t.Fatalf("calls %v", in.calls)
+	}
+	_, err := act(context.Background(), in, src, NewTable(), ActOp{Ref: "e9", Op: "key", Keys: []string{"Return"}})
+	stale(t, err)
+}
+
+func TestChooseReportsCDPError(t *testing.T) {
+	stubChoose(t, false, false)
+	c := newCDP
+	newCDP = func(context.Context, int) (Source, error) { return nil, errors.New("fuse blew the port") }
+	t.Cleanup(func() { newCDP = c })
+	_, err := Choose(context.Background(), &registry.Screen{Name: "s", DebugPort: 9}, nil, "auto")
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeNoSource || !strings.Contains(se.Msg, "fuse blew the port") {
+		t.Fatalf("got %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	newCDP = func(context.Context, int) (Source, error) { cancel(); return nil, errors.New("cancelled") }
+	stubChoose(t, true, true)
+	if _, err := Choose(ctx, &registry.Screen{Name: "s", DebugPort: 9}, nil, "auto"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
+	}
+}

@@ -52,10 +52,16 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		}
 		return newOCR(cl), nil
 	case "auto":
+		cdpNote := ""
 		if rec.DebugPort > 0 {
-			if src, err := newCDP(ctx, rec.DebugPort); err == nil {
+			src, err := newCDP(ctx, rec.DebugPort)
+			if err == nil {
 				return src, nil
-			} // a closed DevTools port falls through to AT-SPI and OCR
+			}
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			cdpNote = fmt.Sprintf(" (CDP: %v)", err) // a closed DevTools port falls through to AT-SPI and OCR
 		}
 		if hasApps(ctx, rec.Name) {
 			if src, err := newATSPI(ctx, rec.Name); err == nil {
@@ -65,7 +71,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		if ocrOK() {
 			return newOCR(cl), nil
 		}
-		return nil, screen.Errf(screen.CodeNoSource, noSourceHint, "screen %s has no DevTools port, no AT-SPI application and no OCR data", rec.Name)
+		return nil, screen.Errf(screen.CodeNoSource, noSourceHint, "screen %s has no DevTools answer, no AT-SPI application and no OCR data%s", rec.Name, cdpNote)
 	}
 	return nil, fmt.Errorf("unknown source %q (auto, cdp, atspi, ocr)", want)
 }

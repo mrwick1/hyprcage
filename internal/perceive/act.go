@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -65,6 +67,10 @@ func Snapshot(ctx context.Context, src Source, t *Table, o SnapOpts) (string, []
 	if err != nil {
 		return "", nil, err
 	}
+	if rootKey != "" && !slices.ContainsFunc(nodes, func(n Node) bool { return n.Key == rootKey }) {
+		// no Assign: the refs of the last snapshot stay valid
+		return "", nil, screen.Errf(screen.CodeStaleRef, "take a new snapshot without root", "root %s is gone", o.RootRef)
+	}
 	filtered := Filter(nodes, mode(src, o.Mode), rootKey)
 	limit := o.MaxNodes
 	if limit <= 0 {
@@ -103,7 +109,12 @@ func Act(ctx context.Context, cl *wl.Client, src Source, t *Table, op ActOp) (Di
 	return act(ctx, wlInput{cl}, src, t, op)
 }
 
+var ops = map[string]bool{"click": true, "double_click": true, "type": true, "key": true, "hover": true, "scroll": true}
+
 func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff, error) {
+	if !ops[op.Op] {
+		return Diff{}, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", op.Op)
+	}
 	old, ok := t.Lookup(op.Ref)
 	if !ok {
 		return Diff{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot", "unknown ref %s", op.Ref)
@@ -114,32 +125,25 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		return Diff{}, err
 	}
 	before := Filter(fresh, m, "")
-	n, found := Node{}, false
-	for _, f := range fresh {
-		if f.Key == old.Key {
-			n, found = f, true
-			break
-		}
-	}
-	if !found {
-		if n, err = ReResolve(old, before); err != nil {
-			return Diff{}, err
-		}
-	}
-
+	var n Node
 	press := false
-	if n.Offscreen {
-		r, err := src.Reveal(ctx, n.Key)
-		if err != nil {
+	if op.Op != "key" { // key goes to the focus: it never touches the node
+		if n, err = resolve(old, fresh, before); err != nil {
 			return Diff{}, err
 		}
-		n = r
 		if n.Offscreen {
-			if src.Name() != "atspi" || op.Op != "click" {
-				return Diff{}, screen.Errf(screen.CodeRefOffscreen, "scroll the node into view, then take a new snapshot",
-					"%s %q stays off screen", n.Role, n.Name)
+			r, err := src.Reveal(ctx, n.Key)
+			if err != nil {
+				return Diff{}, err
 			}
-			press = true
+			n = r
+			if n.Offscreen {
+				if src.Name() != "atspi" || op.Op != "click" {
+					return Diff{}, screen.Errf(screen.CodeRefOffscreen, "scroll the node into view, then take a new snapshot",
+						"%s %q stays off screen", n.Role, n.Name)
+				}
+				press = true
+			}
 		}
 	}
 
@@ -164,8 +168,6 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 			dir = "down"
 		}
 		err = in.scroll(n.X, n.Y, dir, 3)
-	default:
-		return Diff{}, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", op.Op)
 	}
 	if err != nil {
 		return Diff{}, err
@@ -177,6 +179,23 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	}
 	t.Assign(after)
 	return DiffNodes(before, after), nil
+}
+
+// resolve finds old in the fresh read. A missing Key goes through
+// ReResolve against filtered. OCR keys are line positions, not identities:
+// an OCR key whose line now has another role or name is re-resolved too,
+// so that a layout shift never sends the input to another line.
+func resolve(old Node, fresh, filtered []Node) (Node, error) {
+	for _, f := range fresh {
+		if f.Key != old.Key {
+			continue
+		}
+		if !strings.HasPrefix(old.Key, "ocr:") || (f.Role == old.Role && f.Name == old.Name) {
+			return f, nil
+		}
+		break
+	}
+	return ReResolve(old, filtered)
 }
 
 // settle reads the nodes every settlePoll until they have not changed for
