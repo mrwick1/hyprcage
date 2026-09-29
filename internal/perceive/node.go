@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Mode selects which nodes a snapshot keeps.
@@ -110,14 +111,28 @@ func line(n Node) string {
 	return b.String()
 }
 
-var escaper = strings.NewReplacer(`"`, `\"`, "\n", " ", "\r", " ", "\t", " ")
-
 // quote cuts s to 120 runes and escapes it so that it stays on one line.
+// A backslash or a quote gets a backslash. A control character, U+2028 or
+// U+2029 becomes one space.
 func quote(s string) string {
 	if r := []rune(s); len(r) > 120 {
 		s = string(r[:120]) + "…"
 	}
-	return `"` + escaper.Replace(s) + `"`
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch {
+		case r == '\\' || r == '"':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case unicode.IsControl(r) || r == '\u2028' || r == '\u2029':
+			b.WriteByte(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 // Change is one node whose name, value or states differ between snapshots.

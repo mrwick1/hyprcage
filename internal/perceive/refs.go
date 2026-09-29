@@ -54,8 +54,13 @@ func (t *Table) Lookup(ref string) (Node, bool) {
 }
 
 // ReResolve looks in fresh for exactly one node with old.Role and old.Name.
-// No match or more than one match gives a stale_ref error.
+// No match, more than one match, or an unnamed old node gives a stale_ref
+// error, so that act never guesses between look-alike controls.
 func ReResolve(old Node, fresh []Node) (Node, error) {
+	if old.Name == "" {
+		return Node{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot",
+			"%s has no name to re-resolve by", old.Role)
+	}
 	var found []Node
 	for _, n := range fresh {
 		if n.Role == old.Role && n.Name == old.Name {

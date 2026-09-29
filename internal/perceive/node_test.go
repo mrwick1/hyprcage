@@ -35,6 +35,24 @@ func TestRenderEscapes(t *testing.T) {
 	if want := `"` + strings.Repeat("é", 120) + `…"`; !strings.Contains(line, want) {
 		t.Fatalf("not cut to 120 runes: %q", line)
 	}
+
+	for _, c := range []struct{ in, want string }{
+		{`x\`, `"x\\"`},
+		{"\x1b[31mred", `" [31mred"`},
+		{"a\rb\tc", `"a b c"`},
+		{"a\u2028b\u2029c", `"a b c"`},
+		{strings.Repeat("x", 120), `"` + strings.Repeat("x", 120) + `"`},
+	} {
+		got := strings.Split(Render(Header{}, []Node{{Ref: "e1", Role: "text", Name: c.in}}), "\n")[1]
+		if want := `[e1] text ` + c.want + ` (0,0)`; got != want {
+			t.Errorf("name %q: got %q, want %q", c.in, got, want)
+		}
+	}
+
+	line = strings.Split(Render(Header{}, []Node{{Ref: "e1", Role: "textbox", Value: strings.Repeat("v", 121)}}), "\n")[1]
+	if want := ` value="` + strings.Repeat("v", 120) + `…"`; !strings.Contains(line, want) {
+		t.Fatalf("value not cut to 120 runes: %q", line)
+	}
 }
 
 func TestRenderTruncates(t *testing.T) {

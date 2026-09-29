@@ -69,3 +69,8 @@ func TestReResolveMissing(t *testing.T) {
 	_, err := ReResolve(Node{Role: "button", Name: "Close"}, []Node{{Role: "link", Name: "Close"}})
 	stale(t, err)
 }
+
+func TestReResolveUnnamed(t *testing.T) {
+	_, err := ReResolve(Node{Role: "button"}, []Node{{Key: "k2", Role: "button"}})
+	stale(t, err)
+}
