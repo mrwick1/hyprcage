@@ -243,6 +243,7 @@ type launchIn struct {
 	Cwd          string            `json:"cwd,omitempty" jsonschema:"working directory"`
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
+	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
 }
 
 type closeIn struct {
@@ -491,11 +492,35 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 			}
 		}
 	}
-	pid, logPath, err := screen.Launch(s.ctx, rec, in.Command, in.Cwd, in.Env)
+	command, port := in.Command, 0
+	if in.Debug {
+		if rec.DebugPort != 0 {
+			return nil, screen.Errf(screen.CodeLimit, "a screen runs one application; use another screen",
+				"screen %s already has a DevTools port %d", rec.Name, rec.DebugPort)
+		}
+		if port, err = screen.FreePort(); err != nil {
+			return nil, err
+		}
+		command = screen.DebugArgs(command, port)
+	}
+	pid, logPath, err := screen.Launch(s.ctx, rec, command, in.Cwd, in.Env)
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]any{"pid": pid, "screen": rec.Name, "log": logPath}
+	if in.Debug {
+		if err := screen.WaitDebug(port, 10*time.Second); err != nil {
+			// The app keeps running: the agent can still drive it.
+			se := err.(*screen.Error)
+			se.Msg = fmt.Sprintf("%s; the app runs as pid %d, log %s", se.Msg, pid, logPath)
+			return nil, se
+		}
+		rec.DebugPort = port
+		if err := registry.Save(rec); err != nil {
+			return nil, err
+		}
+		out["debug_port"] = port
+	}
 	if clErr != nil || wait <= 0 {
 		if clErr != nil {
 			out["note"] = "launched; window tracking unavailable: " + clErr.Error()

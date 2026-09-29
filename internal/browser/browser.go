@@ -210,5 +210,9 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 		os.RemoveAll(profile)
 		return Info{}, err
 	}
+	rec.DebugPort = port
+	if err := registry.Save(rec); err != nil {
+		return Info{}, err
+	}
 	return Info{Screen: rec.Name, PID: pid, Port: port, BrowserURL: base, WS: ws, Profile: profile}, nil
 }

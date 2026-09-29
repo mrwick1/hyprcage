@@ -56,6 +56,9 @@ type Screen struct {
 	RenderDeviceBy string `json:"render_device_by,omitempty"` // how it was chosen
 	Renderer       string `json:"renderer,omitempty"`
 	Owner          Owner  `json:"owner"`
+	// DebugPort is the DevTools port of the screen's application on
+	// 127.0.0.1, 0 when it has none.
+	DebugPort int `json:"debug_port,omitempty"`
 }
 
 // Dir is the registry directory.
