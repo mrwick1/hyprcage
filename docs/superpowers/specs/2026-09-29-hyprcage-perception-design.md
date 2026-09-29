@@ -76,7 +76,7 @@ Changes that follow from these facts:
 | AT-SPI in v1           | Yes                                                                                           | The human asked for maximum accessibility coverage.                                             |
 | Default snapshot       | Interactive elements, landmarks and headings                                                  | This keeps a reply at about 1–3k tokens. `full` mode is available on request.                   |
 | Action input           | Existing virtual pointer and keyboard at the element centre                                   | Input stays silent and matches what a human does.                                               |
-| AT-SPI fallback action | `Action.DoAction` when an element has no extents                                              | Some widgets publish no geometry.                                                               |
+| AT-SPI fallback action | `Action.DoAction` for a `click` on an element that stays off screen                           | Some widgets publish no geometry, and `ScrollTo` can fail.                                      |
 | OCR use                | Only when the screen has no CDP port and no AT-SPI application, or when the agent asks for it | OCR is slow and loses semantics.                                                                |
 | DevTools port          | One free port per screen, bound to `127.0.0.1`                                                | Several screens run CDP applications at once.                                                   |
 
@@ -88,11 +88,15 @@ A new parameter, `debug` (boolean, default `false`), applies to Chromium and Ele
 
 1. It picks a free TCP port on `127.0.0.1`.
 2. It adds `--remote-debugging-port=<port>`, `--remote-debugging-address=127.0.0.1` and `--force-renderer-accessibility`.
-3. It stores the port in the screen record.
+3. It waits until `/json/version` answers on the port.
+4. It checks that a process of the screen listens on the port. Another program on the port gives `cdp_unreachable`.
+5. It stores the port in the screen record as the screen's DevTools port.
 
 `app_launch` also always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1`.
 
-`browser_open` uses the same per-screen port. The fixed port `9222` stays the default only for `chrome-devtools-mcp`.
+`browser_open` keeps its configured port, `browser.port` (default `9222`), for `chrome-devtools-mcp`. It refuses a port that another program holds. It checks that the Chrome it launched listens on the port, then records the port as the screen's DevTools port. `snapshot` then reads the agent Chrome through CDP.
+
+Before each use, `snapshot`, `act` and `find` check that a process of the screen still listens on the DevTools port. Another screen's application or the human's Chrome can take a port after its first owner exits. A port that another program holds counts as no port: `auto` goes on to AT-SPI and OCR, and `source: cdp` fails with `cdp_unreachable`.
 
 ### `snapshot` (new)
 
@@ -131,10 +135,14 @@ Parameters:
 `act` does the following, in order:
 
 1. It resolves the ref.
-2. It scrolls the element into view when the element is off screen.
-3. It sends the input at the element centre. First, it reads the tree again every 100 ms until the centre is the same on two reads in a row, for up to 1 s, and uses the last centre. Right after a window maps, the first centre can be stale. OCR skips these reads. Before a click or a scroll, it moves the pointer to the centre and waits 80 ms, because Chrome drops a press that comes with the first pointer enter. For `type`, it clicks and waits up to 1 s until the element reports `focused`. When the element does not report `focused`, it reads a stable centre again, clicks one more time, and waits up to 1 s again. OCR has no focus state: an OCR `type` clicks one time and then types. Then it types the text one time, even when the element never reports `focused`. For an `(action)` node, `click` calls the accessibility action (AT-SPI `DoAction` 0). `double_click` calls that action one time. `key` goes to the focus as usual. Every other op on an `(action)` node fails with `unsupported_input`.
-4. It waits until the tree has not changed for 1 s before the first change, or for 300 ms after a change, with a timeout of 3 s.
-5. It takes a new snapshot and returns only the diff.
+2. It stabilises the element. It reads the tree again every 100 ms, for up to 1 s, until the centre is the same on two reads in a row, and uses the last centre. Right after a window maps, the first centre can be stale. OCR skips these reads. When no read holds the element, `act` fails with `stale_ref` and sends no input. When the reads fail, `act` returns the read error.
+3. It reveals the element when the element is off screen: CDP calls `DOM.scrollIntoViewIfNeeded`, AT-SPI calls `Component.ScrollTo`. An element that stays off screen gives `ref_offscreen`. For an AT-SPI `click`, `act` calls `Action.DoAction` 0 instead, when `ScrollTo` fails or the element stays off screen. Only an error from `DoAction` then fails the act.
+4. It hit-tests the centre (CDP only). Another element at the centre gives `ref_occluded`.
+5. It sends the input at the element centre. Before a click or a scroll, it moves the pointer to the centre and waits 80 ms, because Chrome drops a press that comes with the first pointer enter. For `type`, it clicks and waits up to 1 s until the element reports `focused`. When the element does not report `focused`, it runs steps 2 to 4 again, clicks one more time, and waits up to 1 s again. OCR has no focus state: an OCR `type` clicks one time and then types. Then it types the text one time, even when the element never reports `focused`. For an `(action)` node, `click` calls the accessibility action (AT-SPI `DoAction` 0). `double_click` calls that action one time. `key` goes to the focus as usual and skips steps 2 to 4. Every other op on an `(action)` node fails with `unsupported_input`.
+6. It waits until the tree has not changed for 1 s before the first change, or for 300 ms after a change, with a timeout of 3 s.
+7. It takes a new snapshot and returns only the diff.
+
+An act that fails after step 5 has sent its input. The input can have taken effect.
 
 The diff has three sections: added, removed and changed. A change is a new name, value or state.
 
@@ -178,17 +186,18 @@ A node has these fields: ref, role, name, value, description, level, states, the
 - An AT-SPI ref maps to the pair (bus name, object path).
 - An OCR ref (`o<n>`) maps to a line box. OCR refs are valid only until the next OCR snapshot.
 - The same element keeps the same ref across snapshots. This makes the diff possible.
-- The ref table lives in the MCP server process, one table per screen. The CLI twin keeps no table between calls, so its refs are valid only within one call.
+- The ref table lives in the MCP server process, one table per screen. The CLI twin keeps one table per screen on disk, at `<registry dir>/perceive/<screen>.json`, so its refs stay valid between calls. A new screen with the same name starts with an empty table.
 - When a ref is stale, `act` looks once for one node with the same role and name. If it finds none, or more than one, `act` fails with `stale_ref`.
 
 ### CDP source
 
-1. Read `/json` on the screen's port.
-2. Attach to every `page` target. Call `Target.setAutoAttach` with `flatten: true` to reach iframes, out-of-process iframes and Electron webviews.
+1. Check that a process of the screen listens on the screen's port, then read `/json/version` and dial the browser websocket.
+2. Call `Target.getTargets` on every read. Attach to each `page`, `iframe` and `webview` target with `Target.attachToTarget` and `flatten: true`. Detach from the targets that are gone.
 3. Call `Accessibility.getFullAXTree` for each attached target.
 4. Call `DOM.getBoxModel` for each kept node to get its box.
-5. Compute the centre as (box centre × `devicePixelRatio`) plus the offset of the frame.
-6. Scroll with `DOM.scrollIntoViewIfNeeded`.
+5. Compute the centre as (box centre × `devicePixelRatio`) plus the offset of the frame and the browser toolbar. `DOM.getFrameOwner` gives the `<iframe>` element of a child target.
+6. Mark a node off screen when its centre is outside the top page's viewport, or outside the viewport of its own frame.
+7. Scroll with `DOM.scrollIntoViewIfNeeded`. Hit-test with `DOM.getNodeForLocation`.
 
 ### AT-SPI source
 
@@ -196,7 +205,8 @@ A node has these fields: ref, role, name, value, description, level, states, the
 2. List the applications under the registry root, `org.a11y.atspi.Registry`.
 3. Keep only the applications whose PID is in `screenProcesses(name)`. The PID comes from `GetConnectionUnixProcessID`.
 4. Walk each tree. Read role, name, states and `Component.GetExtents` with the window coordinate type.
-5. When an element has no extents, `act` uses `Action.DoAction` for `click`.
+5. Add the centring offset of the top-level window. Window extents are relative to the top-level window, which is the child of the application object. cage centres a window that is smaller than the screen, for example a dialog. The offset is ((screen width − window width) / 2, (screen height − window height) / 2). A maximized window gets no offset. `(action)` nodes get no offset.
+6. When an element stays off screen, `act` uses `Action.DoAction` 0 for `click`.
 
 ### OCR source
 
@@ -208,12 +218,12 @@ A node has these fields: ref, role, name, value, description, level, states, the
 
 | Code              | Meaning                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------- |
-| `stale_ref`       | The ref no longer resolves, and re-resolution found no single match.                        |
+| `stale_ref`       | The ref no longer resolves, and re-resolution found no single match. Stabilisation also gives it when the element vanishes before the input. |
 | `no_source`       | The screen has no CDP port and no AT-SPI application, and the OCR language data is missing. |
 | `ref_offscreen`   | The element is off screen, and scrolling did not bring it into view.                        |
-| `ref_occluded`    | Another element covers the element centre (CDP hit-test). Close the dialog or act on the covering element. |
+| `ref_occluded`    | Another element covers the element centre (CDP hit-test, before the first click and before the `type` re-click). Close the dialog or act on the covering element. |
 | `unsupported_input` | The source cannot do the op on this element, for example `hover` on an `(action)` node.     |
-| `cdp_unreachable` | The screen has a port, but CDP does not answer.                                             |
+| `cdp_unreachable` | The screen has a port, but CDP does not answer, or a process outside the screen holds the port. |
 
 A snapshot that reaches `max_nodes` sets `truncated=true` in its first line. It is not an error.
 
@@ -222,7 +232,7 @@ A snapshot that reaches `max_nodes` sets `truncated=true` in its first line. It 
 - `github.com/godbus/dbus/v5` for AT-SPI.
 - One websocket library for CDP. The plan chooses it.
 - The `tesseract-data-eng` package on Arch, and the equivalent package on openSUSE. `install.sh` and `hyprcage setup` install it.
-- `hyprcage doctor` checks the AT-SPI bus, the OCR language data, and CDP for a running screen.
+- `hyprcage doctor` checks the AT-SPI bus and the OCR language data. For each screen with a DevTools port, it checks that `/json/version` answers and that a process of the screen holds the port.
 
 ## Testing
 

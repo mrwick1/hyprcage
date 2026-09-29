@@ -16,10 +16,10 @@
 - The first line of every snapshot is `source=<cdp|atspi|ocr> nodes=<n> truncated=<true|false>`.
 - The node line format is `[<ref>] <role> "<name>"[ value="<v>"] (<x>,<y>)[ <states...>][ level=<n>][ offscreen]`.
 - CDP refs are `e<n>`. AT-SPI refs are also `e<n>`. OCR refs are `o<n>`.
-- `act` waits until the tree has not changed for 300 ms, with a timeout of 3 s.
+- After the input, `act` waits until the tree has not changed for 1 s before the first change, or for 300 ms after a change. The total wait is at most 3 s.
 - The DevTools port binds to `127.0.0.1` only.
 - `app_launch` always sets `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`, `ACCESSIBILITY_ENABLED=1` and `GNOME_ACCESSIBILITY=1` (verified in task 1).
-- New error codes: `stale_ref`, `no_source`, `ref_offscreen`, `cdp_unreachable`.
+- Perception error codes: `stale_ref`, `no_source`, `ref_offscreen`, `ref_occluded`, `cdp_unreachable`, `unsupported_input`. `unsupported_input` already existed; the other five are new.
 - Existing tools keep their behavior and their tests keep passing.
 - The AT-SPI source never returns a node from an application outside the screen's process list.
 - Commits use the repo-local identity `Arjun KR <arjunkrishnaraj123@gmail.com>` and carry no AI attribution.

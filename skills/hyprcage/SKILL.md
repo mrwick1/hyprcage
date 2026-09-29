@@ -52,8 +52,13 @@ installs nothing and asks them for a password for nothing.
 - `root` with a ref reads only that subtree. `source` forces `cdp`, `atspi` or `ocr`.
 - `(action)` in place of `(<x>,<y>)` means the coordinates are not reliable. Items in an open GTK menu show it. `act` with `click` uses the element's accessibility action instead of the pointer. Other ops fail with `unsupported_input`: use `click`, or `key` to navigate the menu.
 - OCR reads text only: every element has the role `text`. Clicks on OCR refs hit the centre of the text.
-- `stale_ref` means the element is gone or no longer unique. Take a new `snapshot` and use the new ref.
+- `stale_ref` means the element is gone, vanished before the input, or is no longer unique. Take a new `snapshot` and use the new ref.
+- `ref_offscreen` means the element stays off screen after hyprcage tried to scroll it into view. Scroll its container, then take a new `snapshot`.
 - `ref_occluded` means another element covers the target, such as a dialog. Close the dialog, or act on the covering element.
+- `unsupported_input` means the source cannot do this op on this element, for example `hover` on an `(action)` node. Use `click`, or use `key` to navigate.
+- `cdp_unreachable` means the DevTools port does not answer or no longer belongs to the screen. Relaunch the app with `debug: true`, or use `source: atspi` or `source: ocr`.
+- A `snapshot` can come back with `nodes=0`, and an `act` diff can list every element as removed, when an app drops off the accessibility bus. Then take one `screenshot`, or use `source: ocr`.
+- An `act` that returns an error after it sent the input can still have taken effect. Take a `snapshot` before you retry it.
 - `no_source` means no source can read the screen. Relaunch the app with `debug: true`, or call `setup` to install OCR.
 
 ## More tools (mrwick1 fork)
