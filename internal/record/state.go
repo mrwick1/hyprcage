@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/wl"
@@ -22,9 +23,8 @@ import (
 // Desktop is the target name of the human's own screen.
 const Desktop = "desktop"
 
-// lockedFn reports whether the human's session is locked. Task 7 points it
-// at desktop.Locked.
-var lockedFn = func() bool { return false }
+// lockedFn reports whether the human's session is locked.
+var lockedFn = func() bool { return desktop.Locked("/proc") }
 
 // State is the record of one running recorder.
 type State struct {

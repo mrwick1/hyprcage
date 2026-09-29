@@ -17,6 +17,7 @@ func (s *Server) registerFork(srv *mcp.Server) {
 	tool(s, srv, "record_start", "Start recording a screen (or the human's desktop with target=\"desktop\") to an MP4 file. It stops by itself after the configured maximum (30 min by default), when the screen closes, or with record_stop. Desktop recording is refused while the human's session is locked.", s.recordStart)
 	tool(s, srv, "record_stop", "Stop a recording and return the path of the MP4 file.", s.recordStop)
 	s.registerClip(srv)
+	s.registerDesktop(srv)
 }
 
 func (s *Server) recordTarget(target string) (string, bool, error) {
