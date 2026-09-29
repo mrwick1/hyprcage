@@ -197,7 +197,7 @@ func TestActOps(t *testing.T) {
 		want string
 	}{
 		{ActOp{Op: "double_click"}, "move 5,6|click 5,6 x2"},
-		{ActOp{Op: "type", Text: "hi"}, "move 5,6|click 5,6 x1|type hi"},
+		{ActOp{Op: "type", Text: "hi"}, "move 5,6|click 5,6 x1|move 5,6|click 5,6 x1|type hi"}, // never focused: two clicks
 		{ActOp{Op: "key", Keys: []string{"ctrl+a", "Delete"}}, "keys ctrl+a+Delete"},
 		{ActOp{Op: "hover"}, "move 5,6"},
 		{ActOp{Op: "scroll"}, "move 5,6|scroll 5,6 down 3"},
@@ -388,11 +388,55 @@ func TestActTypeWithoutFocus(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
-	if el := time.Since(start); el < typeFocusWait {
-		t.Fatalf("returned after %v, before typeFocusWait %v", el, typeFocusWait)
+	if el := time.Since(start); el < 2*typeFocusWait {
+		t.Fatalf("returned after %v, before two focus waits of %v", el, typeFocusWait)
 	}
-	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1", "type hi"}) {
+	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1", "move 5,6", "click 5,6 x1", "type hi"}) {
 		t.Fatalf("calls %v", in.calls)
+	}
+}
+
+// clickFocus reports the field as focused once the input holds `after` clicks.
+type clickFocus struct {
+	fakeSource
+	in    *fakeInput
+	after int
+}
+
+func (c *clickFocus) Nodes(context.Context) ([]Node, error) {
+	field := Node{Key: "k1", Role: "textbox", Name: "query", X: 5, Y: 6}
+	clicks := 0
+	for _, s := range c.in.calls {
+		if strings.HasPrefix(s, "click ") {
+			clicks++
+		}
+	}
+	if clicks >= c.after {
+		field.States = []string{"focused"}
+	}
+	c.in.calls = append(c.in.calls, "read")
+	return []Node{field}, nil
+}
+
+func TestActTypeClicksAgain(t *testing.T) {
+	for _, after := range []int{1, 2} {
+		fastTiming(t)
+		typeFocusWait = 20 * time.Millisecond
+		in := &fakeInput{}
+		src := &clickFocus{fakeSource{name: "cdp"}, in, after}
+		tb := NewTable()
+		tb.Assign([]Node{{Key: "k1", Role: "textbox", Name: "query", X: 5, Y: 6}})
+		if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hello"}); err != nil {
+			t.Fatal(err)
+		}
+		count := func(c string) int {
+			return len(slices.DeleteFunc(slices.Clone(in.calls), func(s string) bool { return s != c }))
+		}
+		lastClick := slices.Index(in.calls, "type hello") - 2 // ..., click, read (focused), type
+		if count("click 5,6 x1") != after || count("type hello") != 1 || lastClick < 0 ||
+			in.calls[lastClick] != "click 5,6 x1" || in.calls[lastClick+1] != "read" {
+			t.Errorf("focused after %d clicks: %v, want %d clicks, then one read, then one type", after, in.calls, after)
+		}
 	}
 }
 

@@ -174,9 +174,16 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	case op.Op == "double_click":
 		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 2) })
 	case op.Op == "type":
-		if err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }); err == nil {
-			waitFocus(ctx, src, n.Key)
-			err = in.typeText(op.Text)
+		// A click in the first second after the window maps can be dropped:
+		// click once more when the field does not report focused.
+		click := func() error { return pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }) }
+		if err = click(); err == nil && !waitFocus(ctx, src, n.Key) {
+			if err = click(); err == nil {
+				waitFocus(ctx, src, n.Key)
+			}
+		}
+		if err == nil {
+			err = in.typeText(op.Text) // focused or not: the text goes out once
 		}
 	case op.Op == "key":
 		err = in.keys(op.Keys)
@@ -217,23 +224,24 @@ func pressAt(ctx context.Context, in inputter, n Node, press func() error) error
 }
 
 // waitFocus reads the nodes every settlePoll until the node key reports
-// focused, or until typeFocusWait. A click can give the focus late, and
-// text typed before it is lost. Without focus, the caller types anyway.
-func waitFocus(ctx context.Context, src Source, key string) {
+// focused, or until typeFocusWait, and reports whether it did. A click can
+// give the focus late, and text typed before it is lost.
+func waitFocus(ctx context.Context, src Source, key string) bool {
 	deadline := time.Now().Add(typeFocusWait)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-time.After(settlePoll):
 		}
 		nodes, err := src.Nodes(ctx)
 		if err == nil && slices.ContainsFunc(nodes, func(x Node) bool {
 			return x.Key == key && slices.Contains(x.States, "focused")
 		}) {
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // resolve finds old in the fresh read. A missing Key goes through
