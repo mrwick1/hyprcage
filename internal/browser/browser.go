@@ -186,9 +186,8 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	// ponytail: the profile outlives a successful run; destroy cleans no
-	// per-screen directory yet.
-	profile, err := os.MkdirTemp("", "hc-chrome-")
+	// screen.Destroy removes the profile by its prefix.
+	profile, err := os.MkdirTemp("", screen.ProfilePrefix(rec.Name))
 	if err != nil {
 		return Info{}, err
 	}

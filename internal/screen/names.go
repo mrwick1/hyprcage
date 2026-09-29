@@ -15,6 +15,9 @@ func ValidateName(name string) error {
 	if !nameRE.MatchString(name) {
 		return errf(CodeInvalidName, "use lowercase letters, digits and dashes", "%q must match ^[a-z0-9-]{1,32}$", name)
 	}
+	if name == "desktop" {
+		return errf(CodeInvalidName, "choose another name", "%q is the record target of the human's desktop", name)
+	}
 	return nil
 }
 
