@@ -384,6 +384,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "key", "Press key combinations such as ctrl+l, Return, alt+F4, ctrl+shift+t.", s.key)
 	tool(s, srv, "wait", "Wait for a delay, for the image to stop changing (stable_ms) or for a window title (regexp).", s.wait)
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
+	s.registerFork(srv)
 }
 
 // --- handlers ---------------------------------------------------------------

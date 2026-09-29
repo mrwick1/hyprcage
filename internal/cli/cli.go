@@ -62,10 +62,12 @@ func init() {
 		{"setup", "install cage (asks for your password)", runSetup, false},
 		{"mcp", "run the MCP server on stdio", runMCP, false},
 		{"version", "print the version", runVersion, false},
+		{"record", "record a screen or the desktop to MP4 (start, stop, status)", runRecord, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},
 		{"_mirror", "internal: shows a screen in a window on the human's compositor", runMirror, true},
+		{"_record", "internal: captures a screen or the desktop into ffmpeg", runRecordChild, true},
 	}
 }
 

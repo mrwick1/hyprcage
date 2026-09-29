@@ -44,7 +44,8 @@ func TestToolsRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
-		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup"}
+		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
+		"record_start", "record_stop"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
