@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Click action of the waybar module: pick an agent screen, jump to its mirror.
+set -euo pipefail
+names=$(hyprcage list --all --json | jq -r '.[] | select(.ws_mirror > 0) | .name')
+[ -n "$names" ] || exit 0
+if command -v rofi >/dev/null; then pick=$(rofi -dmenu -p agents <<<"$names")
+elif command -v wofi >/dev/null; then pick=$(wofi --dmenu -p agents <<<"$names")
+elif command -v fuzzel >/dev/null; then pick=$(fuzzel --dmenu <<<"$names")
+else echo "hyprcage-menu: no rofi, wofi or fuzzel" >&2; exit 1; fi
+[ -n "$pick" ] && exec hyprcage show "$pick"

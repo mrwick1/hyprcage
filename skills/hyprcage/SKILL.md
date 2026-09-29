@@ -37,10 +37,18 @@ installs nothing and asks them for a password for nothing.
 3. `screenshot`, then `click` / `type` / `key` / `scroll` / `drag` with **screen pixel coordinates**. Use `wait` (stability or title) instead of sleeping. Ask for `screenshot_after` only when you need to see the result; `settle_ms` on `screenshot` waits for a toast or an animation first.
 4. `screen_destroy` **as soon as you are done**, before handing back to the human. If you keep a screen open between steps, say so.
 
+## More tools (mrwick1 fork)
+
+- **Record**: `record_start` on a screen, or `target: "desktop"` for the human's screen, then `record_stop`. The reply gives the MP4 path in `~/Videos/agent/`. A recording stops by itself after 30 minutes or when its screen closes. Tell the human when you record their desktop.
+- **Chrome by code**: `browser_open` on a screen, then the `agent-chrome` MCP tools (DOM, console, network, JavaScript). Use the `agent-chrome` tools only after `browser_open` succeeded in this session: before that, they can reach a different browser. One agent Chrome at a time. `browser_running` means the port is taken: if you opened the agent Chrome earlier in this session, reuse it; otherwise tell the human.
+- **Clipboard**: `clipboard_set`, then `key ctrl+v`, to paste long text into an app. `clipboard_get` reads what the app copied. It is the screen's clipboard, never the human's.
+- **The human's windows**: `desktop_windows` gives the addresses. `desktop_type` and `desktop_key` send keys without focusing the window, but each key briefly takes the human's keyboard focus. `desktop_focus` moves their focus for real. Use these only for the human's own windows. Your own apps go on a screen.
+- **Files**: no file tool is needed. Apps on a screen run as the human and see the same file system, so give them normal paths.
+
 ## Never
 
 - `app &` from a shell, `open_application` from computer-use, or any launch outside `app_launch`: it lands on the human's screen.
-- `hyprctl dispatch focus*`, `workspace`, `movecursor`: they touch the human.
+- Raw `hyprctl dispatch` calls (`focus*`, `workspace`, `movecursor` and the like): never use them. The `desktop_*` tools are the only way to act on the human's windows, and only when the task needs it.
 - Destroying a screen you did not create (`not_owner`).
 - Keeping every screenshot in context: each one costs ~1 300 tokens.
 - Launching a browser or Electron app (Discord, Chromium, Firefox…) with the human's profile while theirs is open: single-instance apps hand the launch to the running instance, and the window opens on the human's screen. Always a dedicated profile (`--user-data-dir`), or their instance closed.
@@ -48,4 +56,5 @@ installs nothing and asks them for a password for nothing.
 ## CLI twin
 
 Everything exists as `hyprcage <command>` for a terminal: `create`, `launch`,
-`shot`, `click`, `type`, `key`, `destroy`, `mirror`, `list`, `gc`, `doctor`.
+`shot`, `click`, `type`, `key`, `destroy`, `mirror`, `list`, `gc`, `doctor`,
+`record`, `clip`, `desktop`, `browser`, `show`.

@@ -197,3 +197,7 @@ system: applications in a cage run as you. See [SECURITY.md](SECURITY.md).
 ## License
 
 MIT
+
+## Fork additions (mrwick1/hyprcage)
+
+This fork adds recording (`record`), the agent's Chrome with DevTools (`browser`), the clipboard of a screen (`clip`), control of the human's own windows (`desktop`), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` and `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md`.

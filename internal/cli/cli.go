@@ -62,10 +62,16 @@ func init() {
 		{"setup", "install cage (asks for your password)", runSetup, false},
 		{"mcp", "run the MCP server on stdio", runMCP, false},
 		{"version", "print the version", runVersion, false},
+		{"record", "record a screen or the desktop to MP4 (start, stop, status)", runRecord, false},
+		{"clip", "read or write the clipboard of a screen", runClip, false},
+		{"show", "switch to the workspace of a screen's mirror", runShow, false},
+		{"desktop", "act on the human's own windows (not silent)", runDesktop, false},
+		{"browser", "open the agent's Chrome with DevTools on a screen", runBrowser, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},
 		{"_mirror", "internal: shows a screen in a window on the human's compositor", runMirror, true},
+		{"_record", "internal: captures a screen or the desktop into ffmpeg", runRecordChild, true},
 	}
 }
 

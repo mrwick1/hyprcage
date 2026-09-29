@@ -15,7 +15,7 @@ func TestValidateName(t *testing.T) {
 			t.Errorf("%q should be valid: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"", "Hc-1", "a b", `a"b`, "a;b", "x/y", "0123456789012345678901234567890123"} {
+	for _, bad := range []string{"", "Hc-1", "a b", `a"b`, "a;b", "x/y", "0123456789012345678901234567890123", "desktop"} {
 		err := ValidateName(bad)
 		var se *Error
 		if !errors.As(err, &se) || se.Code != CodeInvalidName {

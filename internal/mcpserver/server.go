@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/session"
@@ -30,7 +31,9 @@ import (
 const instructions = `hyprcage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
-Never launch apps outside app_launch, never touch the human's focus, cursor or workspaces.`
+Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
+Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then the agent-chrome MCP tools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
+The human's own windows: desktop_windows, desktop_focus, desktop_move, desktop_type, desktop_key. They are not silent (each key briefly takes the human's focus) and refuse while the session is locked; prefer an agent screen whenever the task allows it.`
 
 // Server holds the per-session state.
 type Server struct {
@@ -135,6 +138,7 @@ func (s *Server) onDisconnect() {
 		}
 	}
 	time.Sleep(s.cfg.SessionGrace)
+	_, _ = record.StopSession(id.SessionID)
 	if c, err := screen.Connect(s.cfg); err == nil {
 		_, _ = screen.GC(c, screen.GCOptions{Session: id.SessionID})
 	}
@@ -366,7 +370,7 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, then retry.", s.setup)
+	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg and wl-clipboard) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording or the clipboard fails because ffmpeg or wl-clipboard is missing, then retry.", s.setup)
 	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
@@ -384,6 +388,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "key", "Press key combinations such as ctrl+l, Return, alt+F4, ctrl+shift+t.", s.key)
 	tool(s, srv, "wait", "Wait for a delay, for the image to stop changing (stable_ms) or for a window title (regexp).", s.wait)
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
+	s.registerFork(srv)
 }
 
 // --- handlers ---------------------------------------------------------------

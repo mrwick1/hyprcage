@@ -15,12 +15,14 @@ func (e *Env) fail(err error) int {
 	var se *screen.Error
 	if errors.As(err, &se) {
 		switch se.Code {
-		case screen.CodeNotFound, screen.CodeDead:
+		case screen.CodeNotFound, screen.CodeDead, screen.CodeNotRecording, screen.CodeRecording:
 			return ExitScreen
 		case screen.CodeNotOwner:
 			return ExitNotOwner
-		case screen.CodeHyprland, screen.CodeCage:
+		case screen.CodeHyprland, screen.CodeCage, screen.CodeLocked, screen.CodeBrowserBusy, screen.CodeBrowserDown:
 			return ExitDependency
+		case screen.CodeAddress, screen.CodeUnsupported:
+			return ExitUsage
 		case screen.CodeTimeout:
 			return ExitTimeout
 		}

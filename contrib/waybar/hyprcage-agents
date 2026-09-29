@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Waybar module: the number of agent screens, a dot while anything records,
+# and the class recording-desktop while the human's desktop is recorded.
+set -uo pipefail
+screens=$(hyprcage list --all --json 2>/dev/null) || screens='[]'
+recs=$(hyprcage record status --json 2>/dev/null) || recs='[]'
+n=$(jq length <<<"$screens")
+r=$(jq length <<<"$recs")
+desk=$(jq '[.[] | select(.target == "desktop")] | length' <<<"$recs")
+if [ "$n" -eq 0 ] && [ "$r" -eq 0 ]; then
+  echo '{"text": "", "class": "idle"}'
+  exit 0
+fi
+text="󰍹 $n"
+class=active
+[ "$r" -gt 0 ] && text="$text ●"
+[ "$desk" -gt 0 ] && class=recording-desktop
+tip=$(jq -r '[.[] | "\(.name)  ws \(.ws_mirror)"] | join("\n")' <<<"$screens")
+jq -cn --arg t "$text" --arg c "$class" --arg tip "$tip" '{text: $t, class: $c, tooltip: $tip}'

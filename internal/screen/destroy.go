@@ -2,6 +2,8 @@ package screen
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -40,6 +42,7 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 		waitNoProcesses(rec.Name, time.Second)
 	}
 	_ = os.Remove(registry.InnerPath(rec.Name))
+	removeProfiles(rec.Name)
 	if err := registry.Delete(rec.Name); err != nil {
 		return err
 	}
@@ -67,5 +70,22 @@ func waitNoProcesses(name string, timeout time.Duration) bool {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// ProfilePrefix is the temp directory prefix of the agent Chrome profile of
+// a screen. os.MkdirTemp appends only digits to it.
+func ProfilePrefix(name string) string { return "hc-chrome-" + name + "-" }
+
+// removeProfiles deletes the Chrome profiles of a screen. The digits check
+// keeps the profiles of a screen whose name extends this one.
+func removeProfiles(name string) {
+	prefix := filepath.Join(os.TempDir(), ProfilePrefix(name))
+	dirs, _ := filepath.Glob(prefix + "*")
+	for _, d := range dirs {
+		suffix := strings.TrimPrefix(d, prefix)
+		if suffix != "" && strings.Trim(suffix, "0123456789") == "" {
+			_ = os.RemoveAll(d)
+		}
 	}
 }

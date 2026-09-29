@@ -10,11 +10,13 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/config"
 )
 
-func connect(t *testing.T) *mcp.ClientSession {
+func connect(t *testing.T) *mcp.ClientSession { return connectCfg(t, config.Default()) }
+
+func connectCfg(t *testing.T, cfg config.Config) *mcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 	st, ct := mcp.NewInMemoryTransports()
-	srv := newServer(config.Default()).mcpServer()
+	srv := newServer(cfg).mcpServer()
 	if _, err := srv.Connect(ctx, st, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +46,9 @@ func TestToolsRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
-		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup"}
+		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
+		"record_start", "record_stop", "clipboard_get", "clipboard_set",
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -104,5 +108,20 @@ func TestInvalidArgumentsAreRejected(t *testing.T) {
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "click", Arguments: map[string]any{"x": 1}})
 	if err == nil && !res.IsError {
 		t.Error("missing y should be rejected")
+	}
+}
+
+func TestBrowserOpenNamesConfiguredPort(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	cfg := config.Default()
+	cfg.BrowserPort = 9333
+	res, err := connectCfg(t, cfg).ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tl := range res.Tools {
+		if tl.Name == "browser_open" && !strings.Contains(tl.Description, "127.0.0.1:9333") {
+			t.Errorf("browser_open description: %q", tl.Description)
+		}
 	}
 }

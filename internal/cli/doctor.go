@@ -110,6 +110,8 @@ func runDoctor(e *Env) int {
 		}
 	}
 	tool("cage", "fail", "the agent's compositor; `hyprcage setup` installs it")
+	tool("ffmpeg", "warn", "recording needs it; `hyprcage setup` installs it")
+	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `hyprcage setup` installs it")
 
 	if len(setup.Missing()) > 0 {
 		if _, err := exec.LookPath("pkexec"); err == nil {
