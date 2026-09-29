@@ -67,11 +67,16 @@ func PrepareDebug(rec *registry.Screen, command []string) ([]string, int, error)
 	return DebugArgs(command, port), port, nil
 }
 
-// ConfirmDebug waits for the DevTools port, then saves it on rec. On error
-// the application keeps running and rec is unchanged.
+// ConfirmDebug waits for the DevTools port, checks that a process of the
+// screen listens on it, then saves it on rec. On error the application
+// keeps running and rec is unchanged.
 func ConfirmDebug(rec *registry.Screen, port int, timeout time.Duration) error {
 	if err := WaitDebug(port, timeout); err != nil {
 		return err
+	}
+	if !OwnsPort(rec.Name, port) {
+		return errf(CodeCDP, "another program holds the port; relaunch the app with debug=true",
+			"127.0.0.1:%d does not belong to screen %s", port, rec.Name)
 	}
 	rec.DebugPort = port
 	return registry.Save(rec)

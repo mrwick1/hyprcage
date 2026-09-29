@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/hypr"
@@ -119,6 +120,13 @@ func runDoctor(e *Env) int {
 	} else {
 		add("a11y bus", "ok", "org.a11y.Bus answers GetAddress")
 	}
+	recs, _ := registry.List()
+	for _, r := range recs {
+		if r.DebugPort > 0 {
+			st, d := cdpCheck(r)
+			add("cdp "+r.Name, st, d)
+		}
+	}
 	tool("tesseract", "warn", "the OCR snapshot source needs it; `hyprcage setup` installs it")
 	if _, err := os.Stat(perceive.OCRData); err != nil {
 		add("ocr data", "warn", "no "+perceive.OCRData+"; run hyprcage setup")
@@ -151,6 +159,18 @@ func runDoctor(e *Env) int {
 		}
 	}
 	return worst
+}
+
+// cdpCheck reports whether the DevTools port of rec answers and whether a
+// process of the screen listens on it.
+func cdpCheck(rec *registry.Screen) (string, string) {
+	if err := screen.WaitDebug(rec.DebugPort, 300*time.Millisecond); err != nil {
+		return "warn", fmt.Sprintf("no answer on 127.0.0.1:%d; snapshot falls back to AT-SPI or OCR", rec.DebugPort)
+	}
+	if !screen.OwnsPort(rec.Name, rec.DebugPort) {
+		return "warn", fmt.Sprintf("127.0.0.1:%d answers but does not belong to the screen; relaunch the app with debug=true", rec.DebugPort)
+	}
+	return "ok", fmt.Sprintf("127.0.0.1:%d answers and belongs to the screen", rec.DebugPort)
 }
 
 func keys(m map[int]int) []int {

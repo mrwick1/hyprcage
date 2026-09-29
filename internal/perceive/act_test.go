@@ -624,7 +624,8 @@ func TestFindTimeout(t *testing.T) {
 // stubChoose replaces the probes of Choose for the test.
 func stubChoose(t *testing.T, apps bool, ocrPresent bool) {
 	t.Helper()
-	h, d, a := hasApps, ocrData, newATSPI
+	h, d, a, o := hasApps, ocrData, newATSPI, ownsPort
+	ownsPort = func(string, int) bool { return true }
 	hasApps = func(context.Context, string) bool { return apps }
 	newATSPI = func(context.Context, string) (Source, error) { return &fakeSource{name: "atspi"}, nil }
 	ocrData = filepath.Join(t.TempDir(), "eng.traineddata")
@@ -633,7 +634,7 @@ func stubChoose(t *testing.T, apps bool, ocrPresent bool) {
 			t.Fatal(err)
 		}
 	}
-	t.Cleanup(func() { hasApps, ocrData, newATSPI = h, d, a })
+	t.Cleanup(func() { hasApps, ocrData, newATSPI, ownsPort = h, d, a, o })
 }
 
 func freePort(t *testing.T) int {
@@ -794,6 +795,26 @@ func TestChooseReportsCDPError(t *testing.T) {
 	stubChoose(t, true, true)
 	if _, err := Choose(ctx, &registry.Screen{Name: "s", DebugPort: 9}, nil, "auto"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %v, want context.Canceled", err)
+	}
+}
+
+func TestChooseSkipsForeignPort(t *testing.T) {
+	stubChoose(t, false, true)
+	c := newCDP
+	dialled := false
+	newCDP = func(context.Context, int) (Source, error) { dialled = true; return &fakeSource{name: "cdp"}, nil }
+	t.Cleanup(func() { newCDP = c })
+	var asked string
+	ownsPort = func(name string, port int) bool { asked = fmt.Sprintf("%s:%d", name, port); return false }
+	rec := &registry.Screen{Name: "s", DebugPort: 9222}
+	src, err := Choose(context.Background(), rec, nil, "auto")
+	if err != nil || src.Name() != "ocr" || dialled || asked != "s:9222" {
+		t.Fatalf("auto: src %v, err %v, dialled %v, asked %q", src, err, dialled, asked)
+	}
+	_, err = Choose(context.Background(), rec, nil, "cdp")
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeCDP || dialled || !strings.Contains(se.Hint, "no longer belongs to this screen") {
+		t.Fatalf("cdp: got %v, dialled %v", err, dialled)
 	}
 }
 

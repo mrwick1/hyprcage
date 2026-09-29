@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -106,5 +107,37 @@ func TestPrepareDebugReplacesDeadPort(t *testing.T) {
 	}
 	if !slices.Contains(args, fmt.Sprintf("--remote-debugging-port=%d", port)) {
 		t.Fatalf("args %q lack the new port %d", args, port)
+	}
+}
+
+func TestListenerPID(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	port := l.Addr().(*net.TCPAddr).Port
+	if pid, err := ListenerPID(port); err != nil || pid != os.Getpid() {
+		t.Fatalf("ListenerPID = %d, %v, want %d", pid, err, os.Getpid())
+	}
+	// ScreenProcesses never lists the caller: the test process owns no screen.
+	if OwnsPort("t", port) {
+		t.Fatal("OwnsPort: the test process belongs to no screen")
+	}
+	free, _ := FreePort()
+	if pid, err := ListenerPID(free); err != nil || pid != 0 {
+		t.Fatalf("ListenerPID(free) = %d, %v, want 0", pid, err)
+	}
+}
+
+func TestConfirmDebugRefusesForeignListener(t *testing.T) {
+	rec := &registry.Screen{Name: "t"}
+	err := ConfirmDebug(rec, debugServer(t), time.Second)
+	var se *Error
+	if !errors.As(err, &se) || se.Code != CodeCDP {
+		t.Fatalf("err = %v, want code %s", err, CodeCDP)
+	}
+	if rec.DebugPort != 0 {
+		t.Fatalf("DebugPort = %d, want unchanged", rec.DebugPort)
 	}
 }
