@@ -75,7 +75,7 @@ The agent calls `browser_open`. Then it uses the tools of a `chrome-devtools-mcp
 
 ### 3. The waybar module
 
-The script `waybar-agents` works like the existing `waybar-wispr` script. It prints one JSON line for each change and never exits. It gets its data from `hyprcage list --json`. A click opens a menu of the screens. Choosing an entry switches to that screen's mirror workspace.
+The script `contrib/waybar/hyprcage-agents` is a polled module: waybar runs it every 2 s (`"interval": 2`), and each run prints one JSON line and exits. It gets its data from `hyprcage list --all --json` and `hyprcage record status --json`. A click runs `hyprcage-menu`, which opens a menu of the screens. Choosing an entry switches to that screen's mirror workspace.
 
 ## Runtime and safety
 
