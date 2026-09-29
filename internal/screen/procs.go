@@ -8,11 +8,11 @@ import (
 	"syscall"
 )
 
-// screenProcesses lists the processes that belong to a screen, by the
+// ScreenProcesses lists the processes that belong to a screen, by the
 // HYPRCAGE_SCREEN variable every one of them carries: cage, the mirror,
 // the applications. It is the inventory when systemd is not there to keep
 // one, and the last resort after it.
-func screenProcesses(name string) []int {
+func ScreenProcesses(name string) []int {
 	want := []byte("HYPRCAGE_SCREEN=" + name + "\x00")
 	self := os.Getpid()
 	entries, err := os.ReadDir("/proc")
@@ -40,7 +40,7 @@ func screenProcesses(name string) []int {
 // must see their SIGTERM before their compositor dies, so cage, the parent
 // of every other process's session, is signalled last.
 func killScreenProcesses(name string, sig syscall.Signal) {
-	pids := screenProcesses(name)
+	pids := ScreenProcesses(name)
 	var cage int
 	for _, pid := range pids {
 		if cmd, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "comm")); err == nil && string(bytes.TrimSpace(cmd)) == "cage" {
