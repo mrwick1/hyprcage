@@ -135,3 +135,30 @@ func TestWriteDefault(t *testing.T) {
 		t.Errorf("the existing file was touched: width=%d err=%v", cfg.DefaultWidth, err)
 	}
 }
+
+func TestRecordAndBrowserKeys(t *testing.T) {
+	cfg := Default()
+	if cfg.RecordDir != "~/Videos/agent" || cfg.RecordMax != 30*time.Minute || cfg.RecordFPS != 10 || cfg.BrowserPort != 9222 {
+		t.Fatalf("defaults: %+v", cfg)
+	}
+	err := Apply(&cfg, "[record]\ndir = \"/tmp/rec\"\nmax = \"5m\"\nfps = 5\n[browser]\ncommand = \"chromium\"\nport = 9333\n")
+	if err != nil || cfg.RecordDir != "/tmp/rec" || cfg.RecordMax != 5*time.Minute || cfg.RecordFPS != 5 || cfg.BrowserCommand != "chromium" || cfg.BrowserPort != 9333 {
+		t.Fatalf("overrides: %v %+v", err, cfg)
+	}
+	for _, bad := range []string{"[record]\nfps = 0", "[record]\nfps = 61", "[record]\nmax = \"0s\"", "[browser]\nport = 80"} {
+		c := Default()
+		if Apply(&c, bad) == nil {
+			t.Errorf("%q: want an error", bad)
+		}
+	}
+}
+
+func TestExpandHome(t *testing.T) {
+	t.Setenv("HOME", "/home/x")
+	if got := ExpandHome("~/Videos/agent"); got != "/home/x/Videos/agent" {
+		t.Errorf("got %s", got)
+	}
+	if got := ExpandHome("/abs"); got != "/abs" {
+		t.Errorf("got %s", got)
+	}
+}
