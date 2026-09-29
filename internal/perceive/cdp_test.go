@@ -446,3 +446,30 @@ func TestCDPBrowserToolbarOffset(t *testing.T) {
 		t.Fatalf("nodes = %+v, want the link at (640,490) on screen", nodes)
 	}
 }
+
+func TestCDPToolbarOffsetZoomed(t *testing.T) {
+	at := func(viewport string) Node {
+		t.Helper()
+		f := &fakeCaller{
+			targets: `[{"targetId":"P","type":"page"}]`,
+			trees: map[string]json.RawMessage{"S-P": json.RawMessage(`{"nodes":[
+				{"nodeId":"2","role":{"value":"link"},"name":{"value":"x"},"backendDOMNodeId":2}]}`)},
+			boxes:    map[string]map[string]json.RawMessage{"S-P": {"2": json.RawMessage(`{"model":{"border":[90,90,110,90,110,110,90,110]}}`)}},
+			viewport: viewport,
+		}
+		nodes, err := newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+		if err != nil || len(nodes) != 1 {
+			t.Fatalf("Nodes = %+v, %v", nodes, err)
+		}
+		return nodes[0]
+	}
+	// Chrome at 150% zoom with an 87 px toolbar. innerWidth and innerHeight
+	// are whole CSS pixels, so the offset can be off by half a pixel.
+	if n := at(`{"dpr":1.5,"w":853,"h":475,"ow":1280,"oh":800}`); abs(n.X-150) > 1 || abs(n.Y-237) > 1 || n.Offscreen {
+		t.Fatalf("zoomed Chrome: %+v, want (150,237)", n)
+	}
+	// Electron at 150% zoom: no toolbar.
+	if n := at(`{"dpr":1.5,"w":853,"h":533,"ow":1280,"oh":800}`); abs(n.X-150) > 1 || abs(n.Y-150) > 1 || n.Offscreen {
+		t.Fatalf("zoomed Electron: %+v, want (150,150)", n)
+	}
+}

@@ -127,7 +127,8 @@ type cdpSession struct {
 	typ  string  // target type: page, iframe or webview
 	dpr  float64 // viewport, read on every Nodes call
 	w, h int
-	// Browser chrome above and left of the viewport: outer minus inner size, in CSS pixels.
+	// Browser chrome above and left of the viewport, in window pixels:
+	// outer minus inner times dpr, because page zoom shrinks inner, not outer.
 	chromeX, chromeY float64
 }
 
@@ -244,11 +245,12 @@ func (s *cdpSource) session(ctx context.Context, target, typ string) (*cdpSessio
 		return nil, err
 	}
 	se.dpr, se.w, se.h = vp.DPR, vp.W, vp.H
-	// ponytail: all of outer minus inner goes above and left of the viewport, as with Chrome's top toolbar; side borders or a bottom panel would shift nodes.
-	se.chromeX, se.chromeY = float64(max(vp.OW-vp.W, 0)), float64(max(vp.OH-vp.H, 0))
 	if se.dpr == 0 {
 		se.dpr = 1
 	}
+	// ponytail: all of outer minus inner goes above and left of the viewport, as with Chrome's top toolbar; side borders or a bottom panel would shift nodes.
+	se.chromeX = max(float64(vp.OW)-float64(vp.W)*se.dpr, 0)
+	se.chromeY = max(float64(vp.OH)-float64(vp.H)*se.dpr, 0)
 	return se, nil
 }
 
@@ -472,7 +474,7 @@ func place(n *Node, c *[2]float64, ox, oy float64, root *cdpSession) {
 		return
 	}
 	x, y := ox+c[0], oy+c[1]
-	n.X, n.Y = int(math.Round((x+root.chromeX)*root.dpr)), int(math.Round((y+root.chromeY)*root.dpr))
+	n.X, n.Y = int(math.Round(x*root.dpr+root.chromeX)), int(math.Round(y*root.dpr+root.chromeY))
 	n.Offscreen = x < 0 || y < 0 || x >= float64(root.w) || y >= float64(root.h)
 }
 
