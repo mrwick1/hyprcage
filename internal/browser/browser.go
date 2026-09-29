@@ -202,16 +202,16 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 	if err == nil {
 		ws, err = Ready(base, 5*time.Second)
 	}
+	if err == nil {
+		rec.DebugPort = port
+		err = registry.Save(rec)
+	}
 	if err != nil {
 		// Launch starts a new session, so -pid is its process group.
 		_ = syscall.Kill(-pid, syscall.SIGTERM)
 		_ = syscall.Kill(pid, syscall.SIGTERM)
 		gone(port, 5*time.Second) // Chrome writes to its profile until it exits
 		os.RemoveAll(profile)
-		return Info{}, err
-	}
-	rec.DebugPort = port
-	if err := registry.Save(rec); err != nil {
 		return Info{}, err
 	}
 	return Info{Screen: rec.Name, PID: pid, Port: port, BrowserURL: base, WS: ws, Profile: profile}, nil

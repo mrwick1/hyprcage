@@ -8,9 +8,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
 func TestDebugArgs(t *testing.T) {
@@ -65,5 +68,43 @@ func TestWaitDebugReady(t *testing.T) {
 	port, _ := strconv.Atoi(u.Port())
 	if err := WaitDebug(port, 2*time.Second); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// debugServer answers /json/version and returns its port.
+func debugServer(t *testing.T) int {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"Browser":"test"}`)
+	}))
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	port, _ := strconv.Atoi(u.Port())
+	return port
+}
+
+func TestPrepareDebugRefusesLivePort(t *testing.T) {
+	rec := &registry.Screen{Name: "t", DebugPort: debugServer(t)}
+	_, _, err := PrepareDebug(rec, []string{"code"})
+	var se *Error
+	if !errors.As(err, &se) || se.Code != CodeLimit {
+		t.Fatalf("err = %v, want code %s", err, CodeLimit)
+	}
+}
+
+func TestPrepareDebugReplacesDeadPort(t *testing.T) {
+	dead, err := FreePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &registry.Screen{Name: "t", DebugPort: dead}
+	args, port, err := PrepareDebug(rec, []string{"code"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port == dead || port == 0 {
+		t.Fatalf("port = %d, dead port was %d", port, dead)
+	}
+	if !slices.Contains(args, fmt.Sprintf("--remote-debugging-port=%d", port)) {
+		t.Fatalf("args %q lack the new port %d", args, port)
 	}
 }

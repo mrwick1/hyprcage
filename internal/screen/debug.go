@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
 // FreePort returns a free TCP port on 127.0.0.1.
@@ -47,4 +49,30 @@ func WaitDebug(port int, timeout time.Duration) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// PrepareDebug picks a DevTools port for the application to launch on rec
+// and returns the command with the DevTools flags. A screen runs one
+// application: a saved port that still answers is refused with CodeLimit,
+// a dead one is replaced.
+func PrepareDebug(rec *registry.Screen, command []string) ([]string, int, error) {
+	if rec.DebugPort != 0 && WaitDebug(rec.DebugPort, 200*time.Millisecond) == nil {
+		return nil, 0, errf(CodeLimit, "a screen runs one application; use another screen",
+			"screen %s already has a DevTools port %d", rec.Name, rec.DebugPort)
+	}
+	port, err := FreePort()
+	if err != nil {
+		return nil, 0, err
+	}
+	return DebugArgs(command, port), port, nil
+}
+
+// ConfirmDebug waits for the DevTools port, then saves it on rec. On error
+// the application keeps running and rec is unchanged.
+func ConfirmDebug(rec *registry.Screen, port int, timeout time.Duration) error {
+	if err := WaitDebug(port, timeout); err != nil {
+		return err
+	}
+	rec.DebugPort = port
+	return registry.Save(rec)
 }

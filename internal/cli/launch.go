@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/session"
 )
@@ -50,14 +49,9 @@ func runLaunch(e *Env) int {
 	}
 	command, port := fs.Args()[1:], 0
 	if *debug {
-		if rec.DebugPort != 0 {
-			return e.fail(screen.Errf(screen.CodeLimit, "a screen runs one application; use another screen",
-				"screen %s already has a DevTools port %d", rec.Name, rec.DebugPort))
-		}
-		if port, err = screen.FreePort(); err != nil {
+		if command, port, err = screen.PrepareDebug(rec, command); err != nil {
 			return e.fail(err)
 		}
-		command = screen.DebugArgs(command, port)
 	}
 	pid, logPath, err := screen.Launch(c, rec, command, *cwd, extra)
 	if err != nil {
@@ -65,12 +59,8 @@ func runLaunch(e *Env) int {
 	}
 	fmt.Fprintf(e.Stdout, "pid=%d\nlog=%s\n", pid, logPath)
 	if *debug {
-		if err := screen.WaitDebug(port, 10*time.Second); err != nil {
+		if err := screen.ConfirmDebug(rec, port, 10*time.Second); err != nil {
 			return e.fail(err) // the app keeps running
-		}
-		rec.DebugPort = port
-		if err := registry.Save(rec); err != nil {
-			return e.fail(err)
 		}
 		fmt.Fprintf(e.Stdout, "debug_port=%d\n", port)
 	}

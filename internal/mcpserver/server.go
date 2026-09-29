@@ -494,14 +494,9 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	}
 	command, port := in.Command, 0
 	if in.Debug {
-		if rec.DebugPort != 0 {
-			return nil, screen.Errf(screen.CodeLimit, "a screen runs one application; use another screen",
-				"screen %s already has a DevTools port %d", rec.Name, rec.DebugPort)
-		}
-		if port, err = screen.FreePort(); err != nil {
+		if command, port, err = screen.PrepareDebug(rec, command); err != nil {
 			return nil, err
 		}
-		command = screen.DebugArgs(command, port)
 	}
 	pid, logPath, err := screen.Launch(s.ctx, rec, command, in.Cwd, in.Env)
 	if err != nil {
@@ -509,14 +504,11 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	}
 	out := map[string]any{"pid": pid, "screen": rec.Name, "log": logPath}
 	if in.Debug {
-		if err := screen.WaitDebug(port, 10*time.Second); err != nil {
+		if err := screen.ConfirmDebug(rec, port, 10*time.Second); err != nil {
 			// The app keeps running: the agent can still drive it.
-			se := err.(*screen.Error)
-			se.Msg = fmt.Sprintf("%s; the app runs as pid %d, log %s", se.Msg, pid, logPath)
-			return nil, se
-		}
-		rec.DebugPort = port
-		if err := registry.Save(rec); err != nil {
+			if se := (*screen.Error)(nil); errors.As(err, &se) {
+				se.Msg = fmt.Sprintf("%s; the app runs as pid %d, log %s", se.Msg, pid, logPath)
+			}
 			return nil, err
 		}
 		out["debug_port"] = port
