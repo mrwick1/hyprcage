@@ -203,6 +203,27 @@ func TestATSPIPopupItemsActionOnly(t *testing.T) {
 	}
 }
 
+func TestATSPIPressMenuHint(t *testing.T) {
+	goMenu := obj("/go", "menu", "Go", [4]int{250, 0, 30, 20})
+	item := obj("/open", "menu item", "Open Parent", [4]int{100, 8, 70, 20})
+	item.Parent = "/go"
+	f := &fakeTree{objs: []accessible{goMenu, item}, actErr: errRefused}
+	src := newATSPIWith(f, []int{1})
+	nodes, err := src.Nodes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ key, hint string }{
+		{nodes[1].Key, "use key to navigate the menu"},
+		{nodes[0].Key, "click the node with the pointer"},
+	} {
+		var se *screen.Error
+		if err := src.Press(context.Background(), tc.key); !errors.As(err, &se) || se.Hint != tc.hint {
+			t.Errorf("Press %s: %v, want hint %q", tc.key, err, tc.hint)
+		}
+	}
+}
+
 func TestATSPICentre(t *testing.T) {
 	n := nodesOf(t, &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{100, 200, 40, 20})}}, 1)
 	if n[0].X != 120 || n[0].Y != 210 || n[0].Offscreen {

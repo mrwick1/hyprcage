@@ -20,6 +20,7 @@ var (
 	settleFirstQuiet = time.Second // quiet before the first change: a navigation commits late
 	settleTimeout    = 3 * time.Second
 	findPoll         = 250 * time.Millisecond
+	typeFocusWait    = time.Second // how long type waits for the clicked field to report focused
 )
 
 const defaultMaxNodes = 300
@@ -173,6 +174,7 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		err = in.click(n.X, n.Y, 2)
 	case op.Op == "type":
 		if err = in.click(n.X, n.Y, 1); err == nil {
+			waitFocus(ctx, src, n.Key)
 			err = in.typeText(op.Text)
 		}
 	case op.Op == "key":
@@ -196,6 +198,26 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	}
 	t.Assign(after)
 	return DiffNodes(before, after), nil
+}
+
+// waitFocus reads the nodes every settlePoll until the node key reports
+// focused, or until typeFocusWait. A click can give the focus late, and
+// text typed before it is lost. Without focus, the caller types anyway.
+func waitFocus(ctx context.Context, src Source, key string) {
+	deadline := time.Now().Add(typeFocusWait)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(settlePoll):
+		}
+		nodes, err := src.Nodes(ctx)
+		if err == nil && slices.ContainsFunc(nodes, func(x Node) bool {
+			return x.Key == key && slices.Contains(x.States, "focused")
+		}) {
+			return
+		}
+	}
 }
 
 // resolve finds old in the fresh read. A missing Key goes through

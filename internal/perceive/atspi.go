@@ -58,6 +58,7 @@ type atspiSource struct {
 	closer func() error
 	mu     sync.Mutex
 	last   map[string]accessible // by Key, from the last Nodes
+	menu   map[string]bool       // the keys of the ActionOnly nodes of the last Nodes
 }
 
 // NewATSPI connects to the a11y bus of the session. The source keeps only
@@ -145,7 +146,14 @@ func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
 	for _, o := range objs {
 		s.last[atspiKey(o.Bus, o.Path)] = o
 	}
-	return atspiNodes(objs), nil
+	nodes := atspiNodes(objs)
+	s.menu = map[string]bool{}
+	for _, n := range nodes {
+		if n.ActionOnly {
+			s.menu[n.Key] = true
+		}
+	}
+	return nodes, nil
 }
 
 // atspiNodes converts objs, which hold one entry per key.
@@ -217,9 +225,8 @@ func (s *atspiSource) known(key string) (accessible, error) {
 }
 
 // actErr maps an error of the object's application to stale_ref, and any
-// other error to no_source.
-func actErr(key string, err error) error {
-	const unsupported = "click the node with the pointer"
+// other error to no_source. unsupported is the hint when the object refuses.
+func actErr(key string, err error, unsupported string) error {
 	if errors.Is(err, errRefused) {
 		return screen.Errf(screen.CodeUnsupported, unsupported, "%s: %v", key, err)
 	}
@@ -234,6 +241,8 @@ func actErr(key string, err error) error {
 	return screen.Errf(screen.CodeNoSource, atspiHint, "%s: %v", key, err)
 }
 
+const pointerHint = "click the node with the pointer"
+
 func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -242,7 +251,7 @@ func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 		return Node{}, err
 	}
 	if err := s.t.Scroll(ctx, o.Bus, o.Path); err != nil {
-		return Node{}, actErr(key, err)
+		return Node{}, actErr(key, err, pointerHint)
 	}
 	// ponytail: tree has no single-object read, so Reveal walks everything; add one if Reveal is slow.
 	objs, err := s.walk(ctx)
@@ -267,7 +276,11 @@ func (s *atspiSource) Press(ctx context.Context, key string) error {
 		return err
 	}
 	if err := s.t.DoAction(ctx, o.Bus, o.Path, 0); err != nil {
-		return actErr(key, err)
+		hint := pointerHint
+		if s.menu[key] { // a popup item has no reliable coordinates for the pointer
+			hint = "use key to navigate the menu"
+		}
+		return actErr(key, err, hint)
 	}
 	return nil
 }

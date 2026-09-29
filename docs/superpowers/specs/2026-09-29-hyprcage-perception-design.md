@@ -132,7 +132,7 @@ Parameters:
 
 1. It resolves the ref.
 2. It scrolls the element into view when the element is off screen.
-3. It sends the input at the element centre. For an `(action)` node, `click` and `double_click` call the accessibility action (AT-SPI `DoAction` 0). Every other op on an `(action)` node fails with `unsupported_input`.
+3. It sends the input at the element centre. For `type`, it clicks, waits up to 1 s until the element reports `focused`, and then types. It types even when the element never reports `focused`. For an `(action)` node, `click` calls the accessibility action (AT-SPI `DoAction` 0). `double_click` calls that action one time. `key` goes to the focus as usual. Every other op on an `(action)` node fails with `unsupported_input`.
 4. It waits until the tree has not changed for 1 s before the first change, or for 300 ms after a change, with a timeout of 3 s.
 5. It takes a new snapshot and returns only the diff.
 

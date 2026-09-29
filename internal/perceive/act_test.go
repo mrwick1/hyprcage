@@ -95,9 +95,12 @@ func (f *fakeInput) scroll(x, y int, dir string, amount int) error {
 // fastTiming shrinks the settle and find timings for the test.
 func fastTiming(t *testing.T) {
 	t.Helper()
-	p, q, fq, to, fp := settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll
+	p, q, fq, to, fp, tf := settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait
 	settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll = time.Millisecond, 5*time.Millisecond, 5*time.Millisecond, 200*time.Millisecond, time.Millisecond
-	t.Cleanup(func() { settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll = p, q, fq, to, fp })
+	typeFocusWait = 5 * time.Millisecond
+	t.Cleanup(func() {
+		settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait = p, q, fq, to, fp, tf
+	})
 }
 
 func button(key, name string, x, y int) Node {
@@ -313,6 +316,58 @@ func TestFindAutoReChooses(t *testing.T) {
 		if !s.closed {
 			t.Errorf("source %d not closed", i)
 		}
+	}
+}
+
+// logSource logs each read into the same list as the input, so that a
+// test sees the order of reads and input.
+type logSource struct {
+	fakeSource
+	log *[]string
+}
+
+func (l *logSource) Nodes(ctx context.Context) ([]Node, error) {
+	*l.log = append(*l.log, fmt.Sprint("read ", l.n))
+	return l.fakeSource.Nodes(ctx)
+}
+
+func TestActTypeWaitsForFocus(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = 2 * time.Second
+	field := Node{Key: "k1", Role: "textbox", Name: "query", X: 5, Y: 6}
+	focused := field
+	focused.States = []string{"focused"}
+	in := &fakeInput{}
+	// read 0 is Act's own read; the focus polls are reads 1, 2 and 3.
+	src := &logSource{fakeSource{name: "cdp", reads: [][]Node{{field}, {field}, {field}, {focused}}}, &in.calls}
+	tb := NewTable()
+	tb.Assign([]Node{field})
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"read 0", "click 5,6 x1", "read 1", "read 2", "read 3", "type hello"}
+	if len(in.calls) < len(want) || !slices.Equal(in.calls[:len(want)], want) {
+		t.Fatalf("order %v, want prefix %v", in.calls, want)
+	}
+}
+
+func TestActTypeWithoutFocus(t *testing.T) {
+	fastTiming(t)
+	typeFocusWait = 50 * time.Millisecond
+	field := Node{Key: "k1", Role: "textbox", Name: "query", X: 5, Y: 6}
+	src := &fakeSource{name: "cdp", reads: [][]Node{{field}}}
+	tb := NewTable()
+	tb.Assign([]Node{field})
+	in := &fakeInput{}
+	start := time.Now()
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	if el := time.Since(start); el < typeFocusWait {
+		t.Fatalf("returned after %v, before typeFocusWait %v", el, typeFocusWait)
+	}
+	if !slices.Equal(in.calls, []string{"click 5,6 x1", "type hi"}) {
+		t.Fatalf("calls %v", in.calls)
 	}
 }
 
