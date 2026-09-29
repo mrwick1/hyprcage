@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
@@ -62,5 +63,20 @@ func TestStartFailureLeavesLog(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(logPath); !strings.Contains(string(data), "boom-startup") {
 		t.Errorf("log lacks the child's error: %q", data)
+	}
+}
+
+func TestRecordingStateIsNotAScreen(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if err := save(State{Target: "hc-a", PID: os.Getpid(), Path: "/tmp/a.mp4", Started: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	screens, err := registry.List()
+	if err != nil || len(screens) != 0 {
+		t.Fatalf("registry.List sees the recording state as a screen: %+v %v", screens, err)
+	}
+	list, err := List()
+	if err != nil || len(list) != 1 || list[0].Target != "hc-a" {
+		t.Fatalf("record.List: %+v %v", list, err)
 	}
 }

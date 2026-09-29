@@ -34,13 +34,17 @@ type State struct {
 	Started time.Time `json:"started"`
 }
 
-// StatePath is the state file of the recorder of target.
+// StatePath is the state file of the recorder of target. It lives in a
+// rec/ subdirectory, so that registry.List never reads it as a screen.
 func StatePath(target string) string {
-	return filepath.Join(registry.Dir(), "rec-"+target+".json")
+	return filepath.Join(registry.Dir(), "rec", target+".json")
 }
 
 func save(s State) error {
 	if _, err := registry.EnsureDir(); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(StatePath(s.Target)), 0o700); err != nil {
 		return err
 	}
 	data, _ := json.Marshal(s)
@@ -65,13 +69,13 @@ func Load(target string) (State, error) {
 
 // List returns the live recorders and removes the files of dead ones.
 func List() ([]State, error) {
-	files, err := filepath.Glob(filepath.Join(registry.Dir(), "rec-*.json"))
+	files, err := filepath.Glob(filepath.Join(registry.Dir(), "rec", "*.json"))
 	if err != nil {
 		return nil, err
 	}
 	out := []State{}
 	for _, f := range files {
-		target := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(f), "rec-"), ".json")
+		target := strings.TrimSuffix(filepath.Base(f), ".json")
 		if s, err := Load(target); err == nil {
 			out = append(out, s)
 		}
