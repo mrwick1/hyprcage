@@ -88,3 +88,20 @@ func TestDispatchCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowDispatchers(t *testing.T) {
+	lua, classic := &luaDriver{}, &classicDriver{}
+	cases := []struct{ got, want string }{
+		{lua.SendShortcutCmd("SHIFT", "x", "0xabc"), `dispatch hl.dsp.send_shortcut({ mods = "SHIFT", key = "x", window = "address:0xabc" })`},
+		{classic.SendShortcutCmd("SHIFT", "x", "0xabc"), "dispatch sendshortcut SHIFT, x, address:0xabc"},
+		{lua.FocusWindowCmd("0xabc"), `dispatch hl.dsp.focus({ window = "address:0xabc" })`},
+		{classic.FocusWindowCmd("0xabc"), "dispatch focuswindow address:0xabc"},
+		{lua.MoveWindowCmd("0xabc", 4), `dispatch hl.dsp.window.move({ workspace = "4", follow = false, window = "address:0xabc" })`},
+		{classic.MoveWindowCmd("0xabc", 4), "dispatch movetoworkspacesilent 4,address:0xabc"},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("got  %s\nwant %s", c.got, c.want)
+		}
+	}
+}
