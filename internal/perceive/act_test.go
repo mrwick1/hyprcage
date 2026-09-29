@@ -26,6 +26,7 @@ type fakeSource struct {
 	n       int
 	reveal  func(key string) (Node, error)
 	pressed []string
+	closed  bool
 }
 
 func (f *fakeSource) Name() string { return f.name }
@@ -52,7 +53,12 @@ func (f *fakeSource) Press(_ context.Context, key string) error {
 	return nil
 }
 
-func (f *fakeSource) Close() error { return nil }
+func (f *fakeSource) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = true
+	return nil
+}
 
 // changing returns a new button name on every read.
 type changing struct{ fakeSource }
@@ -88,9 +94,9 @@ func (f *fakeInput) scroll(x, y int, dir string, amount int) error {
 // fastTiming shrinks the settle and find timings for the test.
 func fastTiming(t *testing.T) {
 	t.Helper()
-	p, q, to, fp := settlePoll, settleQuiet, settleTimeout, findPoll
-	settlePoll, settleQuiet, settleTimeout, findPoll = time.Millisecond, 5*time.Millisecond, 200*time.Millisecond, time.Millisecond
-	t.Cleanup(func() { settlePoll, settleQuiet, settleTimeout, findPoll = p, q, to, fp })
+	p, q, fq, to, fp := settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll
+	settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll = time.Millisecond, 5*time.Millisecond, 5*time.Millisecond, 200*time.Millisecond, time.Millisecond
+	t.Cleanup(func() { settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll = p, q, fq, to, fp })
 }
 
 func button(key, name string, x, y int) Node {
@@ -98,9 +104,9 @@ func button(key, name string, x, y int) Node {
 }
 
 func TestTimingDefaults(t *testing.T) {
-	if settlePoll != 100*time.Millisecond || settleQuiet != 300*time.Millisecond ||
+	if settlePoll != 100*time.Millisecond || settleQuiet != 300*time.Millisecond || settleFirstQuiet != time.Second ||
 		settleTimeout != 3*time.Second || findPoll != 250*time.Millisecond {
-		t.Fatalf("timings %v %v %v %v", settlePoll, settleQuiet, settleTimeout, findPoll)
+		t.Fatalf("timings %v %v %v %v %v", settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll)
 	}
 }
 
@@ -262,6 +268,50 @@ func TestActSettleTimeout(t *testing.T) {
 	}
 	if el < settleTimeout || el > 10*settleTimeout {
 		t.Fatalf("returned after %v, timeout %v", el, settleTimeout)
+	}
+}
+
+// TestActWaitsForLateFirstChange: a navigation that commits ~600 ms after
+// the click must still reach the diff (the default timings apply).
+func TestActWaitsForLateFirstChange(t *testing.T) {
+	before := []Node{{Key: "k1", Role: "link", Name: "Learn more", X: 10, Y: 10}}
+	after := []Node{{Key: "k2", Role: "heading", Name: "IANA", X: 10, Y: 10}}
+	// read 0 is Act's own read; the settle reads 1..5 see no change, read 6 does.
+	src := &fakeSource{name: "cdp", reads: [][]Node{before, before, before, before, before, before, after}}
+	tb := NewTable()
+	tb.Assign(append([]Node(nil), before...))
+	d, err := act(context.Background(), &fakeInput{}, src, tb, ActOp{Ref: "e1", Op: "click"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Added) != 1 || d.Added[0].Name != "IANA" {
+		t.Fatalf("diff %+v, want the heading added", d)
+	}
+}
+
+func TestFindAutoReChooses(t *testing.T) {
+	fastTiming(t)
+	var made []*fakeSource
+	choose := func(context.Context) (Source, error) {
+		src := &fakeSource{name: "ocr", reads: [][]Node{{button("o1", "blank", 1, 1)}}}
+		if len(made) == 2 {
+			src = &fakeSource{name: "atspi", reads: [][]Node{{button("a1", "Back", 22, 48)}}}
+		}
+		made = append(made, src)
+		return src, nil
+	}
+	tb := NewTable()
+	got, name, err := FindAuto(context.Background(), choose, tb, regexp.MustCompile("Back"), "", 2*time.Second)
+	if err != nil || len(got) != 1 || got[0].Key != "a1" || name != "atspi" {
+		t.Fatalf("got %+v, %q, %v", got, name, err)
+	}
+	if len(made) != 3 || tb.SourceName() != "atspi" {
+		t.Fatalf("%d sources made, table source %q", len(made), tb.SourceName())
+	}
+	for i, s := range made {
+		if !s.closed {
+			t.Errorf("source %d not closed", i)
+		}
 	}
 }
 

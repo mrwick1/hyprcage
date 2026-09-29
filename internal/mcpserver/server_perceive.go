@@ -152,12 +152,24 @@ func (s *Server) find(in findIn) (*mcp.CallToolResult, error) {
 	timeout := time.Duration(max(in.TimeoutMs, 0)) * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+perceiveTimeout)
 	defer cancel()
-	_, src, t, _, err := s.source(ctx, in.Screen, "")
+	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
 	}
-	defer src.Close()
-	nodes, err := perceive.Find(ctx, src, t, re, in.Role, timeout)
+	t := s.table(rec)
+	var nodes []perceive.Node
+	if want := t.SourceName(); want != "auto" {
+		var src perceive.Source
+		if src, err = perceive.Choose(ctx, rec, cl, want); err != nil {
+			return nil, err
+		}
+		defer src.Close()
+		nodes, err = perceive.Find(ctx, src, t, re, in.Role, timeout)
+	} else {
+		// No recorded source: the app may not be on the a11y bus yet, so choose on every poll.
+		choose := func(ctx context.Context) (perceive.Source, error) { return perceive.Choose(ctx, rec, cl, "auto") }
+		nodes, _, err = perceive.FindAuto(ctx, choose, t, re, in.Role, timeout)
+	}
 	if err != nil {
 		return nil, err
 	}

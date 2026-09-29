@@ -180,12 +180,24 @@ func runFind(e *Env) int {
 	timeout := time.Duration(max(*timeoutMs, 0)) * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+perceiveTimeout)
 	defer cancel()
-	rec, _, src, t, err := perceiveSource(ctx, name, "")
+	rec, cl, err := openScreen(name)
 	if err != nil {
 		return e.fail(err)
 	}
-	defer src.Close()
-	nodes, err := perceive.Find(ctx, src, t, re, *role, timeout)
+	t := loadTable(rec)
+	var nodes []perceive.Node
+	if want := t.SourceName(); want != "auto" {
+		var src perceive.Source
+		if src, err = perceive.Choose(ctx, rec, cl, want); err != nil {
+			return e.fail(err)
+		}
+		defer src.Close()
+		nodes, err = perceive.Find(ctx, src, t, re, *role, timeout)
+	} else {
+		// No recorded source: the app may not be on the a11y bus yet, so choose on every poll.
+		choose := func(ctx context.Context) (perceive.Source, error) { return perceive.Choose(ctx, rec, cl, "auto") }
+		nodes, _, err = perceive.FindAuto(ctx, choose, t, re, *role, timeout)
+	}
 	if err != nil {
 		return e.fail(err)
 	}

@@ -15,10 +15,11 @@ import (
 
 // Timings of Act and Find. They are variables only so that tests can shrink them.
 var (
-	settlePoll    = 100 * time.Millisecond
-	settleQuiet   = 300 * time.Millisecond
-	settleTimeout = 3 * time.Second
-	findPoll      = 250 * time.Millisecond
+	settlePoll       = 100 * time.Millisecond
+	settleQuiet      = 300 * time.Millisecond
+	settleFirstQuiet = time.Second // quiet before the first change: a navigation commits late
+	settleTimeout    = 3 * time.Second
+	findPoll         = 250 * time.Millisecond
 )
 
 const defaultMaxNodes = 300
@@ -204,10 +205,12 @@ func resolve(old Node, fresh, filtered []Node) (Node, error) {
 }
 
 // settle reads the nodes every settlePoll until they have not changed for
-// settleQuiet, or until settleTimeout. A timeout returns the last read.
+// settleFirstQuiet (no change seen yet) or settleQuiet (after a change), or
+// until settleTimeout. A timeout returns the last read.
 func settle(ctx context.Context, src Source, m Mode, prev []Node) ([]Node, error) {
 	start := time.Now()
 	changed := start
+	quiet := settleFirstQuiet
 	for {
 		select {
 		case <-ctx.Done():
@@ -224,10 +227,11 @@ func settle(ctx context.Context, src Source, m Mode, prev []Node) ([]Node, error
 			cur := Filter(nodes, m, "")
 			if !DiffNodes(prev, cur).Empty() {
 				changed = time.Now()
+				quiet = settleQuiet
 			}
 			prev = cur
 		}
-		if now := time.Now(); now.Sub(changed) >= settleQuiet || now.Sub(start) >= settleTimeout {
+		if now := time.Now(); now.Sub(changed) >= quiet || now.Sub(start) >= settleTimeout {
 			return prev, nil
 		}
 	}
@@ -265,6 +269,34 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
+		case <-time.After(findPoll):
+		}
+	}
+}
+
+// FindAuto is Find for a screen with no recorded source. An app that has
+// just launched may not be on the a11y bus yet, so it runs choose again on
+// every poll, closes each source after one read, and returns the name of
+// the source of the last read. The table records that source.
+func FindAuto(ctx context.Context, choose func(context.Context) (Source, error), t *Table, re *regexp.Regexp, role string, timeout time.Duration) ([]Node, string, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		src, err := choose(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+		matches, err := Find(ctx, src, t, re, role, 0)
+		name := src.Name()
+		src.Close()
+		if err != nil {
+			return nil, "", err
+		}
+		if len(matches) > 0 || !time.Now().Before(deadline) {
+			return matches, name, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
 		case <-time.After(findPoll):
 		}
 	}

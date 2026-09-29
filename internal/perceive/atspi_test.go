@@ -66,7 +66,7 @@ func thunarTree(t *testing.T) *fakeTree {
 // obj builds a showing object; the source drops objects that are not showing.
 func obj(path, role, name string, ext [4]int, states ...string) accessible {
 	return accessible{Bus: ":1.5", Path: path, Role: role, Name: name, Extents: ext,
-		States: append(states, "showing"), PID: 1}
+		States: slices.Concat(states, []string{"showing"}), PID: 1}
 }
 
 func nodesOf(t *testing.T, f *fakeTree, pids ...int) []Node {
@@ -80,8 +80,11 @@ func nodesOf(t *testing.T, f *fakeTree, pids ...int) []Node {
 
 func TestATSPIFiltersForeignPIDs(t *testing.T) {
 	f := thunarTree(t)
-	f.objs = append(f.objs, accessible{Bus: ":1.99", Path: "/org/a11y/atspi/accessible/1", Role: "push button",
-		Name: "Human's secret", Extents: [4]int{0, 0, 10, 10}, PID: 999999})
+	f.objs = append(f.objs,
+		accessible{Bus: ":1.99", Path: "/org/a11y/atspi/accessible/1", Role: "push button",
+			Name: "Human's secret", States: []string{"showing"}, Extents: [4]int{0, 0, 10, 10}, PID: 999999},
+		accessible{Bus: ":1.99", Path: "/org/a11y/atspi/accessible/2", Role: "push button",
+			Name: "Human's secret", NoStates: true, Extents: [4]int{0, 0, 10, 10}, PID: 999999})
 	nodes := nodesOf(t, f, thunarPID)
 	if want := len(nodesOf(t, thunarTree(t), thunarPID)); len(nodes) != want {
 		t.Fatalf("got %d nodes, want %d", len(nodes), want)
