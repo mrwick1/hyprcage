@@ -256,12 +256,15 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 		// the other nodes stay valid.
 		all := Filter(nodes, mode(src, ModeInteractive), "")
 		t.Assign(all)
-		t.SetSource(src.Name())
 		matches := []Node{}
 		for _, n := range all {
 			if (role == "" || n.Role == role) && (re.MatchString(n.Name) || re.MatchString(n.Value)) {
 				matches = append(matches, n)
 			}
+		}
+		if len(matches) > 0 {
+			// A miss must not pin the table to a source that shows nothing.
+			t.SetSource(src.Name())
 		}
 		if len(matches) > 0 || !time.Now().Before(deadline) {
 			return matches, nil
@@ -276,27 +279,35 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 
 // FindAuto is Find for a screen with no recorded source. An app that has
 // just launched may not be on the a11y bus yet, so it runs choose again on
-// every poll, closes each source after one read, and returns the name of
-// the source of the last read. The table records that source.
-func FindAuto(ctx context.Context, choose func(context.Context) (Source, error), t *Table, re *regexp.Regexp, role string, timeout time.Duration) ([]Node, string, error) {
+// every poll and closes each source after one read. A no_source error from
+// choose also means "not up yet" and is retried until the timeout. Only a
+// read with a match records its source in the table.
+func FindAuto(ctx context.Context, choose func(context.Context) (Source, error), t *Table, re *regexp.Regexp, role string, timeout time.Duration) ([]Node, error) {
 	deadline := time.Now().Add(timeout)
 	for {
+		matches := []Node{}
 		src, err := choose(ctx)
-		if err != nil {
-			return nil, "", err
-		}
-		matches, err := Find(ctx, src, t, re, role, 0)
-		name := src.Name()
-		src.Close()
-		if err != nil {
-			return nil, "", err
+		var se *screen.Error
+		switch {
+		case errors.As(err, &se) && se.Code == screen.CodeNoSource:
+			if !time.Now().Before(deadline) {
+				return nil, err
+			}
+		case err != nil:
+			return nil, err
+		default:
+			matches, err = Find(ctx, src, t, re, role, 0)
+			src.Close()
+			if err != nil {
+				return nil, err
+			}
 		}
 		if len(matches) > 0 || !time.Now().Before(deadline) {
-			return matches, name, nil
+			return matches, nil
 		}
 		select {
 		case <-ctx.Done():
-			return nil, "", ctx.Err()
+			return nil, ctx.Err()
 		case <-time.After(findPoll):
 		}
 	}

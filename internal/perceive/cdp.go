@@ -127,6 +127,8 @@ type cdpSession struct {
 	typ  string  // target type: page, iframe or webview
 	dpr  float64 // viewport, read on every Nodes call
 	w, h int
+	// Browser chrome above and left of the viewport: outer minus inner size, in CSS pixels.
+	chromeX, chromeY float64
 }
 
 type cdpSource struct {
@@ -224,11 +226,12 @@ func (s *cdpSource) session(ctx context.Context, target, typ string) (*cdpSessio
 		} `json:"result"`
 	}
 	var vp struct {
-		DPR  float64 `json:"dpr"`
-		W, H int
+		DPR    float64 `json:"dpr"`
+		W, H   int
+		OW, OH int
 	}
 	err := s.call(ctx, se.id, "Runtime.evaluate", map[string]any{
-		"expression":    "JSON.stringify({dpr:devicePixelRatio,w:innerWidth,h:innerHeight})",
+		"expression":    "JSON.stringify({dpr:devicePixelRatio,w:innerWidth,h:innerHeight,ow:outerWidth,oh:outerHeight})",
 		"returnByValue": true,
 	}, &ev)
 	if err == nil {
@@ -241,6 +244,8 @@ func (s *cdpSource) session(ctx context.Context, target, typ string) (*cdpSessio
 		return nil, err
 	}
 	se.dpr, se.w, se.h = vp.DPR, vp.W, vp.H
+	// ponytail: all of outer minus inner goes above and left of the viewport, as with Chrome's top toolbar; side borders or a bottom panel would shift nodes.
+	se.chromeX, se.chromeY = float64(max(vp.OW-vp.W, 0)), float64(max(vp.OH-vp.H, 0))
 	if se.dpr == 0 {
 		se.dpr = 1
 	}
@@ -458,15 +463,16 @@ func (s *cdpSource) origin(ctx context.Context, target string, depth int) (x, y 
 	return 0, 0, nil, "", errNoOwner
 }
 
-// place sets the centre of n in page pixels. A node without a box keeps
-// (0,0) and is offscreen. The viewport is the one of the top page.
+// place sets the centre of n in window pixels: page pixels plus the
+// browser toolbar of the top page. A node without a box keeps (0,0) and is
+// offscreen. Offscreen is judged against the viewport of the top page.
 func place(n *Node, c *[2]float64, ox, oy float64, root *cdpSession) {
 	n.X, n.Y, n.Offscreen = 0, 0, true
 	if c == nil {
 		return
 	}
 	x, y := ox+c[0], oy+c[1]
-	n.X, n.Y = int(math.Round(x*root.dpr)), int(math.Round(y*root.dpr))
+	n.X, n.Y = int(math.Round((x+root.chromeX)*root.dpr)), int(math.Round((y+root.chromeY)*root.dpr))
 	n.Offscreen = x < 0 || y < 0 || x >= float64(root.w) || y >= float64(root.h)
 }
 

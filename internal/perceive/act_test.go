@@ -301,9 +301,9 @@ func TestFindAutoReChooses(t *testing.T) {
 		return src, nil
 	}
 	tb := NewTable()
-	got, name, err := FindAuto(context.Background(), choose, tb, regexp.MustCompile("Back"), "", 2*time.Second)
-	if err != nil || len(got) != 1 || got[0].Key != "a1" || name != "atspi" {
-		t.Fatalf("got %+v, %q, %v", got, name, err)
+	got, err := FindAuto(context.Background(), choose, tb, regexp.MustCompile("Back"), "", 2*time.Second)
+	if err != nil || len(got) != 1 || got[0].Key != "a1" {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 	if len(made) != 3 || tb.SourceName() != "atspi" {
 		t.Fatalf("%d sources made, table source %q", len(made), tb.SourceName())
@@ -609,5 +609,39 @@ func TestActDiffRemovedKeepsRef(t *testing.T) {
 func TestValidOp(t *testing.T) {
 	if !ValidOp("click") || ValidOp("wave") {
 		t.Error("ValidOp")
+	}
+}
+
+func TestFindAutoWaitsForSource(t *testing.T) {
+	fastTiming(t)
+	calls := 0
+	choose := func(context.Context) (Source, error) {
+		calls++
+		if calls <= 2 {
+			return nil, screen.Errf(screen.CodeNoSource, "", "nothing on the screen yet")
+		}
+		return &fakeSource{name: "atspi", reads: [][]Node{{button("a1", "Back", 22, 48)}}}, nil
+	}
+	got, err := FindAuto(context.Background(), choose, NewTable(), regexp.MustCompile("Back"), "", 2*time.Second)
+	if err != nil || len(got) != 1 || got[0].Key != "a1" || calls != 3 {
+		t.Fatalf("got %+v, %v after %d chooses", got, err, calls)
+	}
+
+	other := errors.New("boom")
+	_, err = FindAuto(context.Background(), func(context.Context) (Source, error) { return nil, other }, NewTable(), regexp.MustCompile("Back"), "", 2*time.Second)
+	if !errors.Is(err, other) {
+		t.Fatalf("err = %v, want boom at once", err)
+	}
+}
+
+func TestFindAutoTimeoutKeepsSource(t *testing.T) {
+	fastTiming(t)
+	choose := func(context.Context) (Source, error) {
+		return &fakeSource{name: "ocr", reads: [][]Node{{button("o1", "blank", 1, 1)}}}, nil
+	}
+	tb := NewTable()
+	got, err := FindAuto(context.Background(), choose, tb, regexp.MustCompile("Back"), "", 20*time.Millisecond)
+	if err != nil || len(got) != 0 || tb.SourceName() != "auto" {
+		t.Fatalf("got %+v, %v, source %q", got, err, tb.SourceName())
 	}
 }

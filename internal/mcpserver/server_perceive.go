@@ -168,7 +168,7 @@ func (s *Server) find(in findIn) (*mcp.CallToolResult, error) {
 	} else {
 		// No recorded source: the app may not be on the a11y bus yet, so choose on every poll.
 		choose := func(ctx context.Context) (perceive.Source, error) { return perceive.Choose(ctx, rec, cl, "auto") }
-		nodes, _, err = perceive.FindAuto(ctx, choose, t, re, in.Role, timeout)
+		nodes, err = perceive.FindAuto(ctx, choose, t, re, in.Role, timeout)
 	}
 	if err != nil {
 		return nil, err

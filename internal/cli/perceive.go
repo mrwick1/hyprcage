@@ -196,7 +196,7 @@ func runFind(e *Env) int {
 	} else {
 		// No recorded source: the app may not be on the a11y bus yet, so choose on every poll.
 		choose := func(ctx context.Context) (perceive.Source, error) { return perceive.Choose(ctx, rec, cl, "auto") }
-		nodes, _, err = perceive.FindAuto(ctx, choose, t, re, *role, timeout)
+		nodes, err = perceive.FindAuto(ctx, choose, t, re, *role, timeout)
 	}
 	if err != nil {
 		return e.fail(err)

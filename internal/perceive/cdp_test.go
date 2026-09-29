@@ -1,6 +1,7 @@
 package perceive
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,7 @@ type fakeCaller struct {
 	scroll   error
 	ownerErr error  // returned by DOM.getFrameOwner when set
 	cancel   func() // called by DOM.getFrameOwner when set
+	viewport string // Runtime.evaluate value; "" is 1280x800 with no browser toolbar
 
 	mu       sync.Mutex
 	detached []string
@@ -84,7 +86,8 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		if err := f.failEval[session]; err != nil {
 			return nil, err
 		}
-		return json.RawMessage(`{"result":{"type":"string","value":"{\"dpr\":1,\"w\":1280,\"h\":800}"}}`), nil
+		vp := cmp.Or(f.viewport, `{"dpr":1,"w":1280,"h":800,"ow":1280,"oh":800}`)
+		return json.Marshal(map[string]any{"result": map[string]any{"type": "string", "value": vp}})
 	case "Accessibility.getFullAXTree":
 		if err := f.failTree[session]; err != nil {
 			return nil, err
@@ -421,4 +424,25 @@ func TestCDPOriginTransportError(t *testing.T) {
 	f.cancel = cancel
 	_, err = newCDPWith(f, cdpTargetTypes).Nodes(ctx)
 	wantCode(t, err, screen.CodeCDP)
+}
+
+func TestCDPBrowserToolbarOffset(t *testing.T) {
+	f := &fakeCaller{
+		targets: `[{"targetId":"P","type":"page"}]`,
+		trees: map[string]json.RawMessage{"S-P": json.RawMessage(`{"nodes":[
+			{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+			{"nodeId":"2","role":{"value":"link"},"name":{"value":"Learn more"},"parentId":"1","backendDOMNodeId":2}]}`)},
+		boxes: map[string]map[string]json.RawMessage{"S-P": {
+			"2": json.RawMessage(`{"model":{"border":[600,393,680,393,680,413,600,413]}}`),
+		}},
+		viewport: `{"dpr":1,"w":1280,"h":713,"ow":1280,"oh":800}`,
+	}
+	nodes, err := newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(nodes, func(n Node) bool { return n.Name == "Learn more" })
+	if i < 0 || nodes[i].X != 640 || nodes[i].Y != 490 || nodes[i].Offscreen {
+		t.Fatalf("nodes = %+v, want the link at (640,490) on screen", nodes)
+	}
 }
