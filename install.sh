@@ -6,8 +6,9 @@
 # Run from a checkout, it builds the binary from that source with go.
 #
 # What it does, in order, skipping what is already there:
-#   1. cage (the agent's compositor), ffmpeg and wl-clipboard, through pacman
-#      or zypper. sudo asks for your password once.
+#   1. cage (the agent's compositor), ffmpeg, wl-clipboard, tesseract and its
+#      English data (OCR snapshots), through pacman or zypper. sudo asks for
+#      your password once.
 #   2. the hyprcage binary for this machine, from the GitHub release, checksum
 #      verified against the SHA256SUMS published with it, into ~/.local/bin.
 #   3. the agents it finds: the MCP server for Claude Code, and the MCP server
@@ -37,7 +38,9 @@ SRC_DIR=""
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
   SRC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")
 fi
-PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy)
+# package:proof. The proof is a binary in PATH, or a file when it starts with /.
+PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy tesseract:tesseract
+  tesseract-data-eng:/usr/share/tessdata/eng.traineddata)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -55,7 +58,22 @@ arch() {
 # --- 1. packages -------------------------------------------------------------
 
 missing_packages() {
-  local p; for p in "${PACKAGES[@]}"; do have "${p#*:}" || echo "${p%%:*}"; done
+  local p c; for p in "${PACKAGES[@]}"; do
+    c=${p#*:}
+    case $c in
+      /*) [ -e "$c" ] || echo "${p%%:*}" ;;
+      *) have "$c" || echo "${p%%:*}" ;;
+    esac
+  done
+}
+
+# zypper_name PACKAGE: the openSUSE name of a pacman package.
+zypper_name() {
+  case $1 in
+    tesseract) echo tesseract-ocr ;;
+    tesseract-data-eng) echo tesseract-ocr-traineddata-english ;;
+    *) echo "$1" ;;
+  esac
 }
 
 pm_install() {
@@ -68,6 +86,9 @@ install_packages() {
   local missing pm; mapfile -t missing < <(missing_packages)
   if [ ${#missing[@]} -eq 0 ]; then say "packages already installed"; return; fi
   pm=$(pm_install) || die "no pacman or zypper: install ${missing[*]} with your package manager, then rerun"
+  if [ "${pm%% *}" = zypper ]; then
+    local i; for i in "${!missing[@]}"; do missing[i]=$(zypper_name "${missing[i]}"); done
+  fi
   say "installing ${missing[*]} (sudo will ask for your password)"
   if sudo -n true 2>/dev/null || [ -t 0 ]; then
     sudo $pm "${missing[@]}" || die "package install failed"
@@ -250,7 +271,7 @@ uninstall() {
   if [ -x "$BIN_DIR/hyprcage" ]; then "$BIN_DIR/hyprcage" gc --all >/dev/null 2>&1 || true; fi
   rm -f "$BIN_DIR/hyprcage"
   rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/hyprcage" "${XDG_CONFIG_HOME:-$HOME/.config}/hyprcage"
-  say "done. cage, ffmpeg and wl-clipboard stay installed; remove them with your package manager"
+  say "done. cage, ffmpeg, wl-clipboard, tesseract and its English data stay installed; remove them with your package manager"
 }
 
 # --- main ------------------------------------------------------------------------------
