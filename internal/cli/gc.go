@@ -7,6 +7,7 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/lock"
+	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/sysd"
 )
@@ -36,6 +37,20 @@ func runGC(e *Env) int {
 			return e.fail(err)
 		}
 		return ExitOK
+	}
+	// The desktop recorder has no screen, so the screen gc does not stop it.
+	var stopped bool
+	var recErr error
+	if _, err := record.Load(record.Desktop); err == nil && *all {
+		_, recErr = record.Stop(record.Desktop)
+		stopped = recErr == nil
+	} else if *sess != "" {
+		stopped, recErr = record.StopSession(*sess)
+	}
+	if recErr != nil {
+		fmt.Fprintf(e.Stderr, "error: desktop recording: %v\n", recErr)
+	} else if stopped && !*asJSON {
+		fmt.Fprintln(e.Stdout, "stopped the desktop recording")
 	}
 	c, err := screen.Connect(config.Fallback())
 	if err != nil {

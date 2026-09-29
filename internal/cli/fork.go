@@ -71,13 +71,19 @@ func runRecord(e *Env) int {
 		}
 		exe, err := os.Executable()
 		if err != nil {
-			return e.fail(err)
+			return e.fail(screen.Errf(screen.CodeCapture, "", "%v", err))
 		}
-		s, err = record.Start(exe, target, isScreen, cfg)
+		s, err = record.Start(exe, target, isScreen, session.Current().Owner(), cfg)
 		if err != nil {
 			return e.fail(err)
 		}
 	case "stop":
+		if s, err = record.Load(target); err != nil {
+			return e.fail(err)
+		}
+		if err = record.CheckOwner(s, session.Current()); err != nil {
+			return e.fail(err)
+		}
 		s, err = record.Stop(target)
 		if err != nil {
 			return e.fail(err)

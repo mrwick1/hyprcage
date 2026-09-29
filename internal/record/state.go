@@ -17,6 +17,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/hyprcage/internal/session"
 	"github.com/hexadecimil/hyprcage/internal/wl"
 )
 
@@ -32,6 +33,42 @@ type State struct {
 	PID     int       `json:"pid"`
 	Path    string    `json:"path"`
 	Started time.Time `json:"started"`
+	// Owner is the session that started the recorder.
+	Owner registry.Owner `json:"owner"`
+}
+
+// ownerEnv carries the owner from Start to the detached recorder, which
+// writes the state file.
+const ownerEnv = "HYPRCAGE_REC_OWNER"
+
+func ownerFromEnv() registry.Owner {
+	var o registry.Owner
+	_ = json.Unmarshal([]byte(os.Getenv(ownerEnv)), &o)
+	return o
+}
+
+// ownerAlive reports whether the owner's process runs; tests replace it.
+var ownerAlive = session.PIDAlive
+
+// CheckOwner refuses when a different live session owns the recorder.
+// A recorder or a caller without a session id is not checked.
+func CheckOwner(s State, id session.Identity) error {
+	o := s.Owner
+	if o.SessionID == "" || id.SessionID == "" || o.SessionID == id.SessionID || !ownerAlive(o.PID, o.PIDStart) {
+		return nil
+	}
+	return screen.Errf(screen.CodeNotOwner, "from a terminal: hyprcage record stop "+s.Target, "the recording of %s belongs to another session", s.Target)
+}
+
+// StopSession stops the desktop recorder when sessionID owns it. The
+// session end calls it; a screen's recorder stops with its screen.
+func StopSession(sessionID string) (bool, error) {
+	s, err := Load(Desktop)
+	if err != nil || sessionID == "" || s.Owner.SessionID != sessionID {
+		return false, nil
+	}
+	_, err = Stop(Desktop)
+	return err == nil, err
 }
 
 // StatePath is the state file of the recorder of target. It lives in a
@@ -86,7 +123,7 @@ func List() ([]State, error) {
 // Start runs `exe _record target out` detached and waits for its state
 // file. A screen's recorder carries HYPRCAGE_SCREEN, so destroying the
 // screen sends it SIGTERM and the file is finalised.
-func Start(exe, target string, isScreen bool, cfg config.Config) (State, error) {
+func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.Config) (State, error) {
 	if s, err := Load(target); err == nil {
 		return s, screen.Errf(screen.CodeRecording, "record_stop first", "%s is already recording to %s", target, s.Path)
 	}
@@ -94,12 +131,18 @@ func Start(exe, target string, isScreen bool, cfg config.Config) (State, error) 
 		return State{}, screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
 	}
 	dir := config.ExpandHome(cfg.RecordDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return State{}, err
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return State{}, screen.Errf(screen.CodeCapture, "check record.dir", "%v", err)
 	}
 	out := filepath.Join(dir, fmt.Sprintf("%s-%s.mp4", target, time.Now().Format("20060102-150405")))
 	cmd := exec.Command(exe, "_record", target, out)
-	cmd.Env = os.Environ()
+	ownerJSON, _ := json.Marshal(owner)
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "HYPRCAGE_SCREEN=") && !strings.HasPrefix(kv, ownerEnv+"=") {
+			cmd.Env = append(cmd.Env, kv)
+		}
+	}
+	cmd.Env = append(cmd.Env, ownerEnv+"="+string(ownerJSON))
 	if isScreen {
 		cmd.Env = append(cmd.Env, "HYPRCAGE_SCREEN="+target)
 	}
@@ -108,17 +151,17 @@ func Start(exe, target string, isScreen bool, cfg config.Config) (State, error) 
 	// ffmpeg's output, which RunChild appends to the same file.
 	logPath := filepath.Join(screen.LogDir(), "record-"+target+".log")
 	if err := os.MkdirAll(screen.LogDir(), 0o700); err != nil {
-		return State{}, err
+		return State{}, screen.Errf(screen.CodeCapture, "", "%v", err)
 	}
 	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, 0o600)
 	if err != nil {
-		return State{}, err
+		return State{}, screen.Errf(screen.CodeCapture, "", "%v", err)
 	}
 	cmd.Stdout, cmd.Stderr = logf, logf
 	err = cmd.Start()
 	logf.Close()
 	if err != nil {
-		return State{}, err
+		return State{}, screen.Errf(screen.CodeCapture, "", "%v", err)
 	}
 	go func() { _ = cmd.Wait() }()
 	deadline := time.Now().Add(5 * time.Second)
@@ -191,7 +234,7 @@ func RunChild(ctx context.Context, target, display, out string, fps int, max tim
 	if err := ff.Start(); err != nil {
 		return err
 	}
-	if err := save(State{Target: target, PID: os.Getpid(), Path: out, Started: time.Now()}); err != nil {
+	if err := save(State{Target: target, PID: os.Getpid(), Path: out, Started: time.Now(), Owner: ownerFromEnv()}); err != nil {
 		_ = ff.Process.Kill()
 		return err
 	}

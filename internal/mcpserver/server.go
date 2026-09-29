@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/session"
@@ -137,6 +138,7 @@ func (s *Server) onDisconnect() {
 		}
 	}
 	time.Sleep(s.cfg.SessionGrace)
+	_, _ = record.StopSession(id.SessionID)
 	if c, err := screen.Connect(s.cfg); err == nil {
 		_, _ = screen.GC(c, screen.GCOptions{Session: id.SessionID})
 	}

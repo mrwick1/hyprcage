@@ -6,6 +6,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/record"
+	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/hyprcage/internal/session"
 )
 
 type recordIn struct {
@@ -39,9 +41,9 @@ func (s *Server) recordStart(in recordIn) (*mcp.CallToolResult, error) {
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		return nil, err
+		return nil, screen.Errf(screen.CodeCapture, "", "%v", err)
 	}
-	st, err := record.Start(exe, target, isScreen, s.cfg)
+	st, err := record.Start(exe, target, isScreen, session.Current().Owner(), s.cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +55,14 @@ func (s *Server) recordStop(in recordIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	st, err := record.Stop(target)
+	st, err := record.Load(target)
+	if err != nil {
+		return nil, err
+	}
+	if err := record.CheckOwner(st, session.Current()); err != nil {
+		return nil, err
+	}
+	st, err = record.Stop(target)
 	if err != nil {
 		return nil, err
 	}
