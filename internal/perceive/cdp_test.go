@@ -11,16 +11,27 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/coder/websocket"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
-// fakeCaller answers from the recorded VS Code fixtures.
+// fakeCaller answers from per-session trees and boxes. Session "S-<id>"
+// belongs to target <id>. It is safe for concurrent use.
 type fakeCaller struct {
-	tree  json.RawMessage
-	boxes map[string]json.RawMessage
+	targets  string                                // JSON of targetInfos
+	trees    map[string]json.RawMessage            // by session
+	boxes    map[string]map[string]json.RawMessage // by session, then backend id
+	owners   map[string]map[string]int             // by session, then frameId: owner backend id
+	failTree map[string]error                      // by session
+	failEval map[string]error                      // by session
+	failBox  map[int]error                         // by backend id, any session
+	scroll   error
+
+	mu       sync.Mutex
+	detached []string
 }
 
 func newFake(t *testing.T) *fakeCaller {
@@ -33,33 +44,67 @@ func newFake(t *testing.T) *fakeCaller {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeCaller{tree: tree}
-	if err := json.Unmarshal(raw, &f.boxes); err != nil {
+	f := &fakeCaller{
+		targets: `[{"targetId":"T1","type":"page"},{"targetId":"W1","type":"service_worker"}]`,
+		trees:   map[string]json.RawMessage{"S-T1": tree},
+		boxes:   map[string]map[string]json.RawMessage{},
+	}
+	var boxes map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &boxes); err != nil {
 		t.Fatal(err)
 	}
+	f.boxes["S-T1"] = boxes
 	return f
 }
 
-func (f *fakeCaller) Call(_ context.Context, _, method string, params any) (json.RawMessage, error) {
+var noLayout = &cdpError{Code: -32000, Message: "Could not compute box model."}
+
+func (f *fakeCaller) Call(_ context.Context, session, method string, params any) (json.RawMessage, error) {
+	b, _ := json.Marshal(params)
+	var p struct {
+		TargetID      string
+		SessionID     string
+		FrameID       string
+		BackendNodeID int
+	}
+	json.Unmarshal(b, &p)
 	switch method {
 	case "Target.getTargets":
-		return json.RawMessage(`{"targetInfos":[{"targetId":"T1","type":"page"},{"targetId":"W1","type":"service_worker"}]}`), nil
+		return json.RawMessage(`{"targetInfos":` + f.targets + `}`), nil
 	case "Target.attachToTarget":
-		return json.RawMessage(`{"sessionId":"S1"}`), nil
+		return json.RawMessage(`{"sessionId":"S-` + p.TargetID + `"}`), nil
+	case "Target.detachFromTarget":
+		f.mu.Lock()
+		f.detached = append(f.detached, p.SessionID)
+		f.mu.Unlock()
+		return json.RawMessage(`{}`), nil
 	case "Runtime.evaluate":
+		if err := f.failEval[session]; err != nil {
+			return nil, err
+		}
 		return json.RawMessage(`{"result":{"type":"string","value":"{\"dpr\":1,\"w\":1280,\"h\":800}"}}`), nil
 	case "Accessibility.getFullAXTree":
-		return f.tree, nil
-	case "DOM.getBoxModel", "DOM.scrollIntoViewIfNeeded":
-		b, _ := json.Marshal(params)
-		var p struct{ BackendNodeID int }
-		json.Unmarshal(b, &p)
-		box, ok := f.boxes[fmt.Sprint(p.BackendNodeID)]
-		if !ok {
-			return nil, errors.New("Could not compute box model.")
+		if err := f.failTree[session]; err != nil {
+			return nil, err
 		}
-		if method == "DOM.scrollIntoViewIfNeeded" {
-			return json.RawMessage(`{}`), nil
+		return f.trees[session], nil
+	case "DOM.getFrameOwner":
+		if id, ok := f.owners[session][p.FrameID]; ok {
+			return fmt.Appendf(nil, `{"backendNodeId":%d}`, id), nil
+		}
+		return nil, &cdpError{Code: -32000, Message: "Frame with the given id was not found."}
+	case "DOM.scrollIntoViewIfNeeded":
+		if f.scroll != nil {
+			return nil, f.scroll
+		}
+		return json.RawMessage(`{}`), nil
+	case "DOM.getBoxModel":
+		if err := f.failBox[p.BackendNodeID]; err != nil {
+			return nil, err
+		}
+		box, ok := f.boxes[session][fmt.Sprint(p.BackendNodeID)]
+		if !ok {
+			return nil, noLayout
 		}
 		return box, nil
 	}
@@ -96,7 +141,7 @@ func TestCDPIgnoredDropped(t *testing.T) {
 			Backend int  `json:"backendDOMNodeId"`
 		} `json:"nodes"`
 	}
-	json.Unmarshal(newFake(t).tree, &fx)
+	json.Unmarshal(newFake(t).trees["S-T1"], &fx)
 	ignored := map[string]bool{}
 	for _, n := range fx.Nodes {
 		if n.Ignored {
@@ -219,4 +264,123 @@ func TestCDPWebsocketCaller(t *testing.T) {
 	if _, err := w.Call(context.Background(), "", "Bad.method", nil); err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("error reply: %v", err)
 	}
+}
+
+func wantCode(t *testing.T, err error, code screen.Code) {
+	t.Helper()
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != code {
+		t.Fatalf("err = %v, want code %s", err, code)
+	}
+}
+
+func TestCDPBoxTransportErrorPropagates(t *testing.T) {
+	f := newFake(t)
+	f.failBox = map[int]error{929: errors.New("connection reset")}
+	_, err := newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	wantCode(t, err, screen.CodeCDP)
+}
+
+func revealButton(t *testing.T, f *fakeCaller) (Node, error) {
+	t.Helper()
+	src := newCDPWith(f, cdpTargetTypes)
+	if _, err := src.Nodes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return src.Reveal(context.Background(), "cdp:T1:929")
+}
+
+func TestCDPRevealRemovedNode(t *testing.T) {
+	f := newFake(t)
+	f.scroll = &cdpError{Code: -32000, Message: "Node is detached from document"}
+	_, err := revealButton(t, f)
+	wantCode(t, err, screen.CodeStaleRef)
+
+	f.scroll = errors.New("connection reset")
+	_, err = revealButton(t, f)
+	wantCode(t, err, screen.CodeCDP)
+}
+
+func TestCDPRevealBoxFailure(t *testing.T) {
+	f := newFake(t)
+	src := newCDPWith(f, cdpTargetTypes)
+	if _, err := src.Nodes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	f.failBox = map[int]error{929: noLayout}
+	_, err := src.Reveal(context.Background(), "cdp:T1:929")
+	wantCode(t, err, screen.CodeStaleRef)
+	f.failBox = map[int]error{929: context.DeadlineExceeded}
+	_, err = src.Reveal(context.Background(), "cdp:T1:929")
+	wantCode(t, err, screen.CodeCDP)
+}
+
+func TestCDPIframeOffset(t *testing.T) {
+	quad := func(x1, y1, x2, y2 int) json.RawMessage {
+		q := fmt.Sprintf("[%d,%d,%d,%d,%d,%d,%d,%d]", x1, y1, x2, y1, x2, y2, x1, y2)
+		return json.RawMessage(`{"model":{"content":` + q + `,"border":` + q + `}}`)
+	}
+	f := &fakeCaller{
+		targets: `[{"targetId":"P","type":"page"},{"targetId":"F","type":"iframe"}]`,
+		trees: map[string]json.RawMessage{
+			"S-P": json.RawMessage(`{"nodes":[
+				{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+				{"nodeId":"5","role":{"value":"Iframe"},"parentId":"1","backendDOMNodeId":5}]}`),
+			"S-F": json.RawMessage(`{"nodes":[
+				{"nodeId":"1","role":{"value":"RootWebArea"},"backendDOMNodeId":1},
+				{"nodeId":"7","role":{"value":"button"},"name":{"value":"OK"},"parentId":"1","backendDOMNodeId":7}]}`),
+		},
+		boxes: map[string]map[string]json.RawMessage{
+			"S-P": {"5": quad(100, 200, 400, 500)},
+			"S-F": {"7": quad(0, 0, 20, 20)},
+		},
+		owners: map[string]map[string]int{"S-P": {"F": 5}},
+	}
+	nodes, err := newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]Node{}
+	for _, n := range nodes {
+		byKey[n.Key] = n
+	}
+	if b := byKey["cdp:F:7"]; b.X != 110 || b.Y != 210 || b.Offscreen {
+		t.Fatalf("iframe button = %+v, want (110,210)", b)
+	}
+	if r := byKey["cdp:F:1"]; r.Parent != "cdp:P:5" {
+		t.Fatalf("iframe root parent = %q, want cdp:P:5", r.Parent)
+	}
+
+	f.owners = nil // no owner: the frame's nodes are skipped
+	nodes, err = newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	if err != nil || slices.ContainsFunc(nodes, func(n Node) bool { return strings.HasPrefix(n.Key, "cdp:F:") }) {
+		t.Fatalf("ownerless frame: %v, %+v", err, nodes)
+	}
+}
+
+func TestCDPSkipsBrokenTarget(t *testing.T) {
+	f := newFake(t)
+	f.targets = `[{"targetId":"T1","type":"page"},{"targetId":"T2","type":"page"},{"targetId":"T3","type":"page"}]`
+	f.failTree = map[string]error{"S-T2": &cdpError{Message: "boom"}}
+	f.failEval = map[string]error{"S-T3": errors.New("connection reset")}
+	src := newCDPWith(f, cdpTargetTypes)
+	nodes, err := src.Nodes(context.Background())
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Nodes = %d nodes, %v", len(nodes), err)
+	}
+	for _, n := range nodes {
+		if !strings.HasPrefix(n.Key, "cdp:T1:") {
+			t.Fatalf("node from a broken target: %q", n.Key)
+		}
+	}
+	if !slices.Contains(f.detached, "S-T2") || !slices.Contains(f.detached, "S-T3") {
+		t.Fatalf("detached = %v, want S-T2 and S-T3", f.detached)
+	}
+	if len(src.(*cdpSource).sessions) != 1 {
+		t.Fatalf("sessions = %v, want only T1", src.(*cdpSource).sessions)
+	}
+
+	f.failTree["S-T1"] = errors.New("connection reset")
+	_, err = newCDPWith(f, cdpTargetTypes).Nodes(context.Background())
+	wantCode(t, err, screen.CodeCDP)
 }
