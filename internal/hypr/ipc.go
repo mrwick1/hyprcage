@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -160,6 +161,19 @@ func (i *Instance) CursorPos() (CursorPos, error) {
 // WaylandDisplay returns the name of the instance's Wayland socket (e.g.
 // "wayland-1"), from `hyprctl instances`, else from WAYLAND_DISPLAY.
 func (i *Instance) WaylandDisplay() (string, error) {
+	// hyprland.lock holds the compositor pid, then the Wayland socket name.
+	// The socket does not answer "instances": hyprctl computes it itself.
+	if data, err := os.ReadFile(filepath.Join(i.Dir, "hyprland.lock")); err == nil {
+		lines := strings.Split(string(data), "\n")
+		if len(lines) > 1 {
+			name := strings.TrimSpace(lines[1])
+			if rt, err := RuntimeDir(); err == nil && name != "" && !strings.Contains(name, "/") {
+				if fi, err := os.Stat(filepath.Join(rt, name)); err == nil && fi.Mode()&os.ModeSocket != 0 {
+					return name, nil
+				}
+			}
+		}
+	}
 	var list []struct {
 		Instance string `json:"instance"`
 		WLSocket string `json:"wl_socket"`
