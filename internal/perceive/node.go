@@ -30,6 +30,9 @@ type Node struct {
 	States    []string // subset of: focused checked expanded selected disabled required invalid readonly
 	X, Y      int      // centre, screen pixels
 	Offscreen bool
+	// ActionOnly means X and Y are not reliable (an AT-SPI popup menu item
+	// has coordinates relative to its popup): act uses the accessibility action.
+	ActionOnly bool
 }
 
 // Header is the first line of a snapshot.
@@ -98,7 +101,11 @@ func line(n Node) string {
 	if n.Value != "" {
 		b.WriteString(" value=" + quote(n.Value))
 	}
-	fmt.Fprintf(&b, " (%d,%d)", n.X, n.Y)
+	if n.ActionOnly {
+		b.WriteString(" (action)")
+	} else {
+		fmt.Fprintf(&b, " (%d,%d)", n.X, n.Y)
+	}
 	for _, s := range n.States {
 		b.WriteString(" " + s)
 	}

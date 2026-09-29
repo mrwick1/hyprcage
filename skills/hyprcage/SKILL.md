@@ -50,8 +50,10 @@ installs nothing and asks them for a password for nothing.
 - `act` with op `key` sends the keys to the focused element. The ref must be valid, but the keys do not go to that element. Click the element first when it does not have the focus.
 - `mode` is `interactive` by default: controls, landmarks and headings. Pass `full` for every element. `max_nodes` caps the list at 300 by default and sets `truncated=true` when it cuts.
 - `root` with a ref reads only that subtree. `source` forces `cdp`, `atspi` or `ocr`.
+- `(action)` in place of `(<x>,<y>)` means the coordinates are not reliable. Items in an open GTK or Qt menu show it. `act` with `click` uses the element's accessibility action instead of the pointer. Other ops fail with `unsupported_input`: use `click`, or `key` to navigate the menu.
 - OCR reads text only: every element has the role `text`. Clicks on OCR refs hit the centre of the text.
 - `stale_ref` means the element is gone or no longer unique. Take a new `snapshot` and use the new ref.
+- `ref_occluded` means another element covers the target, such as a dialog. Close the dialog, or act on the covering element.
 - `no_source` means no source can read the screen. Relaunch the app with `debug: true`, or call `setup` to install OCR.
 
 ## More tools (mrwick1 fork)

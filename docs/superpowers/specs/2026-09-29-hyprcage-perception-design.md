@@ -113,7 +113,10 @@ source=cdp nodes=71 truncated=false
 [e14] textbox "Search" value="" (640,40) required
 [e20] treeitem "src" (80,210) expanded level=2
 [e31] button "Run" (900,700) offscreen
+[e40] menuitem "Open Parent" (action)
 ```
+
+A node with `(action)` has no reliable coordinates. The AT-SPI source marks every node under a `menu` or `popup menu` object this way, because Wayland gives AT-SPI no popup origin. `act` clicks such a node through its accessibility action.
 
 ### `act` (new)
 
@@ -129,8 +132,8 @@ Parameters:
 
 1. It resolves the ref.
 2. It scrolls the element into view when the element is off screen.
-3. It sends the input at the element centre.
-4. It waits until the tree has not changed for 300 ms, with a timeout of 3 s.
+3. It sends the input at the element centre. For an `(action)` node, `click` and `double_click` call the accessibility action (AT-SPI `DoAction` 0). Every other op on an `(action)` node fails with `unsupported_input`.
+4. It waits until the tree has not changed for 1 s before the first change, or for 300 ms after a change, with a timeout of 3 s.
 5. It takes a new snapshot and returns only the diff.
 
 The diff has three sections: added, removed and changed. A change is a new name, value or state.
@@ -208,6 +211,8 @@ A node has these fields: ref, role, name, value, description, level, states, the
 | `stale_ref`       | The ref no longer resolves, and re-resolution found no single match.                        |
 | `no_source`       | The screen has no CDP port and no AT-SPI application, and the OCR language data is missing. |
 | `ref_offscreen`   | The element is off screen, and scrolling did not bring it into view.                        |
+| `ref_occluded`    | Another element covers the element centre (CDP hit-test). Close the dialog or act on the covering element. |
+| `unsupported_input` | The source cannot do the op on this element, for example `hover` on an `(action)` node.     |
 | `cdp_unreachable` | The screen has a port, but CDP does not answer.                                             |
 
 A snapshot that reaches `max_nodes` sets `truncated=true` in its first line. It is not an error.

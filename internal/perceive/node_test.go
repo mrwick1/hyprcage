@@ -122,3 +122,13 @@ func TestRenderMatches(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestRenderActionOnly(t *testing.T) {
+	n := Node{Ref: "e7", Role: "menuitem", Name: "Open Parent", X: 135, Y: 18, ActionOnly: true}
+	if got, want := line(n), `[e7] menuitem "Open Parent" (action)`; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got, want := (Diff{Added: []Node{n}}).String(), `+ [e7] menuitem "Open Parent" (action)`; got != want {
+		t.Fatalf("diff %q, want %q", got, want)
+	}
+}

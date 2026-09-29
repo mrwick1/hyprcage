@@ -137,7 +137,13 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		if n, err = resolve(old, fresh, before); err != nil {
 			return Diff{}, err
 		}
-		if n.Offscreen {
+		if n.ActionOnly { // its coordinates are not reliable: no pointer input
+			if op.Op != "click" && op.Op != "double_click" {
+				return Diff{}, screen.Errf(screen.CodeUnsupported, "use click on menu items, or key to navigate the menu",
+					"%s %q has no reliable coordinates for %s", n.Role, n.Name, op.Op)
+			}
+			press = true
+		} else if n.Offscreen {
 			r, err := src.Reveal(ctx, n.Key)
 			if err != nil {
 				return Diff{}, err

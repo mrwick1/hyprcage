@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -312,6 +313,29 @@ func TestFindAutoReChooses(t *testing.T) {
 		if !s.closed {
 			t.Errorf("source %d not closed", i)
 		}
+	}
+}
+
+func TestActActionOnlyUsesPress(t *testing.T) {
+	fastTiming(t)
+	item := Node{Key: "k1", Role: "menuitem", Name: "Open Parent", X: 135, Y: 18, ActionOnly: true}
+	src := &fakeSource{name: "atspi", reads: [][]Node{{item}}}
+	tb := NewTable()
+	tb.Assign([]Node{item})
+	in := &fakeInput{}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(in.calls) != 0 || !slices.Equal(src.pressed, []string{"k1"}) {
+		t.Fatalf("click: input %v, pressed %v", in.calls, src.pressed)
+	}
+	_, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "hover"})
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeUnsupported {
+		t.Fatalf("hover: %v, want unsupported", err)
+	}
+	if len(in.calls) != 0 || len(src.pressed) != 1 {
+		t.Fatalf("hover: input %v, pressed %v", in.calls, src.pressed)
 	}
 }
 

@@ -185,6 +185,24 @@ func TestATSPIFixtureMenus(t *testing.T) {
 	}
 }
 
+func TestATSPIPopupItemsActionOnly(t *testing.T) {
+	bar := obj("/bar", "menu bar", "", [4]int{0, 0, 300, 20})
+	goMenu := obj("/go", "menu", "Go", [4]int{250, 0, 30, 20})
+	goMenu.Parent = "/bar"
+	item := obj("/open", "menu item", "Open Parent", [4]int{100, 8, 70, 20})
+	item.Parent = "/go"
+	pop := obj("/pop", "popup menu", "", [4]int{0, 0, 200, 100})
+	sub := obj("/sub", "menu", "Recent", [4]int{0, 0, 70, 20})
+	sub.Parent = "/pop"
+	got := map[string]bool{}
+	for _, n := range nodesOf(t, &fakeTree{objs: []accessible{bar, goMenu, item, pop, sub}}, 1) {
+		got[n.Name] = n.ActionOnly
+	}
+	if got["Go"] || !got["Open Parent"] || !got["Recent"] {
+		t.Fatalf("ActionOnly by name: %v, want Go=false, Open Parent=true, Recent=true", got)
+	}
+}
+
 func TestATSPICentre(t *testing.T) {
 	n := nodesOf(t, &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{100, 200, 40, 20})}}, 1)
 	if n[0].X != 120 || n[0].Y != 210 || n[0].Offscreen {

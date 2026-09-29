@@ -159,9 +159,10 @@ func atspiNodes(objs []accessible) []Node {
 			parent[k] = atspiKey(o.Bus, o.Parent)
 		}
 	}
-	inTree := func(k string) bool {
+	// under reports whether k or one of its ancestors has one of the roles.
+	under := func(k string, roles ...string) bool {
 		for i := 0; k != "" && i <= len(objs); i++ { // the cap guards against a cycle
-			if r := role[k]; r == "tree" || r == "tree table" {
+			if slices.Contains(roles, role[k]) {
 				return true
 			}
 			k = parent[k]
@@ -171,11 +172,13 @@ func atspiNodes(objs []accessible) []Node {
 	nodes := make([]Node, 0, len(objs))
 	for _, o := range objs {
 		k := atspiKey(o.Bus, o.Path)
-		n := Node{Key: k, Parent: parent[k], Name: o.Name}
+		// Wayland gives AT-SPI no popup origin: the extents of an item in a
+		// popup menu are relative to the popup, so act presses it instead.
+		n := Node{Key: k, Parent: parent[k], Name: o.Name, ActionOnly: under(parent[k], "menu", "popup menu")}
 		switch r, ok := atspiRoles[o.Role]; {
 		case ok:
 			n.Role = r
-		case o.Role == "table cell" && inTree(parent[k]):
+		case o.Role == "table cell" && under(parent[k], "tree", "tree table"):
 			n.Role = "treeitem"
 		default:
 			n.Role = strings.ReplaceAll(o.Role, " ", "_")
