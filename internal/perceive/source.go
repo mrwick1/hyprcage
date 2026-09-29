@@ -60,7 +60,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		}
 		return newCDP(ctx, rec.DebugPort)
 	case "atspi":
-		return newATSPI(ctx, rec.Name)
+		return newATSPI(ctx, rec.Name, rec.Width, rec.Height)
 	case "ocr":
 		if !ocrOK() {
 			return nil, screen.Errf(screen.CodeNoSource, "run hyprcage setup", "no OCR data at %s", ocrData)
@@ -82,7 +82,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 			cdpNote = fmt.Sprintf(" (CDP: %v)", err) // a closed DevTools port falls through to AT-SPI and OCR
 		}
 		if hasApps(ctx, rec.Name) {
-			if src, err := newATSPI(ctx, rec.Name); err == nil {
+			if src, err := newATSPI(ctx, rec.Name, rec.Width, rec.Height); err == nil {
 				return src, nil
 			}
 		}

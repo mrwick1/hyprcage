@@ -628,7 +628,7 @@ func stubChoose(t *testing.T, apps bool, ocrPresent bool) {
 	h, d, a, o := hasApps, ocrData, newATSPI, ownsPort
 	ownsPort = func(string, int) bool { return true }
 	hasApps = func(context.Context, string) bool { return apps }
-	newATSPI = func(context.Context, string) (Source, error) { return &fakeSource{name: "atspi"}, nil }
+	newATSPI = func(context.Context, string, int, int) (Source, error) { return &fakeSource{name: "atspi"}, nil }
 	ocrData = filepath.Join(t.TempDir(), "eng.traineddata")
 	if ocrPresent {
 		if err := os.WriteFile(ocrData, nil, 0o600); err != nil {

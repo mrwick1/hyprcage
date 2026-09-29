@@ -59,23 +59,25 @@ type atspiSource struct {
 	mu     sync.Mutex
 	last   map[string]accessible // by Key, from the last Nodes
 	menu   map[string]bool       // the keys of the ActionOnly nodes of the last Nodes
+	sw, sh int                   // screen size, for the centring offset of a small window
 }
 
 // NewATSPI connects to the a11y bus of the session. The source keeps only
-// the applications whose PID belongs to the screen.
-func NewATSPI(ctx context.Context, screenName string) (Source, error) {
+// the applications whose PID belongs to the screen. w and h are the
+// screen size.
+func NewATSPI(ctx context.Context, screenName string, w, h int) (Source, error) {
 	conn, err := dialA11y(ctx)
 	if err != nil {
 		return nil, screen.Errf(screen.CodeNoSource, atspiHint, "a11y bus: %v", err)
 	}
 	pids := func() []int { return screen.ScreenProcesses(screenName) }
-	s := &atspiSource{t: &dbusTree{conn: conn}, pids: pids, closer: conn.Close, last: map[string]accessible{}}
+	s := &atspiSource{t: &dbusTree{conn: conn}, pids: pids, closer: conn.Close, last: map[string]accessible{}, sw: w, sh: h}
 	return s, nil
 }
 
-// newATSPIWith builds the source on t, filtered by pids.
-func newATSPIWith(t tree, pids []int) Source {
-	return &atspiSource{t: t, pids: func() []int { return pids }, last: map[string]accessible{}}
+// newATSPIWith builds the source on t, filtered by pids, for a w x h screen.
+func newATSPIWith(t tree, pids []int, w, h int) Source {
+	return &atspiSource{t: t, pids: func() []int { return pids }, last: map[string]accessible{}, sw: w, sh: h}
 }
 
 // HasApps reports whether any application on the bus belongs to the screen.
@@ -146,7 +148,7 @@ func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
 	for _, o := range objs {
 		s.last[atspiKey(o.Bus, o.Path)] = o
 	}
-	nodes := atspiNodes(objs)
+	nodes := atspiNodes(objs, s.sw, s.sh)
 	s.menu = map[string]bool{}
 	for _, n := range nodes {
 		if n.ActionOnly {
@@ -156,13 +158,16 @@ func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
 	return nodes, nil
 }
 
-// atspiNodes converts objs, which hold one entry per key.
-func atspiNodes(objs []accessible) []Node {
+// atspiNodes converts objs, which hold one entry per key, for a sw x sh
+// screen.
+func atspiNodes(objs []accessible, sw, sh int) []Node {
 	role := make(map[string]string, len(objs))
 	parent := make(map[string]string, len(objs))
+	ext := make(map[string][4]int, len(objs))
 	for _, o := range objs {
 		k := atspiKey(o.Bus, o.Path)
 		role[k] = o.Role
+		ext[k] = o.Extents
 		if o.Parent != "" {
 			parent[k] = atspiKey(o.Bus, o.Parent)
 		}
@@ -176,6 +181,23 @@ func atspiNodes(objs []accessible) []Node {
 			k = parent[k]
 		}
 		return false
+	}
+	// offset returns where cage puts the top-level window of k: the child
+	// of the application object. AT-SPI WINDOW extents are relative to that
+	// window, and cage centres a window smaller than the screen (a dialog).
+	offset := func(k string) (int, int) {
+		for i := 0; k != "" && i <= len(objs); i++ {
+			p := parent[k]
+			if role[p] == "application" {
+				w, h := ext[k][2], ext[k][3]
+				if w <= 0 || h <= 0 {
+					return 0, 0
+				}
+				return max(sw-w, 0) / 2, max(sh-h, 0) / 2
+			}
+			k = p
+		}
+		return 0, 0
 	}
 	nodes := make([]Node, 0, len(objs))
 	for _, o := range objs {
@@ -209,6 +231,9 @@ func atspiNodes(objs []accessible) []Node {
 		n.X, n.Y = x+w/2, y+h/2
 		if n.Offscreen = w <= 0 || x == hidden || y == hidden; n.Offscreen {
 			n.X, n.Y = 0, 0 // no usable centre
+		} else if !n.ActionOnly { // act presses popup items: their centre stays as read
+			dx, dy := offset(k)
+			n.X, n.Y = n.X+dx, n.Y+dy
 		}
 		nodes = append(nodes, n)
 	}
@@ -260,7 +285,7 @@ func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 	if err != nil {
 		return Node{}, err
 	}
-	for i, n := range atspiNodes(objs) {
+	for i, n := range atspiNodes(objs, s.sw, s.sh) {
 		if n.Key == key {
 			s.last[key] = objs[i]
 			return n, nil

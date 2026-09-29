@@ -71,7 +71,7 @@ func obj(path, role, name string, ext [4]int, states ...string) accessible {
 
 func nodesOf(t *testing.T, f *fakeTree, pids ...int) []Node {
 	t.Helper()
-	nodes, err := newATSPIWith(f, pids).Nodes(context.Background())
+	nodes, err := newATSPIWith(f, pids, 1280, 800).Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestATSPIPressMenuHint(t *testing.T) {
 	item := obj("/open", "menu item", "Open Parent", [4]int{100, 8, 70, 20})
 	item.Parent = "/go"
 	f := &fakeTree{objs: []accessible{goMenu, item}, actErr: errRefused}
-	src := newATSPIWith(f, []int{1})
+	src := newATSPIWith(f, []int{1}, 1280, 800)
 	nodes, err := src.Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -303,7 +303,7 @@ func TestATSPIKeys(t *testing.T) {
 
 func TestATSPIPress(t *testing.T) {
 	f := &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{0, 0, 10, 10})}}
-	src := newATSPIWith(f, []int{1})
+	src := newATSPIWith(f, []int{1}, 1280, 800)
 	nodes, err := src.Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +322,7 @@ func TestATSPIPress(t *testing.T) {
 
 func TestATSPIReveal(t *testing.T) {
 	f := &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{0, 0, 10, 10})}}
-	src := newATSPIWith(f, []int{1})
+	src := newATSPIWith(f, []int{1}, 1280, 800)
 	nodes, err := src.Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestATSPIActErrors(t *testing.T) {
 		{errors.New("broken pipe"), screen.CodeNoSource},
 	} {
 		f := &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{0, 0, 10, 10})}}
-		src := newATSPIWith(f, []int{1})
+		src := newATSPIWith(f, []int{1}, 1280, 800)
 		nodes, err := src.Nodes(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -388,7 +388,7 @@ func TestATSPILive(t *testing.T) {
 	if !HasApps(ctx, name) {
 		t.Fatalf("HasApps(%q) = false", name)
 	}
-	src, err := NewATSPI(ctx, name)
+	src, err := NewATSPI(ctx, name, 1280, 800)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,5 +410,32 @@ func TestATSPILive(t *testing.T) {
 	}
 	if !slices.ContainsFunc(nodes, func(n Node) bool { return n.Role == "button" && n.Name == "Back" }) {
 		t.Fatal("no button named Back")
+	}
+}
+
+// TestATSPIDialogOffset: cage centres a dialog, and AT-SPI gives extents
+// relative to the dialog, so the source adds the centring offset.
+func TestATSPIDialogOffset(t *testing.T) {
+	for _, tc := range []struct {
+		role         string
+		win          [4]int
+		wantX, wantY int
+	}{
+		{"dialog", [4]int{0, 0, 300, 130}, 590, 435},
+		{"frame", [4]int{0, 0, 1280, 800}, 100, 100}, // maximized: no offset
+	} {
+		app := obj("/app", "application", "thunar", [4]int{})
+		win := obj("/win", tc.role, "W", tc.win)
+		win.Parent = "/app"
+		btn := obj("/ok", "push button", "OK", [4]int{90, 90, 20, 20}, "enabled")
+		btn.Parent = "/win"
+		src, err := newATSPIWith(&fakeTree{objs: []accessible{app, win, btn}}, []int{1}, 1280, 800).Nodes(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(src, func(n Node) bool { return n.Name == "OK" })
+		if i < 0 || src[i].X != tc.wantX || src[i].Y != tc.wantY {
+			t.Errorf("%s: OK at %+v, want (%d,%d)", tc.role, src, tc.wantX, tc.wantY)
+		}
 	}
 }
