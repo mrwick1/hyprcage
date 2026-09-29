@@ -18,6 +18,7 @@ func (s *Server) registerFork(srv *mcp.Server) {
 	tool(s, srv, "record_stop", "Stop a recording and return the path of the MP4 file.", s.recordStop)
 	s.registerClip(srv)
 	s.registerDesktop(srv)
+	s.registerBrowser(srv)
 }
 
 func (s *Server) recordTarget(target string) (string, bool, error) {

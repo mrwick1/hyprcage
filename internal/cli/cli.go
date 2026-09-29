@@ -66,6 +66,7 @@ func init() {
 		{"clip", "read or write the clipboard of a screen", runClip, false},
 		{"show", "switch to the workspace of a screen's mirror", runShow, false},
 		{"desktop", "act on the human's own windows (not silent)", runDesktop, false},
+		{"browser", "open the agent's Chrome with DevTools on a screen", runBrowser, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},
