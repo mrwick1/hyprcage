@@ -230,3 +230,19 @@ func TestKillDebug(t *testing.T) {
 		t.Fatal("the recorded DevTools process still runs")
 	}
 }
+
+func TestHasDebugFlag(t *testing.T) {
+	for _, tc := range []struct {
+		cmdline string
+		ok      bool
+	}{
+		{"code\x00--remote-debugging-port=1234\x00--force-renderer-accessibility\x00", true},
+		{"/opt/google/chrome/chrome --enable-features=Acce --remote-debugging-port=1234 --no-first-run", true}, // Chrome's rewrite
+		{"/opt/google/chrome/chrome --remote-debugging-port=4321", false},
+		{"chrome\x00--remote-debugging-port=12345\x00", false},
+	} {
+		if got := hasDebugFlag(tc.cmdline, 1234); got != tc.ok {
+			t.Errorf("hasDebugFlag(%q, 1234) = %v, want %v", tc.cmdline, got, tc.ok)
+		}
+	}
+}

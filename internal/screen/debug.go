@@ -77,8 +77,16 @@ func PrepareDebug(rec *registry.Screen, command []string) ([]string, int, error)
 // test process.
 var debugCmdlineOK = func(pid, port int) bool {
 	argv, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	return err == nil && hasDebugFlag(string(argv), port)
+}
+
+// hasDebugFlag reports whether cmdline holds the token
+// --remote-debugging-port=<port>. Chrome rewrites its /proc cmdline into
+// one space-joined string, so tokens split on NUL and on spaces.
+// ponytail: an argument with a space in it splits too; harmless for this one flag.
+func hasDebugFlag(cmdline string, port int) bool {
 	want := fmt.Sprintf("--remote-debugging-port=%d", port)
-	return err == nil && slices.Contains(strings.Split(string(argv), "\x00"), want)
+	return slices.Contains(strings.FieldsFunc(cmdline, func(r rune) bool { return r == 0 || r == ' ' }), want)
 }
 
 // ClaimDebug records on rec the process that listens on the DevTools port
