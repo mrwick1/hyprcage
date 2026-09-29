@@ -25,6 +25,10 @@ const (
 	CodeBrowserDown  Code = "browser_not_running"
 	CodeUnsupported  Code = "unsupported_input"
 	CodeAddress      Code = "invalid_address"
+	CodeStaleRef     Code = "stale_ref" // the ref no longer matches exactly one node
+	CodeNoSource     Code = "no_source"
+	CodeRefOffscreen Code = "ref_offscreen"
+	CodeCDP          Code = "cdp_unreachable"
 )
 
 // Error carries a code, a message and a hint for the caller.
