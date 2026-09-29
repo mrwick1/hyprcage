@@ -1,9 +1,14 @@
 package desktop
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 func TestLocked(t *testing.T) {
@@ -69,5 +74,59 @@ func TestParseCombo(t *testing.T) {
 		if _, _, err := ParseCombo(bad); err == nil {
 			t.Errorf("ParseCombo(%q): want an error", bad)
 		}
+	}
+}
+
+// deadDesktop points at a socket that does not exist, so any command that
+// reaches Hyprland fails with hyprland_unreachable.
+func deadDesktop(t *testing.T, locked bool) Desktop {
+	t.Setenv("HYPRCAGE_DRIVER", "lua")
+	old := lockedFn
+	lockedFn = func() bool { return locked }
+	t.Cleanup(func() { lockedFn = old })
+	h := &hypr.Instance{Signature: "none", Dir: t.TempDir()}
+	return Desktop{H: h, D: h.Driver()}
+}
+
+func wantCode(t *testing.T, what string, err error, code screen.Code) {
+	t.Helper()
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != code {
+		t.Errorf("%s: got %v, want %s", what, err, code)
+	}
+}
+
+func TestNothingReachesHyprland(t *testing.T) {
+	d := deadDesktop(t, false)
+	for _, a := range []string{"", "0xZZ", `0x1"`} {
+		wantCode(t, "focus "+a, d.Focus(a), screen.CodeAddress)
+		wantCode(t, "move "+a, d.Move(a, 2), screen.CodeAddress)
+		wantCode(t, "type "+a, d.Type(a, "hi"), screen.CodeAddress)
+		wantCode(t, "key "+a, d.Key(a, []string{"Return"}), screen.CodeAddress)
+	}
+	wantCode(t, "type aé", d.Type("0xabc", "aé"), screen.CodeUnsupported)
+	wantCode(t, "key bad", d.Key("0xabc", []string{"Return", "hyper+x"}), screen.CodeUnsupported)
+	// A valid call does reach the dead socket, which proves the check above.
+	wantCode(t, "focus valid", d.Focus("0xabc"), screen.CodeHyprland)
+	_, err := d.Windows()
+	wantCode(t, "windows", err, screen.CodeHyprland)
+}
+
+func TestLockedRefusesAll(t *testing.T) {
+	d := deadDesktop(t, true)
+	_, err := d.Windows()
+	wantCode(t, "windows", err, screen.CodeLocked)
+	wantCode(t, "focus", d.Focus("0xabc"), screen.CodeLocked)
+	wantCode(t, "move", d.Move("0xabc", 2), screen.CodeLocked)
+	wantCode(t, "type", d.Type("0xabc", "a"), screen.CodeLocked)
+	wantCode(t, "key", d.Key("0xabc", []string{"a"}), screen.CodeLocked)
+}
+
+func TestPartialTypeCountsKeys(t *testing.T) {
+	d := deadDesktop(t, false)
+	err := d.Type("0xabc", "ab")
+	wantCode(t, "type", err, screen.CodeHyprland)
+	if err == nil || !strings.Contains(err.Error(), "0 of 2 keys sent") {
+		t.Errorf("type: %v, want the sent count", err)
 	}
 }

@@ -99,27 +99,56 @@ type Desktop struct {
 	D hypr.ConfigDriver
 }
 
-func (d Desktop) ready(addr string) error {
+// lockedFn is Locked on /proc. Tests replace it.
+var lockedFn = func() bool { return Locked("/proc") }
+
+// session checks for a Hyprland session that is not locked.
+func (d Desktop) session() error {
 	if d.H == nil {
 		return screen.Errf(screen.CodeHyprland, "", "no Hyprland session")
 	}
-	if Locked("/proc") {
+	if lockedFn() {
 		return screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
 	}
-	if addr == "" {
-		return nil
+	return nil
+}
+
+// ready checks the session and the window address before a window command.
+func (d Desktop) ready(addr string) error {
+	if err := d.session(); err != nil {
+		return err
 	}
 	return CheckAddress(addr)
 }
 
+// command sends one command and names a Hyprland failure.
+func (d Desktop) command(cmd string) error {
+	if err := d.H.Command(cmd); err != nil {
+		return screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	return nil
+}
+
+type key struct{ mods, key string }
+
+// send presses keys in a window and counts the keys sent when one fails.
+func (d Desktop) send(addr string, keys []key) error {
+	for i, k := range keys {
+		if err := d.H.Command(d.D.SendShortcutCmd(k.mods, k.key, addr)); err != nil {
+			return screen.Errf(screen.CodeHyprland, "", "%d of %d keys sent: %v", i, len(keys), err)
+		}
+	}
+	return nil
+}
+
 // Windows lists the human's windows, hyprcage's own mirrors left out.
 func (d Desktop) Windows() ([]hypr.Client, error) {
-	if err := d.ready(""); err != nil {
+	if err := d.session(); err != nil {
 		return nil, err
 	}
 	all, err := d.H.Clients()
 	if err != nil {
-		return nil, err
+		return nil, screen.Errf(screen.CodeHyprland, "", "%v", err)
 	}
 	out := []hypr.Client{}
 	for _, c := range all {
@@ -136,7 +165,7 @@ func (d Desktop) Focus(addr string) error {
 	if err := d.ready(addr); err != nil {
 		return err
 	}
-	return d.H.Command(d.D.FocusWindowCmd(addr))
+	return d.command(d.D.FocusWindowCmd(addr))
 }
 
 // Move sends a window to a workspace without following it.
@@ -144,7 +173,7 @@ func (d Desktop) Move(addr string, ws int) error {
 	if err := d.ready(addr); err != nil {
 		return err
 	}
-	return d.H.Command(d.D.MoveWindowCmd(addr, ws))
+	return d.command(d.D.MoveWindowCmd(addr, ws))
 }
 
 // Type sends text to a window key by key. Every rune is mapped first, so a
@@ -153,21 +182,15 @@ func (d Desktop) Type(addr, text string) error {
 	if err := d.ready(addr); err != nil {
 		return err
 	}
-	type k struct{ mods, key string }
-	var keys []k
+	var keys []key
 	for _, r := range text {
-		mods, key, err := KeyFor(r)
+		mods, k, err := KeyFor(r)
 		if err != nil {
 			return err
 		}
-		keys = append(keys, k{mods, key})
+		keys = append(keys, key{mods, k})
 	}
-	for _, x := range keys {
-		if err := d.H.Command(d.D.SendShortcutCmd(x.mods, x.key, addr)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return d.send(addr, keys)
 }
 
 // Key sends key combinations such as ctrl+l to a window. Every combination
@@ -176,19 +199,13 @@ func (d Desktop) Key(addr string, combos []string) error {
 	if err := d.ready(addr); err != nil {
 		return err
 	}
-	type k struct{ mods, key string }
-	var keys []k
+	var keys []key
 	for _, c := range combos {
-		mods, key, err := ParseCombo(c)
+		mods, k, err := ParseCombo(c)
 		if err != nil {
 			return err
 		}
-		keys = append(keys, k{mods, key})
+		keys = append(keys, key{mods, k})
 	}
-	for _, x := range keys {
-		if err := d.H.Command(d.D.SendShortcutCmd(x.mods, x.key, addr)); err != nil {
-			return err
-		}
-	}
-	return nil
+	return d.send(addr, keys)
 }

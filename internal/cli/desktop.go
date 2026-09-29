@@ -6,12 +6,13 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 func openDesktop() (desktop.Desktop, error) {
 	inst, err := hypr.Discover()
 	if err != nil {
-		return desktop.Desktop{}, err
+		return desktop.Desktop{}, screen.Errf(screen.CodeHyprland, "", "%v", err)
 	}
 	return desktop.Desktop{H: inst, D: inst.Driver()}, nil
 }
