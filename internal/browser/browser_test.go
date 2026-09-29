@@ -3,11 +3,16 @@ package browser
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 func TestFind(t *testing.T) {
@@ -59,5 +64,61 @@ func TestReady(t *testing.T) {
 	}
 	if _, err := Ready("http://127.0.0.1:1", 300*time.Millisecond); err == nil {
 		t.Error("nothing listens: want a timeout")
+	}
+}
+
+func codeOf(err error) screen.Code {
+	var se *screen.Error
+	if errors.As(err, &se) {
+		return se.Code
+	}
+	return ""
+}
+
+func TestOpenBusyPort(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	cfg := config.Fallback()
+	cfg.BrowserPort = ln.Addr().(*net.TCPAddr).Port
+	cfg.BrowserCommand = "hc-no-such-browser" // reaching Find gives browser_not_running
+	_, err = Open(&screen.Ctx{Cfg: cfg}, &registry.Screen{Name: "hc-test"}, "")
+	if codeOf(err) != screen.CodeBrowserBusy {
+		t.Fatalf("plain TCP listener: want browser_running, got %v", err)
+	}
+}
+
+func TestCheckURL(t *testing.T) {
+	for _, u := range []string{"", "https://x.test", "http://127.0.0.1:8080/a", "file:///tmp/a.html", "data:text/html,<p>x</p>", "about:blank"} {
+		if err := CheckURL(u); err != nil {
+			t.Errorf("%q: want ok, got %v", u, err)
+		}
+	}
+	for _, u := range []string{"--remote-allow-origins=*", "-x", "javascript:alert(1)", "chrome://settings", "ftp://x.test"} {
+		if codeOf(CheckURL(u)) != screen.CodeUnsupported {
+			t.Errorf("%q: want unsupported_input", u)
+		}
+	}
+}
+
+func TestOwned(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	// The listener belongs to this test binary: its argv holds "-test.".
+	if err := owned("-test.", port, time.Second); err != nil {
+		t.Errorf("own listener: %v", err)
+	}
+	if err := owned("--user-data-dir=/tmp/other", port, time.Second); codeOf(err) != screen.CodeBrowserBusy {
+		t.Errorf("foreign listener: want browser_running, got %v", err)
+	}
+	ln.Close()
+	if err := owned("-test.", port, 300*time.Millisecond); codeOf(err) != screen.CodeTimeout {
+		t.Errorf("no listener: want timeout, got %v", err)
 	}
 }
