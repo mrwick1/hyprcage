@@ -100,7 +100,20 @@ func Start(exe, target string, isScreen bool, cfg config.Config) (State, error) 
 		cmd.Env = append(cmd.Env, "HYPRCAGE_SCREEN="+target)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	// The child's own errors go to its log; O_APPEND keeps them and
+	// ffmpeg's output, which RunChild appends to the same file.
+	logPath := filepath.Join(screen.LogDir(), "record-"+target+".log")
+	if err := os.MkdirAll(screen.LogDir(), 0o700); err != nil {
+		return State{}, err
+	}
+	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, 0o600)
+	if err != nil {
+		return State{}, err
+	}
+	cmd.Stdout, cmd.Stderr = logf, logf
+	err = cmd.Start()
+	logf.Close()
+	if err != nil {
 		return State{}, err
 	}
 	go func() { _ = cmd.Wait() }()
@@ -115,7 +128,7 @@ func Start(exe, target string, isScreen bool, cfg config.Config) (State, error) 
 		time.Sleep(100 * time.Millisecond)
 	}
 	_ = cmd.Process.Kill()
-	return State{}, screen.Errf(screen.CodeCapture, "see "+filepath.Join(screen.LogDir(), "record-"+target+".log"), "the recorder of %s did not start", target)
+	return State{}, screen.Errf(screen.CodeCapture, "see "+logPath, "the recorder of %s did not start", target)
 }
 
 // Stop sends SIGTERM to target's recorder and waits until ffmpeg has
@@ -162,7 +175,7 @@ func RunChild(ctx context.Context, target, display, out string, fps int, max tim
 			ff.Env = append(ff.Env, kv)
 		}
 	}
-	logf, _ := os.OpenFile(filepath.Join(screen.LogDir(), "record-"+target+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	logf, _ := os.OpenFile(filepath.Join(screen.LogDir(), "record-"+target+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if logf != nil {
 		defer logf.Close()
 		ff.Stdout, ff.Stderr = logf, logf
