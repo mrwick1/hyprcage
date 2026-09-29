@@ -30,7 +30,7 @@ REPO=${HYPRCAGE_REPO:-hexadecimil/hyprcage}
 BIN_DIR=${HYPRCAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${HYPRCAGE_AGENTS:-all}
 SRC_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")
-PACKAGES=(cage)
+PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -48,20 +48,26 @@ arch() {
 # --- 1. packages -------------------------------------------------------------
 
 missing_packages() {
-  local p; for p in "${PACKAGES[@]}"; do have "$p" || echo "$p"; done
+  local p; for p in "${PACKAGES[@]}"; do have "${p#*:}" || echo "${p%%:*}"; done
+}
+
+pm_install() {
+  if have pacman; then echo "pacman -S --needed --noconfirm"
+  elif have zypper; then echo "zypper --non-interactive install --no-recommends"
+  else return 1; fi
 }
 
 install_packages() {
-  local missing; mapfile -t missing < <(missing_packages)
-  if [ ${#missing[@]} -eq 0 ]; then say "cage already installed"; return; fi
-  have pacman || die "cage is missing and this is not an Arch-based system: install ${missing[*]} with your package manager, then rerun"
+  local missing pm; mapfile -t missing < <(missing_packages)
+  if [ ${#missing[@]} -eq 0 ]; then say "packages already installed"; return; fi
+  pm=$(pm_install) || die "no pacman or zypper: install ${missing[*]} with your package manager, then rerun"
   say "installing ${missing[*]} (sudo will ask for your password)"
   if sudo -n true 2>/dev/null || [ -t 0 ]; then
-    sudo pacman -S --needed --noconfirm "${missing[@]}" || die "pacman failed"
+    sudo $pm "${missing[@]}" || die "package install failed"
   elif have pkexec; then
-    pkexec pacman -S --needed --noconfirm "${missing[@]}" || die "pacman failed"
+    pkexec $pm "${missing[@]}" || die "package install failed"
   else
-    die "no terminal for sudo and no pkexec: run  sudo pacman -S ${missing[*]}  then rerun"
+    die "no terminal for sudo and no pkexec: run  sudo $pm ${missing[*]}  then rerun"
   fi
 }
 
@@ -239,7 +245,7 @@ uninstall() {
   if [ -x "$BIN_DIR/hyprcage" ]; then "$BIN_DIR/hyprcage" gc --all >/dev/null 2>&1 || true; fi
   rm -f "$BIN_DIR/hyprcage"
   rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/hyprcage" "${XDG_CONFIG_HOME:-$HOME/.config}/hyprcage"
-  say "done. To remove cage too:  sudo pacman -Rns cage"
+  say "done. cage, ffmpeg and wl-clipboard stay installed; remove them with your package manager"
 }
 
 # --- main ------------------------------------------------------------------------------
