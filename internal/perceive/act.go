@@ -78,6 +78,7 @@ func Snapshot(ctx context.Context, src Source, t *Table, o SnapOpts) (string, []
 	}
 	capped := filtered[:min(limit, len(filtered))]
 	t.Assign(capped)
+	t.SetSource(src.Name())
 	return Render(Header{Source: src.Name(), Nodes: len(capped), Truncated: len(filtered) > limit}, capped), capped, nil
 }
 
@@ -111,6 +112,9 @@ func Act(ctx context.Context, cl *wl.Client, src Source, t *Table, op ActOp) (Di
 
 var ops = map[string]bool{"click": true, "double_click": true, "type": true, "key": true, "hover": true, "scroll": true}
 
+// ValidOp reports whether Act knows op.
+func ValidOp(op string) bool { return ops[op] }
+
 func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff, error) {
 	if !ops[op.Op] {
 		return Diff{}, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", op.Op)
@@ -125,6 +129,7 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		return Diff{}, err
 	}
 	before := Filter(fresh, m, "")
+	t.fillRefs(before) // so that the removed lines of the diff carry their refs
 	var n Node
 	press := false
 	if op.Op != "key" { // key goes to the focus: it never touches the node
@@ -247,6 +252,7 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 		// the other nodes stay valid.
 		all := Filter(nodes, mode(src, ModeInteractive), "")
 		t.Assign(all)
+		t.SetSource(src.Name())
 		matches := []Node{}
 		for _, n := range all {
 			if (role == "" || n.Role == role) && (re.MatchString(n.Name) || re.MatchString(n.Value)) {

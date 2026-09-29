@@ -46,6 +46,8 @@ installs nothing and asks them for a password for nothing.
 `snapshot` picks a source in this order: CDP (an app launched with `debug: true`), then AT-SPI (GTK and Qt apps), then OCR (anything else). The first line names the source: `source=<cdp|atspi|ocr> nodes=<n> truncated=<true|false>`. Every other line is one element: `[<ref>] <role> "<name>" (<x>,<y>)` plus its value, states and level when it has them.
 
 - Refs are `e<n>` for CDP and AT-SPI, `o<n>` for OCR. A ref keeps naming the same element across snapshots of the same screen.
+- `act` and `find` use the source of your last `snapshot`. They read the interactive elements again and keep only those as current refs. A ref from a `full` snapshot that points to a non-interactive element can therefore go stale after `act` or `find`.
+- `act` with op `key` sends the keys to the focused element. The ref must be valid, but the keys do not go to that element. Click the element first when it does not have the focus.
 - `mode` is `interactive` by default: controls, landmarks and headings. Pass `full` for every element. `max_nodes` caps the list at 300 by default and sets `truncated=true` when it cuts.
 - `root` with a ref reads only that subtree. `source` forces `cdp`, `atspi` or `ocr`.
 - OCR reads text only: every element has the role `text`. Clicks on OCR refs hit the centre of the text.
@@ -74,6 +76,5 @@ installs nothing and asks them for a password for nothing.
 Everything exists as `hyprcage <command>` for a terminal: `create`, `launch`,
 `shot`, `click`, `type`, `key`, `destroy`, `mirror`, `list`, `gc`, `doctor`,
 `record`, `clip`, `desktop`, `browser`, `show`, `snapshot`, `act`, `find`.
-The CLI keeps no refs between two commands: `hyprcage act` reads the screen
-again first. A ref from an earlier `hyprcage snapshot` names the same element
-only while the screen has not changed.
+The CLI stores the refs of each screen between two commands, so `hyprcage act`
+uses the refs of the last `hyprcage snapshot` or `hyprcage find`.

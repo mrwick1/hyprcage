@@ -4,10 +4,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
 func connect(t *testing.T) *mcp.ClientSession { return connectCfg(t, config.Default()) }
@@ -159,8 +161,47 @@ func TestSnapshotUnknownScreen(t *testing.T) {
 func TestActMissingRef(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "act", Arguments: map[string]any{"op": "click"}})
-	if err == nil && !res.IsError {
-		t.Error("act without ref should be rejected")
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	} else if res.IsError {
+		msg = text(res)
+	}
+	if !strings.Contains(msg, "ref") {
+		t.Errorf("act without ref: err=%v text=%q", err, msg)
+	}
+}
+
+func TestSnapshotBadMode(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "snapshot", Arguments: map[string]any{"mode": "tiny"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "unknown mode") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+// screenDestroy needs a live screen, so this tests the table key and
+// dropTable, which screenDestroy calls.
+func TestTablePerScreenInstance(t *testing.T) {
+	s := newServer(config.Default())
+	a := &registry.Screen{Name: "hc-1", CreatedAt: time.Unix(1, 0)}
+	b := &registry.Screen{Name: "hc-1", CreatedAt: time.Unix(2, 0)}
+	ta := s.table(a)
+	if s.table(a) != ta {
+		t.Error("same screen, new table")
+	}
+	if s.table(b) == ta {
+		t.Error("reused name inherits the old table")
+	}
+	s.dropTable(a)
+	if _, ok := s.tables[tableKey(a)]; ok {
+		t.Error("dropTable left the table")
+	}
+	if _, ok := s.tables[tableKey(b)]; !ok {
+		t.Error("dropTable removed another screen's table")
 	}
 }
 

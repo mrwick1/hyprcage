@@ -528,3 +528,36 @@ func TestChooseReportsCDPError(t *testing.T) {
 		t.Fatalf("got %v, want context.Canceled", err)
 	}
 }
+
+func TestSnapshotRecordsSource(t *testing.T) {
+	tb := NewTable()
+	src := &fakeSource{name: "ocr", reads: [][]Node{{{Key: "ocr:1", Role: "text", Name: "Hi"}}}}
+	if _, _, err := Snapshot(context.Background(), src, tb, SnapOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := tb.SourceName(); got != "ocr" {
+		t.Errorf("act would choose %q, want ocr", got)
+	}
+}
+
+func TestActDiffRemovedKeepsRef(t *testing.T) {
+	fastTiming(t)
+	before := []Node{button("k1", "Continue", 10, 10), button("k2", "Stop", 30, 10)}
+	after := []Node{button("k2", "Stop", 30, 10)}
+	src := &fakeSource{name: "cdp", reads: [][]Node{before, after}}
+	tb := NewTable()
+	tb.Assign(append([]Node(nil), before...))
+	d, err := act(context.Background(), &fakeInput{}, src, tb, ActOp{Ref: "e1", Op: "click"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.String(); !strings.HasPrefix(got, `- [e1] button "Continue"`) {
+		t.Errorf("diff %q", got)
+	}
+}
+
+func TestValidOp(t *testing.T) {
+	if !ValidOp("click") || ValidOp("wave") {
+		t.Error("ValidOp")
+	}
+}

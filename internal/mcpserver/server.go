@@ -42,7 +42,7 @@ type Server struct {
 	cfg config.Config
 	mu  sync.Mutex // one tool at a time: the Wayland client is single-threaded
 	ctx *screen.Ctx
-	// tables holds one ref table per screen name, guarded by mu.
+	// tables holds one ref table per screen instance (tableKey), guarded by mu.
 	tables map[string]*perceive.Table
 }
 
@@ -375,7 +375,7 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg and wl-clipboard) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording or the clipboard fails because ffmpeg or wl-clipboard is missing, then retry.", s.setup)
+	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
 	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
@@ -441,7 +441,7 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	screen.CloseConn(rec.Name)
-	delete(s.tables, rec.Name)
+	s.dropTable(rec)
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}

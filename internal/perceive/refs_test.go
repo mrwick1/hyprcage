@@ -1,6 +1,7 @@
 package perceive
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -73,4 +74,35 @@ func TestReResolveMissing(t *testing.T) {
 func TestReResolveUnnamed(t *testing.T) {
 	_, err := ReResolve(Node{Role: "button"}, []Node{{Key: "k2", Role: "button"}})
 	stale(t, err)
+}
+
+func TestTableJSONRoundTrip(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{{Key: "cdp:a", Role: "button", Name: "OK"}, {Key: "ocr:1", Role: "text", Name: "hi"}})
+	tb.SetSource("cdp")
+	data, err := json.Marshal(tb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := NewTable()
+	if err := json.Unmarshal(data, got); err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := got.Lookup("e1"); !ok || n.Key != "cdp:a" || n.Name != "OK" {
+		t.Errorf("Lookup e1 = %+v, %v", n, ok)
+	}
+	if got.SourceName() != "cdp" {
+		t.Errorf("source %q", got.SourceName())
+	}
+	nodes := []Node{{Key: "cdp:a"}, {Key: "cdp:b"}, {Key: "ocr:2"}}
+	got.Assign(nodes)
+	if nodes[0].Ref != "e1" || nodes[1].Ref != "e2" || nodes[2].Ref != "o2" {
+		t.Errorf("refs after round trip: %s %s %s", nodes[0].Ref, nodes[1].Ref, nodes[2].Ref)
+	}
+}
+
+func TestTableSourceDefaultsToAuto(t *testing.T) {
+	if got := NewTable().SourceName(); got != "auto" {
+		t.Errorf("empty table source %q, want auto", got)
+	}
 }

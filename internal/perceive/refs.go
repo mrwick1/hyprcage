@@ -1,6 +1,7 @@
 package perceive
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -14,6 +15,70 @@ type Table struct {
 	e, o int               // last e<n> and o<n> handed out
 	refs map[string]string // Key to ref
 	last map[string]Node   // ref to node, from the last Assign
+	src  string            // source name of the last Snapshot or Find, "" before
+}
+
+// SetSource records the name of the source that the last read came from.
+func (t *Table) SetSource(name string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.src = name
+}
+
+// SourceName returns the source of the last Snapshot or Find, or "auto"
+// when there was none. Act and Find choose this source so that the refs
+// they resolve come from the same source.
+func (t *Table) SourceName() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.src == "" {
+		return "auto"
+	}
+	return t.src
+}
+
+// fillRefs sets Ref on each node whose Key has one, without handing out
+// new refs and without touching the last snapshot.
+func (t *Table) fillRefs(nodes []Node) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i := range nodes {
+		nodes[i].Ref = t.refs[nodes[i].Key]
+	}
+}
+
+// tableJSON is the stored form of a Table, for the CLI between two calls.
+type tableJSON struct {
+	Source string            `json:"source,omitempty"`
+	E      int               `json:"e"`
+	O      int               `json:"o"`
+	Refs   map[string]string `json:"refs"`
+	Last   map[string]Node   `json:"last"`
+}
+
+// MarshalJSON stores the refs, both counters, the last snapshot and the source.
+func (t *Table) MarshalJSON() ([]byte, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return json.Marshal(tableJSON{Source: t.src, E: t.e, O: t.o, Refs: t.refs, Last: t.last})
+}
+
+// UnmarshalJSON restores what MarshalJSON stored.
+func (t *Table) UnmarshalJSON(data []byte) error {
+	var j tableJSON
+	if err := json.Unmarshal(data, &j); err != nil {
+		return err
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.src, t.e, t.o, t.refs, t.last = j.Source, j.E, j.O, j.Refs, j.Last
+	if t.refs == nil {
+		t.refs = map[string]string{}
+	}
+	if t.last == nil {
+		t.last = map[string]Node{}
+	}
+	return nil
 }
 
 // NewTable returns an empty table.

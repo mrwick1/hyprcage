@@ -47,34 +47,45 @@ func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Use it instead of wait plus screenshot.", s.find)
 }
 
+// tableKey names one screen instance: a reused screen name never inherits
+// the refs of an older screen.
+func tableKey(rec *registry.Screen) string {
+	return fmt.Sprintf("%s@%d", rec.Name, rec.CreatedAt.UnixNano())
+}
+
 // table returns the screen's ref table. s.mu guards s.tables: every tool
 // call holds it.
-func (s *Server) table(name string) *perceive.Table {
+func (s *Server) table(rec *registry.Screen) *perceive.Table {
 	if s.tables == nil {
 		s.tables = map[string]*perceive.Table{}
 	}
-	t := s.tables[name]
+	k := tableKey(rec)
+	t := s.tables[k]
 	if t == nil {
 		t = perceive.NewTable()
-		s.tables[name] = t
+		s.tables[k] = t
 	}
 	return t
 }
 
-// source resolves the screen and chooses a source. The caller closes it.
-func (s *Server) source(ctx context.Context, name, want string) (*registry.Screen, *wl.Client, perceive.Source, error) {
+func (s *Server) dropTable(rec *registry.Screen) { delete(s.tables, tableKey(rec)) }
+
+// source resolves the screen and chooses a source: want, or the source of
+// the table's last read when want is empty. The caller closes it.
+func (s *Server) source(ctx context.Context, name, want string) (*wl.Client, perceive.Source, *perceive.Table, *registry.Screen, error) {
 	rec, cl, err := s.resolve(name, true)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
+	t := s.table(rec)
 	if want == "" {
-		want = "auto"
+		want = t.SourceName()
 	}
 	src, err := perceive.Choose(ctx, rec, cl, want)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return rec, cl, src, nil
+	return cl, src, t, rec, nil
 }
 
 func plain(text string) *mcp.CallToolResult {
@@ -88,12 +99,16 @@ func (s *Server) snapshot(in snapIn) (*mcp.CallToolResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
 	defer cancel()
-	rec, _, src, err := s.source(ctx, in.Screen, in.Source)
+	want := in.Source
+	if want == "" {
+		want = "auto"
+	}
+	_, src, t, _, err := s.source(ctx, in.Screen, want)
 	if err != nil {
 		return nil, err
 	}
 	defer src.Close()
-	out, _, err := perceive.Snapshot(ctx, src, s.table(rec.Name), perceive.SnapOpts{Mode: m, RootRef: in.Root, MaxNodes: in.MaxNodes})
+	out, _, err := perceive.Snapshot(ctx, src, t, perceive.SnapOpts{Mode: m, RootRef: in.Root, MaxNodes: in.MaxNodes})
 	if err != nil {
 		return nil, err
 	}
@@ -104,14 +119,17 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 	if in.Ref == "" {
 		return nil, fmt.Errorf("ref must not be empty: take it from snapshot or find")
 	}
+	if !perceive.ValidOp(in.Op) {
+		return nil, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", in.Op)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
 	defer cancel()
-	rec, cl, src, err := s.source(ctx, in.Screen, "")
+	cl, src, t, rec, err := s.source(ctx, in.Screen, "")
 	if err != nil {
 		return nil, err
 	}
 	defer src.Close()
-	d, err := perceive.Act(ctx, cl, src, s.table(rec.Name), perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction})
+	d, err := perceive.Act(ctx, cl, src, t, perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction})
 	if err != nil {
 		return nil, err
 	}
@@ -134,12 +152,12 @@ func (s *Server) find(in findIn) (*mcp.CallToolResult, error) {
 	timeout := time.Duration(max(in.TimeoutMs, 0)) * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+perceiveTimeout)
 	defer cancel()
-	rec, _, src, err := s.source(ctx, in.Screen, "")
+	_, src, t, _, err := s.source(ctx, in.Screen, "")
 	if err != nil {
 		return nil, err
 	}
 	defer src.Close()
-	nodes, err := perceive.Find(ctx, src, s.table(rec.Name), re, in.Role, timeout)
+	nodes, err := perceive.Find(ctx, src, t, re, in.Role, timeout)
 	if err != nil {
 		return nil, err
 	}
