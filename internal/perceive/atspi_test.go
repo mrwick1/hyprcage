@@ -7,6 +7,9 @@ import (
 	"os"
 	"slices"
 	"testing"
+	"time"
+
+	"github.com/godbus/dbus/v5"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -19,19 +22,22 @@ type fakeTree struct {
 	scrolls []string
 	actions []string
 	actIdx  []int
+	actErr  error // returned by Scroll and DoAction when set
 }
 
-func (f *fakeTree) Walk(context.Context) ([]accessible, error) { return slices.Clone(f.objs), nil }
+func (f *fakeTree) Walk(context.Context, []int) ([]accessible, error) {
+	return slices.Clone(f.objs), nil
+}
 
 func (f *fakeTree) Scroll(_ context.Context, bus, path string) error {
 	f.scrolls = append(f.scrolls, bus+path)
-	return nil
+	return f.actErr
 }
 
 func (f *fakeTree) DoAction(_ context.Context, bus, path string, i int) error {
 	f.actions = append(f.actions, bus+path)
 	f.actIdx = append(f.actIdx, i)
-	return nil
+	return f.actErr
 }
 
 func thunarTree(t *testing.T) *fakeTree {
@@ -222,5 +228,79 @@ func TestATSPIReveal(t *testing.T) {
 	var se *screen.Error
 	if _, err := src.Reveal(context.Background(), nodes[0].Key); !errors.As(err, &se) || se.Code != screen.CodeStaleRef {
 		t.Fatalf("gone object: %v", err)
+	}
+}
+
+func TestATSPIUnknownStates(t *testing.T) {
+	a := obj("/a", "text", "A", [4]int{0, 0, 1, 1})
+	a.NoStates = true
+	if n := nodesOf(t, &fakeTree{objs: []accessible{a}}, 1); len(n[0].States) != 0 {
+		t.Fatalf("states %v, want none", n[0].States)
+	}
+}
+
+func TestATSPIActErrors(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want screen.Code
+	}{
+		{errRefused, screen.CodeUnsupported},
+		{dbus.MakeUnknownMethodError("DoAction"), screen.CodeUnsupported},
+		{dbus.MakeUnknownInterfaceError("org.a11y.atspi.Action"), screen.CodeUnsupported},
+		{dbus.MakeNoObjectError("/a"), screen.CodeStaleRef},
+		{dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownObject"}, screen.CodeStaleRef},
+		{errors.New("broken pipe"), screen.CodeNoSource},
+	} {
+		f := &fakeTree{objs: []accessible{obj("/a", "button", "A", [4]int{0, 0, 10, 10})}}
+		src := newATSPIWith(f, []int{1})
+		nodes, err := src.Nodes(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.actErr = tc.err
+		var se *screen.Error
+		if err := src.Press(context.Background(), nodes[0].Key); !errors.As(err, &se) || se.Code != tc.want {
+			t.Errorf("Press with %v: %v, want %s", tc.err, err, tc.want)
+		}
+		if _, err := src.Reveal(context.Background(), nodes[0].Key); !errors.As(err, &se) || se.Code != tc.want {
+			t.Errorf("Reveal with %v: %v, want %s", tc.err, err, tc.want)
+		}
+	}
+}
+
+// TestATSPILive reads the real a11y bus. It runs only when
+// HYPRCAGE_LIVE_ATSPI names a screen that shows Thunar.
+func TestATSPILive(t *testing.T) {
+	name := os.Getenv("HYPRCAGE_LIVE_ATSPI")
+	if name == "" {
+		t.Skip("set HYPRCAGE_LIVE_ATSPI to a screen that shows Thunar")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if !HasApps(ctx, name) {
+		t.Fatalf("HasApps(%q) = false", name)
+	}
+	src, err := NewATSPI(ctx, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := src.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	nodes, err := src.Nodes(ctx)
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Nodes = %d nodes, %v", len(nodes), err)
+	}
+	seen := map[string]bool{}
+	for _, n := range nodes {
+		if seen[n.Key] {
+			t.Fatalf("duplicate key %q", n.Key)
+		}
+		seen[n.Key] = true
+	}
+	if !slices.ContainsFunc(nodes, func(n Node) bool { return n.Role == "button" && n.Name == "Back" }) {
+		t.Fatal("no button named Back")
 	}
 }

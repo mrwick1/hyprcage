@@ -17,18 +17,22 @@ type accessible struct {
 	Bus, Path, Parent string
 	Role, Name        string
 	States            []string
+	NoStates          bool   // GetState failed: States is unknown, not empty
 	Extents           [4]int // x, y, w, h in window coordinates; w == 0 when absent
 	PID               int
 }
 
-// tree lists every object of the applications on the bus.
+// tree lists every object of the applications on the bus whose PID is in pids.
 type tree interface {
-	Walk(ctx context.Context) ([]accessible, error)
+	Walk(ctx context.Context, pids []int) ([]accessible, error)
 	Scroll(ctx context.Context, bus, path string) error // Component.ScrollTo
 	DoAction(ctx context.Context, bus, path string, i int) error
 }
 
 const atspiHint = "start the a11y bus (at-spi-bus-launcher) or use source=ocr"
+
+// errRefused means that ScrollTo or DoAction answered false.
+var errRefused = errors.New("the object refused the request")
 
 // atspiRoles maps AT-SPI role names to ARIA-style roles. Other roles keep
 // their AT-SPI name with spaces replaced by "_".
@@ -63,7 +67,7 @@ func NewATSPI(ctx context.Context, screenName string) (Source, error) {
 		return nil, screen.Errf(screen.CodeNoSource, atspiHint, "a11y bus: %v", err)
 	}
 	pids := func() []int { return screen.ScreenProcesses(screenName) }
-	s := &atspiSource{t: &dbusTree{conn: conn, pids: pids}, pids: pids, closer: conn.Close, last: map[string]accessible{}}
+	s := &atspiSource{t: &dbusTree{conn: conn}, pids: pids, closer: conn.Close, last: map[string]accessible{}}
 	return s, nil
 }
 
@@ -83,7 +87,7 @@ func HasApps(ctx context.Context, screenName string) bool {
 		return false
 	}
 	defer conn.Close()
-	apps, err := (&dbusTree{conn: conn, pids: func() []int { return pids }}).apps(ctx)
+	apps, err := (&dbusTree{conn: conn}).apps(ctx, pids)
 	return err == nil && len(apps) > 0
 }
 
@@ -93,7 +97,8 @@ func atspiKey(bus, path string) string { return "atspi:" + bus + ":" + path }
 
 // walk reads the tree and keeps the objects of the screen's processes, once each.
 func (s *atspiSource) walk(ctx context.Context) ([]accessible, error) {
-	objs, err := s.t.Walk(ctx)
+	pids := s.pids() // one /proc scan, for both filters
+	objs, err := s.t.Walk(ctx, pids)
 	if err != nil {
 		var se *screen.Error
 		if errors.As(err, &se) {
@@ -102,7 +107,6 @@ func (s *atspiSource) walk(ctx context.Context) ([]accessible, error) {
 		return nil, screen.Errf(screen.CodeNoSource, atspiHint, "a11y walk: %v", err)
 	}
 	// The guarantee: whatever Walk returns, a foreign PID never leaves here.
-	pids := s.pids()
 	seen := make(map[string]bool, len(objs))
 	out := objs[:0]
 	for _, o := range objs {
@@ -167,11 +171,13 @@ func atspiNodes(objs []accessible) []Node {
 				n.States = append(n.States, m)
 			}
 		}
-		if !slices.Contains(o.States, "enabled") && !slices.Contains(o.States, "sensitive") {
-			n.States = append(n.States, "disabled")
-		}
-		if n.Role == "textbox" && !slices.Contains(o.States, "editable") {
-			n.States = append(n.States, "readonly")
+		if !o.NoStates { // unknown states: infer neither disabled nor readonly
+			if !slices.Contains(o.States, "enabled") && !slices.Contains(o.States, "sensitive") {
+				n.States = append(n.States, "disabled")
+			}
+			if n.Role == "textbox" && !slices.Contains(o.States, "editable") {
+				n.States = append(n.States, "readonly")
+			}
 		}
 		const hidden = -2147483648 // GTK3 extents of a widget that is not shown
 		x, y, w, h := o.Extents[0], o.Extents[1], o.Extents[2], o.Extents[3]
@@ -194,8 +200,16 @@ func (s *atspiSource) known(key string) (accessible, error) {
 // actErr maps an error of the object's application to stale_ref, and any
 // other error to no_source.
 func actErr(key string, err error) error {
+	const unsupported = "click the node with the pointer"
+	if errors.Is(err, errRefused) {
+		return screen.Errf(screen.CodeUnsupported, unsupported, "%s: %v", key, err)
+	}
 	var de dbus.Error
 	if errors.As(err, &de) {
+		switch de.Name {
+		case "org.freedesktop.DBus.Error.UnknownMethod", "org.freedesktop.DBus.Error.UnknownInterface":
+			return screen.Errf(screen.CodeUnsupported, unsupported, "%s: %v", key, err)
+		}
 		return screen.Errf(screen.CodeStaleRef, "take a new snapshot", "%s: %v", key, err)
 	}
 	return screen.Errf(screen.CodeNoSource, atspiHint, "%s: %v", key, err)
@@ -265,7 +279,9 @@ func dialA11y(ctx context.Context) (*dbus.Conn, error) {
 	if err := sess.Object("org.a11y.Bus", "/org/a11y/bus").CallWithContext(ctx, "org.a11y.Bus.GetAddress", 0).Store(&addr); err != nil {
 		return nil, err
 	}
-	return dbus.Connect(addr, dbus.WithContext(ctx))
+	// No WithContext here: it would close the connection when ctx ends.
+	// Connect does Auth and Hello itself.
+	return dbus.Connect(addr)
 }
 
 // AT-SPI constants, from /usr/include/at-spi-2.0/atspi/atspi-constants.h
@@ -288,7 +304,6 @@ var stateBits = []struct {
 // dbusTree walks the real a11y bus.
 type dbusTree struct {
 	conn *dbus.Conn
-	pids func() []int
 }
 
 type atspiRef struct {
@@ -311,15 +326,14 @@ type atspiApp struct {
 	pid  int
 }
 
-// apps lists the applications on the bus whose PID is in d.pids. The
+// apps lists the applications on the bus whose PID is in pids. The
 // others are skipped before any of their objects is read.
-func (d *dbusTree) apps(ctx context.Context) ([]atspiApp, error) {
+func (d *dbusTree) apps(ctx context.Context, pids []int) ([]atspiApp, error) {
 	var kids []atspiRef
 	if err := d.call(ctx, "org.a11y.atspi.Registry", "/org/a11y/atspi/accessible/root",
 		"org.a11y.atspi.Accessible.GetChildren", &kids); err != nil {
 		return nil, err
 	}
-	pids := d.pids()
 	var out []atspiApp
 	for _, k := range kids {
 		var pid uint32
@@ -334,8 +348,8 @@ func (d *dbusTree) apps(ctx context.Context) ([]atspiApp, error) {
 	return out, nil
 }
 
-func (d *dbusTree) Walk(ctx context.Context) ([]accessible, error) {
-	apps, err := d.apps(ctx)
+func (d *dbusTree) Walk(ctx context.Context, pids []int) ([]accessible, error) {
+	apps, err := d.apps(ctx, pids)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +396,9 @@ func (d *dbusTree) read(ctx context.Context, r atspiRef, pid int) (accessible, [
 		o.Name, _ = name.Value().(string)
 	}
 	var st []uint32
-	if d.call(ctx, bus, path, acc+".GetState", &st) == nil {
+	if d.call(ctx, bus, path, acc+".GetState", &st) != nil {
+		o.NoStates = true
+	} else {
 		for _, b := range stateBits {
 			if int(b.bit/32) < len(st) && st[b.bit/32]&(1<<(b.bit%32)) != 0 {
 				o.States = append(o.States, b.nick)
@@ -399,9 +415,21 @@ func (d *dbusTree) read(ctx context.Context, r atspiRef, pid int) (accessible, [
 }
 
 func (d *dbusTree) Scroll(ctx context.Context, bus, path string) error {
-	return d.call(ctx, bus, path, "org.a11y.atspi.Component.ScrollTo", nil, uint32(scrollAnywhere))
+	return d.ok(ctx, bus, path, "org.a11y.atspi.Component.ScrollTo", uint32(scrollAnywhere))
 }
 
 func (d *dbusTree) DoAction(ctx context.Context, bus, path string, i int) error {
-	return d.call(ctx, bus, path, "org.a11y.atspi.Action.DoAction", nil, int32(i))
+	return d.ok(ctx, bus, path, "org.a11y.atspi.Action.DoAction", int32(i))
+}
+
+// ok calls a method that answers a boolean, and turns false into errRefused.
+func (d *dbusTree) ok(ctx context.Context, bus, path, method string, arg any) error {
+	var done bool
+	if err := d.call(ctx, bus, path, method, &done, arg); err != nil {
+		return err
+	}
+	if !done {
+		return errRefused
+	}
+	return nil
 }
