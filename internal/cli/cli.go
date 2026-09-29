@@ -63,6 +63,7 @@ func init() {
 		{"mcp", "run the MCP server on stdio", runMCP, false},
 		{"version", "print the version", runVersion, false},
 		{"record", "record a screen or the desktop to MP4 (start, stop, status)", runRecord, false},
+		{"desktop", "act on the human's own windows (not silent)", runDesktop, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},
