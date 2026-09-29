@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
@@ -112,6 +114,17 @@ func runDoctor(e *Env) int {
 	tool("cage", "fail", "the agent's compositor; `hyprcage setup` installs it")
 	tool("ffmpeg", "warn", "recording needs it; `hyprcage setup` installs it")
 	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `hyprcage setup` installs it")
+	if err := perceive.A11yBusOK(context.Background()); err != nil {
+		add("a11y bus", "warn", "unreachable, snapshot cannot read GTK/Qt apps through AT-SPI: "+err.Error())
+	} else {
+		add("a11y bus", "ok", "org.a11y.Bus answers GetAddress")
+	}
+	tool("tesseract", "warn", "the OCR snapshot source needs it; `hyprcage setup` installs it")
+	if _, err := os.Stat(perceive.OCRData); err != nil {
+		add("ocr data", "warn", "no "+perceive.OCRData+"; run hyprcage setup")
+	} else {
+		add("ocr data", "ok", perceive.OCRData)
+	}
 
 	if len(setup.Missing()) > 0 {
 		if _, err := exec.LookPath("pkexec"); err == nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -30,6 +31,7 @@ import (
 
 const instructions = `hyprcage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
+Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
 Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then the agent-chrome MCP tools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
@@ -40,6 +42,8 @@ type Server struct {
 	cfg config.Config
 	mu  sync.Mutex // one tool at a time: the Wayland client is single-threaded
 	ctx *screen.Ctx
+	// tables holds one ref table per screen name, guarded by mu.
+	tables map[string]*perceive.Table
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -390,6 +394,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "wait", "Wait for a delay, for the image to stop changing (stable_ms) or for a window title (regexp).", s.wait)
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
 	s.registerFork(srv)
+	s.registerPerceive(srv)
 }
 
 // --- handlers ---------------------------------------------------------------
@@ -436,6 +441,7 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	screen.CloseConn(rec.Name)
+	delete(s.tables, rec.Name)
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}

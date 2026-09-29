@@ -85,13 +85,25 @@ The agent gets `screen_create`, `app_launch`, `screenshot`, `click`, `type`,
 Its skill tells it to use a screen for anything it launches for itself, one
 application per screen, and to close it when done.
 
+The agent reads a screen as text before it looks at an image. `snapshot`
+lists the elements of the screen, one per line, with a ref, a role, a name
+and screen coordinates. `act` clicks, types, presses keys, hovers or scrolls
+on a ref and returns what changed. `find` waits for an element by name or
+value. The text comes from the first source that answers: the DevTools
+protocol (CDP), then AT-SPI, then OCR with tesseract. The first line of a
+snapshot names the source. For CDP, launch a Chromium or Electron app with
+`app_launch` and `debug: true`: hyprcage opens a DevTools port on 127.0.0.1
+for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `hyprcage setup`.
+`hyprcage doctor` checks both.
+
 A screen normally opens a mirror window on one of your spare workspaces, 6
 to 9 by default. Switch to it with your usual workspace binding to watch the
 agent live. Nothing you do there reaches the agent: the mirror shows the
 screen and relays nothing back, so clicking or typing in it does nothing.
 `hyprcage mirror <screen>` opens or closes that window at any time. Every
 tool has a command-line twin: `hyprcage create`, `launch`, `shot`, `click`,
-`type`, `destroy`, `mirror`, `list`, `config`, `doctor`.
+`type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
+`find`.
 
 ## Configuration
 

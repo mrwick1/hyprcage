@@ -48,7 +48,8 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open"}
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open",
+		"snapshot", "act", "find"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -123,5 +124,53 @@ func TestBrowserOpenNamesConfiguredPort(t *testing.T) {
 		if tl.Name == "browser_open" && !strings.Contains(tl.Description, "127.0.0.1:9333") {
 			t.Errorf("browser_open description: %q", tl.Description)
 		}
+	}
+}
+
+func TestPerceiveToolsListed(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, tl := range res.Tools {
+		got[tl.Name] = true
+	}
+	for _, name := range []string{"snapshot", "act", "find"} {
+		if !got[name] {
+			t.Errorf("tool %s missing", name)
+		}
+	}
+}
+
+func TestSnapshotUnknownScreen(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "")
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "snapshot", Arguments: map[string]any{"screen": "nope"}})
+	if err != nil {
+		t.Fatalf("protocol error instead of tool error: %v", err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "screen_not_found") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestActMissingRef(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "act", Arguments: map[string]any{"op": "click"}})
+	if err == nil && !res.IsError {
+		t.Error("act without ref should be rejected")
+	}
+}
+
+func TestFindInvalidRegexp(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "find", Arguments: map[string]any{"text": "("}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "regular expression") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
 	}
 }

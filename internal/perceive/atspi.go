@@ -433,3 +433,13 @@ func (d *dbusTree) ok(ctx context.Context, bus, path, method string, arg any) er
 	}
 	return nil
 }
+
+// A11yBusOK reports whether the session bus names the a11y bus and that bus
+// accepts a connection.
+func A11yBusOK(ctx context.Context) error {
+	conn, err := dialA11y(ctx)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}

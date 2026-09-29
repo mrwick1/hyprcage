@@ -199,3 +199,25 @@ func (d Diff) String() string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// RenderMatches writes "matches=<n>", then one line per node.
+func RenderMatches(nodes []Node) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "matches=%d", len(nodes))
+	for _, n := range nodes {
+		b.WriteByte('\n')
+		b.WriteString(line(n))
+	}
+	return b.String()
+}
+
+// ParseMode maps "" and "interactive" to ModeInteractive and "full" to ModeFull.
+func ParseMode(s string) (Mode, error) {
+	switch s {
+	case "", "interactive":
+		return ModeInteractive, nil
+	case "full":
+		return ModeFull, nil
+	}
+	return "", fmt.Errorf("unknown mode %q (interactive, full)", s)
+}

@@ -112,3 +112,13 @@ func TestDiffIgnoresMovesAndStateOrder(t *testing.T) {
 		t.Fatalf("diff: %+v", d)
 	}
 }
+
+func TestRenderMatches(t *testing.T) {
+	if got := RenderMatches(nil); got != "matches=0" {
+		t.Errorf("empty: %q", got)
+	}
+	got := RenderMatches([]Node{{Ref: "e1", Role: "button", Name: "OK", X: 1, Y: 2}})
+	if want := "matches=1\n[e1] button \"OK\" (1,2)"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
