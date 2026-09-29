@@ -543,14 +543,14 @@ func TestCDPActHitTest(t *testing.T) {
 		t.Fatalf("input sent to an occluded node: %v", calls)
 	}
 
-	f.contains = map[string]bool{"S-T1": true} // the hit is in the button's shadow tree
-	if calls, err = run(f); err != nil || len(calls) != 1 {
+	f.contains = map[string]bool{"S-T1": true}              // the hit is in the button's shadow tree
+	if calls, err = run(f); err != nil || len(calls) != 2 { // move, then click
 		t.Fatalf("contains: calls %v, err %v", calls, err)
 	}
 
 	f = newFake(t)
 	f.hitErr = &cdpError{Code: -32000, Message: "No node found at given location"}
-	if calls, err = run(f); err != nil || len(calls) != 1 {
+	if calls, err = run(f); err != nil || len(calls) != 2 { // move, then click
 		t.Fatalf("protocol error: calls %v, err %v", calls, err)
 	}
 }

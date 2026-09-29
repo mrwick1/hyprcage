@@ -20,7 +20,8 @@ var (
 	settleFirstQuiet = time.Second // quiet before the first change: a navigation commits late
 	settleTimeout    = 3 * time.Second
 	findPoll         = 250 * time.Millisecond
-	typeFocusWait    = time.Second // how long type waits for the clicked field to report focused
+	typeFocusWait    = time.Second           // how long type waits for the clicked field to report focused
+	pointerSettle    = 80 * time.Millisecond // between the move and the press: Chrome drops a press that comes with the first enter
 )
 
 const defaultMaxNodes = 300
@@ -169,11 +170,11 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	case press:
 		err = src.Press(ctx, n.Key)
 	case op.Op == "click":
-		err = in.click(n.X, n.Y, 1)
+		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) })
 	case op.Op == "double_click":
-		err = in.click(n.X, n.Y, 2)
+		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 2) })
 	case op.Op == "type":
-		if err = in.click(n.X, n.Y, 1); err == nil {
+		if err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }); err == nil {
 			waitFocus(ctx, src, n.Key)
 			err = in.typeText(op.Text)
 		}
@@ -186,7 +187,7 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		if dir == "" {
 			dir = "down"
 		}
-		err = in.scroll(n.X, n.Y, dir, 3)
+		err = pressAt(ctx, in, n, func() error { return in.scroll(n.X, n.Y, dir, 3) })
 	}
 	if err != nil {
 		return Diff{}, err
@@ -198,6 +199,21 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 	}
 	t.Assign(after)
 	return DiffNodes(before, after), nil
+}
+
+// pressAt moves the pointer to n, waits pointerSettle, then runs press.
+// Chrome drops a button press that comes together with the pointer's
+// first enter on a surface.
+func pressAt(ctx context.Context, in inputter, n Node, press func() error) error {
+	if err := in.move(n.X, n.Y); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(pointerSettle):
+	}
+	return press()
 }
 
 // waitFocus reads the nodes every settlePoll until the node key reports

@@ -72,14 +72,19 @@ func (c *changing) Nodes(context.Context) ([]Node, error) {
 }
 
 // fakeInput records the input that act sends.
-type fakeInput struct{ calls []string }
+type fakeInput struct {
+	calls []string
+	at    []time.Time // when each move and click came
+}
 
 func (f *fakeInput) click(x, y, count int) error {
 	f.calls = append(f.calls, fmt.Sprintf("click %d,%d x%d", x, y, count))
+	f.at = append(f.at, time.Now())
 	return nil
 }
 func (f *fakeInput) move(x, y int) error {
 	f.calls = append(f.calls, fmt.Sprintf("move %d,%d", x, y))
+	f.at = append(f.at, time.Now())
 	return nil
 }
 func (f *fakeInput) typeText(s string) error { f.calls = append(f.calls, "type "+s); return nil }
@@ -95,11 +100,11 @@ func (f *fakeInput) scroll(x, y int, dir string, amount int) error {
 // fastTiming shrinks the settle and find timings for the test.
 func fastTiming(t *testing.T) {
 	t.Helper()
-	p, q, fq, to, fp, tf := settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait
+	p, q, fq, to, fp, tf, ps := settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait, pointerSettle
 	settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll = time.Millisecond, 5*time.Millisecond, 5*time.Millisecond, 200*time.Millisecond, time.Millisecond
-	typeFocusWait = 5 * time.Millisecond
+	typeFocusWait, pointerSettle = 5*time.Millisecond, time.Millisecond
 	t.Cleanup(func() {
-		settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait = p, q, fq, to, fp, tf
+		settlePoll, settleQuiet, settleFirstQuiet, settleTimeout, findPoll, typeFocusWait, pointerSettle = p, q, fq, to, fp, tf, ps
 	})
 }
 
@@ -180,7 +185,7 @@ func TestActClickSendsCentre(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.calls) != 1 || in.calls[0] != "click 120,45 x1" {
+	if len(in.calls) != 2 || in.calls[1] != "click 120,45 x1" {
 		t.Fatalf("calls %v", in.calls)
 	}
 }
@@ -191,12 +196,12 @@ func TestActOps(t *testing.T) {
 		op   ActOp
 		want string
 	}{
-		{ActOp{Op: "double_click"}, "click 5,6 x2"},
-		{ActOp{Op: "type", Text: "hi"}, "click 5,6 x1|type hi"},
+		{ActOp{Op: "double_click"}, "move 5,6|click 5,6 x2"},
+		{ActOp{Op: "type", Text: "hi"}, "move 5,6|click 5,6 x1|type hi"},
 		{ActOp{Op: "key", Keys: []string{"ctrl+a", "Delete"}}, "keys ctrl+a+Delete"},
 		{ActOp{Op: "hover"}, "move 5,6"},
-		{ActOp{Op: "scroll"}, "scroll 5,6 down 3"},
-		{ActOp{Op: "scroll", Direction: "up"}, "scroll 5,6 up 3"},
+		{ActOp{Op: "scroll"}, "move 5,6|scroll 5,6 down 3"},
+		{ActOp{Op: "scroll", Direction: "up"}, "move 5,6|scroll 5,6 up 3"},
 	} {
 		nodes := []Node{button("k1", "OK", 5, 6)}
 		tb := NewTable()
@@ -231,7 +236,7 @@ func TestActReResolvesAndUsesFreshCoordinates(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
 		t.Fatal(err)
 	}
-	if in.calls[0] != "click 50,60 x1" {
+	if in.calls[1] != "click 50,60 x1" {
 		t.Fatalf("calls %v", in.calls)
 	}
 }
@@ -331,6 +336,26 @@ func (l *logSource) Nodes(ctx context.Context) ([]Node, error) {
 	return l.fakeSource.Nodes(ctx)
 }
 
+// TestActClickSettlesPointer: Chrome drops a press that arrives with the
+// pointer's first enter, so act moves, waits pointerSettle, then clicks.
+func TestActClickSettlesPointer(t *testing.T) {
+	fastTiming(t)
+	pointerSettle = 40 * time.Millisecond
+	tb := NewTable()
+	tb.Assign([]Node{button("k1", "OK", 5, 6)})
+	in := &fakeInput{}
+	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "OK", 5, 6)}}}
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1"}) {
+		t.Fatalf("calls %v, want move then click", in.calls)
+	}
+	if gap := in.at[1].Sub(in.at[0]); gap < pointerSettle {
+		t.Fatalf("click %v after move, want at least %v", gap, pointerSettle)
+	}
+}
+
 func TestActTypeWaitsForFocus(t *testing.T) {
 	fastTiming(t)
 	typeFocusWait = 2 * time.Second
@@ -345,7 +370,7 @@ func TestActTypeWaitsForFocus(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "type", Text: "hello"}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"read 0", "click 5,6 x1", "read 1", "read 2", "read 3", "type hello"}
+	want := []string{"read 0", "move 5,6", "click 5,6 x1", "read 1", "read 2", "read 3", "type hello"}
 	if len(in.calls) < len(want) || !slices.Equal(in.calls[:len(want)], want) {
 		t.Fatalf("order %v, want prefix %v", in.calls, want)
 	}
@@ -366,7 +391,7 @@ func TestActTypeWithoutFocus(t *testing.T) {
 	if el := time.Since(start); el < typeFocusWait {
 		t.Fatalf("returned after %v, before typeFocusWait %v", el, typeFocusWait)
 	}
-	if !slices.Equal(in.calls, []string{"click 5,6 x1", "type hi"}) {
+	if !slices.Equal(in.calls, []string{"move 5,6", "click 5,6 x1", "type hi"}) {
 		t.Fatalf("calls %v", in.calls)
 	}
 }
@@ -419,7 +444,7 @@ func TestActOffscreenRevealed(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil {
 		t.Fatal(err)
 	}
-	if in.calls[0] != "click 7,8 x1" {
+	if in.calls[1] != "click 7,8 x1" {
 		t.Fatalf("calls %v", in.calls)
 	}
 }
@@ -566,7 +591,7 @@ func TestActOCRLayoutShiftReResolves(t *testing.T) {
 	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "o1", Op: "click"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(in.calls) != 1 || in.calls[0] != "click 10,40 x1" {
+	if len(in.calls) != 2 || in.calls[1] != "click 10,40 x1" {
 		t.Fatalf("calls %v", in.calls)
 	}
 
@@ -591,7 +616,7 @@ func TestActCDPKeyIsIdentity(t *testing.T) {
 	tb.Assign([]Node{button("k1", "Play", 1, 1)})
 	in := &fakeInput{}
 	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "Pause", 2, 2), button("k2", "Play", 3, 3)}}}
-	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil || in.calls[0] != "click 2,2 x1" {
+	if _, err := act(context.Background(), in, src, tb, ActOp{Ref: "e1", Op: "click"}); err != nil || in.calls[1] != "click 2,2 x1" {
 		t.Fatalf("calls %v, %v", in.calls, err)
 	}
 }
