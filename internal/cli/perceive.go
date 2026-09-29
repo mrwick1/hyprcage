@@ -83,11 +83,12 @@ func runSnapshot(e *Env) int {
 	modeFlag := fs.String("mode", "interactive", "interactive or full")
 	maxNodes := fs.Int("max", 0, "cap on the elements printed (default 300)")
 	want := fs.String("source", "auto", "auto, cdp, atspi or ocr")
+	root := fs.String("root", "", "ref of a subtree to read instead of the whole screen")
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
 	if fs.NArg() > 1 {
-		return e.errorf("usage: hyprcage snapshot [-mode interactive|full] [-max N] [-source auto|cdp|atspi|ocr] [screen]")
+		return e.errorf("usage: hyprcage snapshot [-mode interactive|full] [-max N] [-root REF] [-source auto|cdp|atspi|ocr] [screen]")
 	}
 	m, err := perceive.ParseMode(*modeFlag)
 	if err != nil {
@@ -100,7 +101,7 @@ func runSnapshot(e *Env) int {
 		return e.fail(err)
 	}
 	defer src.Close()
-	out, _, err := perceive.Snapshot(ctx, src, t, perceive.SnapOpts{Mode: m, MaxNodes: *maxNodes})
+	out, _, err := perceive.Snapshot(ctx, src, t, perceive.SnapOpts{Mode: m, RootRef: *root, MaxNodes: *maxNodes})
 	if err != nil {
 		return e.fail(err)
 	}
