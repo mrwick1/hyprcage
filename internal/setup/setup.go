@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/hexadecimil/hyprcage/contrib"
 )
 
 // OCRData is the path of the English language data of tesseract.
@@ -179,4 +182,28 @@ func diff(all, still []string) []string {
 		}
 	}
 	return out
+}
+
+// NotifydUnit is the name of the notification daemon's user unit.
+const NotifydUnit = "hyprcage-notifyd.service"
+
+// Notifyd installs the notification daemon's user unit into
+// ~/.config/systemd/user and enables and starts it.
+func Notifyd() error {
+	dir := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, NotifydUnit), contrib.NotifydUnit, 0o644); err != nil {
+		return err
+	}
+	for _, argv := range [][]string{
+		{"systemctl", "--user", "daemon-reload"},
+		{"systemctl", "--user", "enable", "--now", NotifydUnit},
+	} {
+		if out, err := exec.Command(argv[0], argv[1:]...).CombinedOutput(); err != nil {
+			return fmt.Errorf("%s: %v: %s", strings.Join(argv, " "), err, strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
 }

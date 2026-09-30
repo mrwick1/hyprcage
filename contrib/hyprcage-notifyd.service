@@ -1,0 +1,9 @@
+[Unit]
+Description=hyprcage notification log
+
+[Service]
+ExecStart=%h/.local/bin/hyprcage notifyd
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

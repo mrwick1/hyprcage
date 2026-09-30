@@ -13,7 +13,9 @@
 #      verified against the SHA256SUMS published with it, into ~/.local/bin.
 #   3. the agents it finds: the MCP server for Claude Code, and the MCP server
 #      plus the skill for Codex, Cursor, Gemini CLI, Windsurf and OpenCode.
-#   4. hyprcage doctor.
+#   4. the user unit hyprcage-notifyd.service, which keeps 48 hours of
+#      desktop notifications for the notify tools.
+#   5. hyprcage doctor.
 #
 # Options and environment:
 #   --agents LIST            which agents to register, comma-separated among
@@ -263,11 +265,29 @@ unregister_agents() {
   return 0
 }
 
+# --- 4. notification daemon ---------------------------------------------------------
+
+UNIT_DIR=$HOME/.config/systemd/user
+
+install_notifyd() {
+  local src=$SRC_DIR/contrib/hyprcage-notifyd.service
+  mkdir -p "$UNIT_DIR"
+  if [ -f "$src" ]; then
+    cp -f "$src" "$UNIT_DIR/"
+  else
+    curl -fsSL -o "$UNIT_DIR/hyprcage-notifyd.service" "https://raw.githubusercontent.com/$REPO/${VERSION:-main}/contrib/hyprcage-notifyd.service" || { warn "could not fetch hyprcage-notifyd.service"; return; }
+  fi
+  systemctl --user daemon-reload && systemctl --user enable --now hyprcage-notifyd.service >/dev/null 2>&1 \
+    && say "hyprcage-notifyd.service enabled" || warn "could not enable hyprcage-notifyd.service; run  systemctl --user enable --now hyprcage-notifyd.service"
+}
+
 # --- uninstall ---------------------------------------------------------------------
 
 uninstall() {
   say "removing hyprcage from the agents, the binary and hyprcage's state (the packages stay)"
   unregister_agents
+  systemctl --user disable --now hyprcage-notifyd.service >/dev/null 2>&1 || true
+  rm -f "$UNIT_DIR/hyprcage-notifyd.service"
   if [ -x "$BIN_DIR/hyprcage" ]; then "$BIN_DIR/hyprcage" gc --all >/dev/null 2>&1 || true; fi
   rm -f "$BIN_DIR/hyprcage"
   rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/hyprcage" "${XDG_CONFIG_HOME:-$HOME/.config}/hyprcage"
@@ -298,6 +318,7 @@ case $mode in
     write_config
     check_path
     register_agents
+    install_notifyd
     say "checking the installation"
     "$BIN_DIR/hyprcage" doctor || true
     ;;

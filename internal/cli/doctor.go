@@ -147,6 +147,8 @@ func runDoctor(e *Env) int {
 	} else {
 		add("systemd --user", "warn", "unreachable; falling back to process groups (less airtight against Chromium)")
 	}
+	st, detail := notifydCheck()
+	add("notifyd", st, detail)
 
 	if *asJSON {
 		return e.printJSON(checks)
@@ -171,6 +173,24 @@ func cdpCheck(rec *registry.Screen) (string, string) {
 		return "warn", fmt.Sprintf("127.0.0.1:%d answers but its recorded owner no longer holds it; relaunch the app with debug=true", rec.DebugPort)
 	}
 	return "ok", fmt.Sprintf("127.0.0.1:%d answers and its recorded owner holds it", rec.DebugPort)
+}
+
+// notifydCheck reports the state of the notification daemon's unit and,
+// when it runs, its resident memory.
+func notifydCheck() (string, string) {
+	out, _ := exec.Command("systemctl", "--user", "is-active", setup.NotifydUnit).Output()
+	state := strings.TrimSpace(string(out))
+	if state != "active" {
+		return "warn", setup.NotifydUnit + " " + state + "; notify_list and notify_wait need it: `hyprcage setup`, or systemctl --user start " + setup.NotifydUnit
+	}
+	pid, _ := exec.Command("systemctl", "--user", "show", "-p", "MainPID", "--value", setup.NotifydUnit).Output()
+	status, _ := os.ReadFile("/proc/" + strings.TrimSpace(string(pid)) + "/status")
+	for _, l := range strings.Split(string(status), "\n") {
+		if rss, ok := strings.CutPrefix(l, "VmRSS:"); ok {
+			return "ok", setup.NotifydUnit + " active, RSS " + strings.TrimSpace(rss)
+		}
+	}
+	return "ok", setup.NotifydUnit + " active, RSS unknown"
 }
 
 func keys(m map[int]int) []int {
