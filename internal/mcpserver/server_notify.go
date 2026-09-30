@@ -38,7 +38,7 @@ type notifyWaitIn struct {
 func (s *Server) registerNotify(srv *mcp.Server) {
 	tool(s, srv, "notify_list", "List the human's desktop notifications of the last 48 hours, newest first, with ID, app, summary, body, actions (key, label pairs), time and closed flag.", s.notifyList)
 	tool(s, srv, "notify_act", "Close a notification, or with action invoke one of its actions. An action works only on the latest open notification; otherwise the tool refuses with no_action.", s.notifyAct)
-	tool(s, srv, "notify_wait", "Wait for a new notification that matches app and match, and return it.", s.notifyWait)
+	unlocked(srv, "notify_wait", "Wait for a new notification that matches app and match, and return it.", s.notifyWait)
 }
 
 // notifications reads the notification file. With unit, it also requires

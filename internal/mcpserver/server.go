@@ -377,10 +377,19 @@ type handler[In any] func(in In) (*mcp.CallToolResult, error)
 
 // tool wraps a handler: serialised, errors become isError results.
 func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) {
+	unlocked(srv, name, desc, func(in In) (*mcp.CallToolResult, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return h(in)
+	})
+}
+
+// unlocked registers a handler that runs outside the server lock. Only a
+// handler that touches no Server state may use it, for example a long wait
+// on a file.
+func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			s.mu.Lock()
-			defer s.mu.Unlock()
 			res, err := h(in)
 			if err != nil {
 				return nil, nil, err
