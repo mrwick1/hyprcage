@@ -213,3 +213,5 @@ MIT
 ## Fork additions (mrwick1/hyprcage)
 
 This fork adds recording (`record`), the agent's Chrome with DevTools (`browser`), the clipboard of a screen (`clip`), control of the human's own desktop (`screen: "desktop"` on the perception and pointer tools, `desktop_*`, and the `notify_*` tools with the `hyprcage-notifyd` user unit), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md` and `docs/superpowers/specs/2026-09-30-hyprcage-desktop-design.md`.
+
+The fork is also verified on openSUSE Tumbleweed with Hyprland 0.56.2 (Lua configuration, one monitor at scale 1, `input:follow_mouse = 2`). On openSUSE, the fork's installer also installs `at-spi2-core`, because GTK does not pull it in there. The `tesseract-ocr` package 5.5.3-2.1 crashes when it exits. hyprcage keeps the output that tesseract writes before the crash. The verification record is at the end of `docs/superpowers/specs/2026-09-30-hyprcage-desktop-rulings.md`.
