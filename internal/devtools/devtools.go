@@ -62,6 +62,31 @@ type Session struct {
 	heap    *os.File // sink of the heap snapshot being taken
 	heapErr error
 	traced  chan string // the trace stream handle, once Tracing.end completes
+	emu     Emulation   // applied to every page, and to each new page on attach
+}
+
+// Emulation is the device the pages of a screen pretend to be. The zero
+// value is the plain desktop browser.
+type Emulation struct {
+	Width     int     `json:"width,omitempty"`
+	Height    int     `json:"height,omitempty"`
+	Scale     float64 `json:"scale,omitempty"` // device pixel ratio
+	Mobile    bool    `json:"mobile,omitempty"`
+	Touch     bool    `json:"touch,omitempty"`
+	UserAgent string  `json:"user_agent,omitempty"`
+	Network   string  `json:"network,omitempty"`
+	CPU       float64 `json:"cpu,omitempty"` // slowdown factor
+	Color     string  `json:"color_scheme,omitempty"`
+}
+
+// networks are the DevTools throttling presets: latency in ms, throughput
+// in bytes per second. Slow 4G is Fast 3G, as in DevTools and Lighthouse.
+var networks = map[string]struct{ latency, down, up float64 }{
+	"offline": {0, -1, -1},
+	"slow-3g": {2000, 500e3 / 8 * 0.8, 500e3 / 8 * 0.8},
+	"fast-3g": {562.5, 1.6e6 / 8 * 0.9, 750e3 / 8 * 0.9},
+	"slow-4g": {562.5, 1.6e6 / 8 * 0.9, 750e3 / 8 * 0.9},
+	"fast-4g": {165, 9e6 / 8 * 0.9, 1.5e6 / 8 * 0.9},
 }
 
 // Open connects to 127.0.0.1:port and starts buffering the console.
@@ -115,15 +140,20 @@ func (s *Session) event(ev cdp.Event) {
 			return
 		}
 		s.mu.Lock()
-		if p.TargetInfo.Type == "page" {
+		page := p.TargetInfo.Type == "page"
+		if page {
 			s.pages[p.SessionID] = target{p.TargetInfo.ID, p.TargetInfo.URL}
 		}
+		emu := s.emu
 		s.mu.Unlock()
 		// Runtime.enable replays the console messages the page already holds.
 		go func() {
 			ctx := context.Background()
 			s.c.Call(ctx, p.SessionID, "Runtime.enable", nil)
 			s.c.Call(ctx, p.SessionID, "Log.enable", nil)
+			if page && emu != (Emulation{}) {
+				s.apply(ctx, p.SessionID, emu)
+			}
 		}()
 	case "Target.detachedFromTarget":
 		var p struct {
@@ -298,6 +328,79 @@ func (s *Session) Eval(ctx context.Context, page, expression string, timeout tim
 	}
 	// undefined, or a value JSON cannot carry: NaN, Infinity, a bigint.
 	return json.Marshal(r.Result.String())
+}
+
+// Emulate makes every page, open now or later, pretend to be the device e
+// describes. The zero value returns them to the plain desktop browser.
+func (s *Session) Emulate(ctx context.Context, e Emulation) error {
+	if (e.Width == 0) != (e.Height == 0) || e.Width < 0 || e.Height < 0 {
+		return screen.Errf(screen.CodeUnsupported, "pass both width and height, or neither", "viewport %dx%d", e.Width, e.Height)
+	}
+	if _, ok := networks[e.Network]; e.Network != "" && !ok {
+		return screen.Errf(screen.CodeUnsupported, "use offline, slow-3g, fast-3g, slow-4g or fast-4g", "unknown network %q", e.Network)
+	}
+	if e.CPU != 0 && e.CPU < 1 {
+		return screen.Errf(screen.CodeUnsupported, "pass a slowdown factor of 1 or more", "cpu %g", e.CPU)
+	}
+	if e.Color != "" && e.Color != "dark" && e.Color != "light" {
+		return screen.Errf(screen.CodeUnsupported, "use dark or light", "unknown color_scheme %q", e.Color)
+	}
+	s.mu.Lock()
+	s.emu = e
+	sids := make([]string, 0, len(s.pages))
+	for sid := range s.pages {
+		sids = append(sids, sid)
+	}
+	s.mu.Unlock()
+	if len(sids) == 0 {
+		return screen.Errf(screen.CodeCDP, hint, "the browser has no page open")
+	}
+	for _, sid := range sids {
+		if err := s.apply(ctx, sid, e); err != nil {
+			return screen.Errf(screen.CodeCDP, "", "%v", err)
+		}
+	}
+	return nil
+}
+
+// apply sets every override of e on one page, so a field left out clears
+// what an earlier call set.
+func (s *Session) apply(ctx context.Context, sid string, e Emulation) error {
+	// A metrics override with every field zero still pins the viewport.
+	type command struct {
+		method string
+		params any
+	}
+	metrics := command{"Emulation.clearDeviceMetricsOverride", nil}
+	if e.Width != 0 || e.Scale != 0 || e.Mobile {
+		metrics.method = "Emulation.setDeviceMetricsOverride"
+		metrics.params = map[string]any{"width": e.Width, "height": e.Height, "deviceScaleFactor": e.Scale, "mobile": e.Mobile}
+	}
+	n, ok := networks[e.Network]
+	if !ok {
+		n.down, n.up = -1, -1
+	}
+	media := []map[string]string{} // not nil: the browser rejects null
+	if e.Color != "" {
+		media = []map[string]string{{"name": "prefers-color-scheme", "value": e.Color}}
+	}
+	for _, c := range []command{
+		metrics,
+		{"Emulation.setTouchEmulationEnabled", map[string]any{"enabled": e.Touch}},
+		{"Emulation.setUserAgentOverride", map[string]any{"userAgent": e.UserAgent}},
+		{"Emulation.setCPUThrottlingRate", map[string]any{"rate": max(e.CPU, 1)}},
+		{"Emulation.setEmulatedMedia", map[string]any{"features": media}},
+		// Throttling needs the network domain on; the page stays unthrottled without it.
+		{"Network.enable", nil},
+		{"Network.emulateNetworkConditions", map[string]any{
+			"offline": e.Network == "offline", "latency": n.latency, "downloadThroughput": n.down, "uploadThroughput": n.up,
+		}},
+	} {
+		if _, err := s.c.Call(ctx, sid, c.method, c.params); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HeapSnapshot writes a heap snapshot of the page to path and returns its

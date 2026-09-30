@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,4 +230,61 @@ func codeOf(err error) screen.Code {
 		return se.Code
 	}
 	return ""
+}
+
+func TestEmulateAppliesToOpenAndLaterPages(t *testing.T) {
+	s, f := newFake()
+	var mu sync.Mutex
+	metrics := map[string]any{}
+	f.reply = func(method string, params any) (any, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if method == "Emulation.setDeviceMetricsOverride" {
+			metrics = params.(map[string]any)
+		}
+		return nil, nil
+	}
+	attach(s, "S1", "T1", "https://a.test/")
+	if err := s.Emulate(context.Background(), Emulation{Width: 390, Height: 844, Scale: 3, Mobile: true, Touch: true, Network: "slow-3g"}); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	if metrics["width"] != 390 || metrics["mobile"] != true {
+		t.Errorf("metrics %v", metrics)
+	}
+	mu.Unlock()
+	attach(s, "S2", "T2", "https://b.test/")
+	deadline := time.Now().Add(time.Second)
+	for {
+		f.mu.Lock()
+		calls := strings.Join(f.calls, "\n")
+		f.mu.Unlock()
+		if strings.Contains(calls, "S1 Network.emulateNetworkConditions") && strings.Contains(calls, "S2 Network.emulateNetworkConditions") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("emulation not applied to both pages:\n%s", calls)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// A metrics override with zero fields keeps the viewport pinned, so a reset clears it.
+	if err := s.Emulate(context.Background(), Emulation{}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !strings.Contains(strings.Join(f.calls, "\n"), "S1 Emulation.clearDeviceMetricsOverride") {
+		t.Errorf("reset did not clear the metrics override:\n%s", strings.Join(f.calls, "\n"))
+	}
+}
+
+func TestEmulateRejectsBadInput(t *testing.T) {
+	s, _ := newFake()
+	attach(s, "S1", "T1", "https://a.test/")
+	for _, e := range []Emulation{{Width: 390}, {Network: "5g"}, {CPU: 0.5}, {Color: "blue"}} {
+		var se *screen.Error
+		if err := s.Emulate(context.Background(), e); !errors.As(err, &se) {
+			t.Errorf("%+v: got %v, want a screen error", e, err)
+		}
+	}
 }

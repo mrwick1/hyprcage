@@ -54,7 +54,7 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap", "devtools_emulate",
 		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
@@ -128,7 +128,7 @@ func TestPerceiveToolsListed(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = true
 	}
-	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap"} {
+	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap", "devtools_emulate"} {
 		if !got[name] {
 			t.Errorf("tool %s missing", name)
 		}
