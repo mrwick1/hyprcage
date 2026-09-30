@@ -196,12 +196,17 @@ func textResult(v any) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}
 }
 
-func imageResult(res *screen.ShotResult, rec *registry.Screen) *mcp.CallToolResult {
-	geom, _ := json.Marshal(map[string]any{
-		"screen": rec.Name, "width": res.Width, "height": res.Height, "scale": res.Scale,
+func imageResult(res *screen.ShotResult, name string) *mcp.CallToolResult {
+	g := map[string]any{
+		"screen": name, "width": res.Width, "height": res.Height, "scale": res.Scale,
 		"screen_width": res.ScreenW, "screen_height": res.ScreenH, "region": res.Region,
 		"note": "coordinates for click/move/drag are in screen pixels; divide image coordinates by scale",
-	})
+	}
+	if res.Origin != nil {
+		g["origin"], g["logical_per_pixel"] = res.Origin, res.LogicalPerPixel
+		g["note"] = "desktop coordinates are global logical pixels: x = origin[0] + (image_x/scale + region.x) * logical_per_pixel, same for y"
+	}
+	geom, _ := json.Marshal(g)
 	return &mcp.CallToolResult{Content: []mcp.Content{
 		&mcp.ImageContent{Data: res.Data, MIMEType: res.MIME},
 		&mcp.TextContent{Text: string(geom)},
@@ -221,7 +226,7 @@ func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, set
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec), nil
+	return imageResult(res, rec.Name), nil
 }
 
 // --- tool inputs ------------------------------------------------------------
@@ -267,6 +272,7 @@ type shotIn struct {
 	Format   string       `json:"format,omitempty" jsonschema:"png (default) or jpeg"`
 	Cursor   *bool        `json:"cursor,omitempty" jsonschema:"draw the pointer (default true)"`
 	SettleMs int          `json:"settle_ms,omitempty" jsonschema:"wait this long before capturing, for a toast or an animation to settle (default 0)"`
+	Window   string       `json:"window,omitempty" jsonschema:"screen desktop only: capture this window (address from desktop_windows), on any workspace"`
 }
 
 type clickIn struct {
@@ -388,7 +394,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "app_launch", "Run a graphical application inside a screen. Returns its pid and, once it appears, its window.", s.appLaunch)
 	tool(s, srv, "app_close", "Ask a window of the screen to close gracefully. Window ids change when a window remaps, so take the id from windows rather than from an older reply.", s.appClose)
 	tool(s, srv, "windows", "List the windows of a screen with their ids, titles and app ids.", s.windows)
-	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry; coordinates for other tools are screen pixels.", s.screenshot)
+	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry; coordinates for other tools are screen pixels. With screen desktop: the human's output, or with window one of the human's windows on any workspace, without switching it; the geometry adds origin and logical_per_pixel, which map image pixels to the global logical coordinates of the desktop tools.", s.screenshot)
 	tool(s, srv, "click", "Click at screen coordinates (left by default; count=2 for a double click).", s.click)
 	tool(s, srv, "double_click", "Double-click at screen coordinates with the left button.", s.doubleClick)
 	tool(s, srv, "move", "Move the pointer to screen coordinates without clicking (hover).", s.move)
@@ -626,23 +632,27 @@ func (s *Server) windows(in screenIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
-	rec, cl, err := s.resolve(in.Screen, true)
-	if err != nil {
-		return nil, err
-	}
 	cursor := true
 	if in.Cursor != nil {
 		cursor = *in.Cursor
 	}
-	if in.SettleMs > 0 {
-		time.Sleep(time.Duration(min(in.SettleMs, 10000)) * time.Millisecond)
+	o := screen.ShotOptions{Scale: in.Scale, Region: in.Region, Format: in.Format, Cursor: cursor,
+		MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopShot(in.Window, in.SettleMs, o)
 	}
-	res, err := screen.Shot(cl, screen.ShotOptions{Scale: in.Scale, Region: in.Region, Format: in.Format, Cursor: cursor,
-		MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec), nil
+	if in.SettleMs > 0 {
+		time.Sleep(time.Duration(min(in.SettleMs, 10000)) * time.Millisecond)
+	}
+	res, err := screen.Shot(cl, o)
+	if err != nil {
+		return nil, err
+	}
+	return imageResult(res, rec.Name), nil
 }
 
 func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {

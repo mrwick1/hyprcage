@@ -40,6 +40,11 @@ type ShotResult struct {
 	ScreenW int     `json:"screen_width"`
 	ScreenH int     `json:"screen_height"`
 	Region  *Rect   `json:"region,omitempty"`
+	// Origin and LogicalPerPixel place a desktop capture in the global
+	// logical layout: Origin is the logical position of capture pixel 0,0,
+	// and LogicalPerPixel the logical size of one capture pixel.
+	Origin          *[2]int `json:"origin,omitempty"`
+	LogicalPerPixel float64 `json:"logical_per_pixel,omitempty"`
 }
 
 // Shot captures the screen, crops, scales within the budget and encodes.
@@ -48,6 +53,11 @@ func Shot(cl *wl.Client, o ShotOptions) (*ShotResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ShotImage(img, o)
+}
+
+// ShotImage crops, scales within the budget and encodes a capture.
+func ShotImage(img *image.RGBA, o ShotOptions) (*ShotResult, error) {
 	res := &ShotResult{ScreenW: img.Bounds().Dx(), ScreenH: img.Bounds().Dy(), Scale: 1}
 	if o.Region != nil {
 		r := image.Rect(o.Region.X, o.Region.Y, o.Region.X+o.Region.W, o.Region.Y+o.Region.H).Intersect(img.Bounds())
