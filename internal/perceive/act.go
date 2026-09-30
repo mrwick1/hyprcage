@@ -415,13 +415,17 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 // FindAuto is Find for a screen with no recorded source. An app that has
 // just launched may not be on the a11y bus yet, so it runs choose again on
 // every poll and closes each source after one read. A no_source error from
-// choose also means "not up yet" and is retried until the timeout. Only a
-// read with a match records its source in the table.
+// choose or from the read also means "not up yet" and is retried until the
+// timeout. Only a read with a match records its source in the table.
 func FindAuto(ctx context.Context, choose func(context.Context) (Source, error), t *Table, re *regexp.Regexp, role string, timeout time.Duration) ([]Node, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		matches := []Node{}
 		src, err := choose(ctx)
+		if err == nil {
+			matches, err = Find(ctx, src, t, re, role, 0)
+			src.Close()
+		}
 		var se *screen.Error
 		switch {
 		case errors.As(err, &se) && se.Code == screen.CodeNoSource:
@@ -430,12 +434,6 @@ func FindAuto(ctx context.Context, choose func(context.Context) (Source, error),
 			}
 		case err != nil:
 			return nil, err
-		default:
-			matches, err = Find(ctx, src, t, re, role, 0)
-			src.Close()
-			if err != nil {
-				return nil, err
-			}
 		}
 		if len(matches) > 0 || !time.Now().Before(deadline) {
 			return matches, nil

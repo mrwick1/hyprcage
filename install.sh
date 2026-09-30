@@ -7,8 +7,9 @@
 #
 # What it does, in order, skipping what is already there:
 #   1. cage (the agent's compositor), ffmpeg, wl-clipboard, tesseract and its
-#      English data (OCR snapshots), through pacman or zypper. sudo asks for
-#      your password once.
+#      English data (OCR snapshots), and at-spi2-core (the a11y bus that
+#      snapshots of GTK and Qt apps read), through pacman or zypper. sudo asks
+#      for your password once.
 #   2. the hyprcage binary for this machine, from the GitHub release, checksum
 #      verified against the SHA256SUMS published with it, into ~/.local/bin.
 #   3. the agents it finds: the MCP server for Claude Code, and the MCP server
@@ -42,7 +43,8 @@ if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
 fi
 # package:proof. The proof is a binary in PATH, or a file when it starts with /.
 PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy tesseract:tesseract
-  tesseract-data-eng:/usr/share/tessdata/eng.traineddata)
+  tesseract-data-eng:/usr/share/tessdata/eng.traineddata
+  at-spi2-core:/usr/share/dbus-1/services/org.a11y.Bus.service)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -295,7 +297,7 @@ uninstall() {
   if [ -x "$BIN_DIR/hyprcage" ]; then "$BIN_DIR/hyprcage" gc --all >/dev/null 2>&1 || true; fi
   rm -f "$BIN_DIR/hyprcage"
   rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/hyprcage" "${XDG_CONFIG_HOME:-$HOME/.config}/hyprcage"
-  say "done. cage, ffmpeg, wl-clipboard, tesseract and its English data stay installed; remove them with your package manager"
+  say "done. cage, ffmpeg, wl-clipboard, tesseract, its English data and at-spi2-core stay installed; remove them with your package manager"
 }
 
 # --- main ------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -102,4 +103,23 @@ func TestOCRCacheConcurrent(t *testing.T) {
 		go func() { defer wg.Done(); _, _ = s.Reveal(context.Background(), "ocr:0") }()
 	}
 	wg.Wait()
+}
+
+// TestCrashedAfterOutput: a tesseract killed by a signal after its TSV is a
+// read; a crash before any TSV, or a plain non-zero exit, stays an error.
+func TestCrashedAfterOutput(t *testing.T) {
+	run := func(script string) ([]byte, error) { return exec.Command("sh", "-c", script).Output() }
+	for _, c := range []struct {
+		script string
+		want   bool
+	}{
+		{`printf 'level\tpage_num\n1\t1\n'; kill -SEGV $$`, true},
+		{`kill -SEGV $$`, false},
+		{`printf 'level\tpage_num\n'; exit 1`, false},
+	} {
+		out, err := run(c.script)
+		if got := crashedAfterOutput(err, out); got != c.want {
+			t.Errorf("%s: got %v, want %v (err %v)", c.script, got, c.want, err)
+		}
+	}
 }
