@@ -84,6 +84,9 @@ type Monitor struct {
 	Focused         bool         `json:"focused"`
 	Disabled        bool         `json:"disabled"`
 	ActiveWorkspace WorkspaceRef `json:"activeWorkspace"`
+	// SpecialWorkspace is the special workspace open on the monitor, ID 0
+	// when none is.
+	SpecialWorkspace WorkspaceRef `json:"specialWorkspace"`
 	// Reserved is the area taken by layer surfaces with an exclusive zone (a
 	// bar), as left, top, right, bottom.
 	Reserved [4]int `json:"reserved"`

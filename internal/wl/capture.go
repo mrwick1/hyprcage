@@ -7,7 +7,7 @@ import (
 )
 
 // wl_shm pixel formats, plus the two fourcc variants a wlroots compositor may
-// announce for a screencopy frame.
+// announce for a frame.
 const (
 	shmFormatARGB8888 = 0          // bytes B, G, R, A
 	shmFormatXRGB8888 = 1          // bytes B, G, R, X
@@ -15,11 +15,24 @@ const (
 	fourccXBGR8888    = 0x34324258 // 'XB24': bytes R, G, B, X
 )
 
-// frameFlagYInvert is zwlr_screencopy_frame_v1.flags.y_invert.
+// frameFlagYInvert is the y_invert flag of both frame interfaces.
 const frameFlagYInvert = 1
 
-// frameState collects the events of one zwlr_screencopy_frame_v1.
+// frameProto names the opcodes of a frame interface. Screencopy and toplevel
+// export frames share the flow, not the opcodes.
+type frameProto struct {
+	iface   string
+	version int
+	// waitDone makes the client wait for buffer_done after the buffer event.
+	waitDone                                           bool
+	evBuffer, evBufferDone, evFlags, evReady, evFailed int
+	reqCopy, reqDestroy                                int
+	copyArgs                                           []any // after the buffer
+}
+
+// frameState collects the events of one frame.
 type frameState struct {
+	p                             *frameProto
 	format, width, height, stride uint32
 	flags                         uint32
 	gotBuffer                     bool
@@ -42,19 +55,19 @@ func OpaqueFormat(format uint32) uint32 {
 
 func (s *frameState) handle(op int, args []any) error {
 	switch op {
-	case evtZwlrScreencopyFrameV1Buffer:
+	case s.p.evBuffer:
 		s.format = args[0].(uint32)
 		s.width = args[1].(uint32)
 		s.height = args[2].(uint32)
 		s.stride = args[3].(uint32)
 		s.gotBuffer = true
-	case evtZwlrScreencopyFrameV1BufferDone:
+	case s.p.evBufferDone:
 		s.bufferDone = true
-	case evtZwlrScreencopyFrameV1Flags:
+	case s.p.evFlags:
 		s.flags = args[0].(uint32)
-	case evtZwlrScreencopyFrameV1Ready:
+	case s.p.evReady:
 		s.ready = true
-	case evtZwlrScreencopyFrameV1Failed:
+	case s.p.evFailed:
 		s.failed = true
 	}
 	return nil
@@ -65,25 +78,59 @@ func (c *Client) capture(overlayCursor bool) (*image.RGBA, error) {
 	if c.scMgr == 0 {
 		return nil, missingErr(ifaceZwlrScreencopyManagerV1)
 	}
-	if c.shm == 0 {
-		return nil, missingErr(ifaceWlShm)
-	}
 	if c.output == 0 {
 		return nil, missingErr(ifaceWlOutput)
 	}
-
-	st := &frameState{}
-	frame := c.allocID()
-	c.register(frame, ifaceZwlrScreencopyFrameV1, c.scMgrVer, st.handle)
-
-	var cursor int32
-	if overlayCursor {
-		cursor = 1
+	p := &frameProto{
+		iface: ifaceZwlrScreencopyFrameV1, version: c.scMgrVer, waitDone: c.scMgrVer >= 3,
+		evBuffer: evtZwlrScreencopyFrameV1Buffer, evBufferDone: evtZwlrScreencopyFrameV1BufferDone,
+		evFlags: evtZwlrScreencopyFrameV1Flags, evReady: evtZwlrScreencopyFrameV1Ready, evFailed: evtZwlrScreencopyFrameV1Failed,
+		reqCopy: reqZwlrScreencopyFrameV1Copy, reqDestroy: reqZwlrScreencopyFrameV1Destroy,
 	}
-	c.send(c.scMgr, reqZwlrScreencopyManagerV1CaptureOutput, frame, cursor, c.output)
+	return c.captureFrame(p, func(frame uint32) {
+		c.send(c.scMgr, reqZwlrScreencopyManagerV1CaptureOutput, frame, cursorArg(overlayCursor), c.output)
+	})
+}
 
-	// Wait for the buffer announcement (and, since version 3, for the end of
-	// the announcements: the linux_dmabuf one is ignored).
+// captureToplevel implements Client.CaptureToplevel.
+func (c *Client) captureToplevel(handle uint32, overlayCursor bool) (*image.RGBA, error) {
+	if c.teMgr == 0 {
+		return nil, missingErr(ifaceHyprlandToplevelExportManagerV1)
+	}
+	p := &frameProto{
+		iface: ifaceHyprlandToplevelExportFrameV1, version: c.teMgrVer, waitDone: true,
+		evBuffer: evtHyprlandToplevelExportFrameV1Buffer, evBufferDone: evtHyprlandToplevelExportFrameV1BufferDone,
+		evFlags: evtHyprlandToplevelExportFrameV1Flags, evReady: evtHyprlandToplevelExportFrameV1Ready, evFailed: evtHyprlandToplevelExportFrameV1Failed,
+		reqCopy: reqHyprlandToplevelExportFrameV1Copy, reqDestroy: reqHyprlandToplevelExportFrameV1Destroy,
+		// ignore_damage: a window on a hidden workspace sends no damage.
+		copyArgs: []any{int32(1)},
+	}
+	return c.captureFrame(p, func(frame uint32) {
+		c.send(c.teMgr, reqHyprlandToplevelExportManagerV1CaptureToplevel, frame, cursorArg(overlayCursor), handle)
+	})
+}
+
+func cursorArg(overlay bool) int32 {
+	if overlay {
+		return 1
+	}
+	return 0
+}
+
+// captureFrame creates a frame with start, copies it into a shared memory
+// buffer and decodes the pixels.
+func (c *Client) captureFrame(p *frameProto, start func(frame uint32)) (*image.RGBA, error) {
+	if c.shm == 0 {
+		return nil, missingErr(ifaceWlShm)
+	}
+
+	st := &frameState{p: p}
+	frame := c.allocID()
+	c.register(frame, p.iface, p.version, st.handle)
+	start(frame)
+
+	// Wait for the buffer announcement (and, when the frame has buffer_done,
+	// for the end of the announcements: the linux_dmabuf one is ignored).
 	if err := c.waitFor(func() bool {
 		if st.failed {
 			return true
@@ -91,29 +138,29 @@ func (c *Client) capture(overlayCursor bool) (*image.RGBA, error) {
 		if !st.gotBuffer {
 			return false
 		}
-		return c.scMgrVer < 3 || st.bufferDone
+		return !p.waitDone || st.bufferDone
 	}); err != nil {
-		c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
+		c.destroyObject(frame, p.reqDestroy)
 		return nil, err
 	}
 	if st.failed {
-		c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
-		return nil, errors.New("wl: the compositor refused the screencopy frame")
+		c.destroyObject(frame, p.reqDestroy)
+		return nil, fmt.Errorf("wl: the compositor refused the %s", p.iface)
 	}
 	if st.width == 0 || st.height == 0 || st.stride < st.width*4 {
-		c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
-		return nil, fmt.Errorf("wl: nonsensical screencopy buffer %dx%d stride %d", st.width, st.height, st.stride)
+		c.destroyObject(frame, p.reqDestroy)
+		return nil, fmt.Errorf("wl: nonsensical %s buffer %dx%d stride %d", p.iface, st.width, st.height, st.stride)
 	}
 
 	size := int(st.stride) * int(st.height)
 	f, err := runtimeTempFile("hyprcage-shm-*")
 	if err != nil {
-		c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
+		c.destroyObject(frame, p.reqDestroy)
 		return nil, err
 	}
 	defer f.Close()
 	if err := f.Truncate(int64(size)); err != nil {
-		c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
+		c.destroyObject(frame, p.reqDestroy)
 		return nil, fmt.Errorf("wl: sizing the shared buffer: %w", err)
 	}
 
@@ -125,12 +172,12 @@ func (c *Client) capture(overlayCursor bool) (*image.RGBA, error) {
 	c.register(buffer, ifaceWlBuffer, 1, nil)
 	c.send(pool, reqWlShmPoolCreateBuffer, buffer, int32(0), int32(st.width), int32(st.height), int32(st.stride), st.format)
 
-	c.send(frame, reqZwlrScreencopyFrameV1Copy, buffer)
+	c.send(frame, p.reqCopy, append([]any{buffer}, p.copyArgs...)...)
 
 	err = c.waitFor(func() bool { return st.ready || st.failed })
 	c.destroyObject(buffer, reqWlBufferDestroy)
 	c.destroyObject(pool, reqWlShmPoolDestroy)
-	c.destroyObject(frame, reqZwlrScreencopyFrameV1Destroy)
+	c.destroyObject(frame, p.reqDestroy)
 	if err != nil {
 		return nil, err
 	}

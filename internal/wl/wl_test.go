@@ -220,7 +220,13 @@ func (s *fakeServer) handle(id uint32, op int, body []byte, fds *[]int) {
 			uint32(shmFormatXRGB8888), uint32(s.width), uint32(s.height), uint32(s.stride))
 		s.event(frame, ifaceZwlrScreencopyFrameV1, "buffer_done")
 
-	case "zwlr_screencopy_frame_v1.copy":
+	case "hyprland_toplevel_export_manager_v1.capture_toplevel":
+		frame := args[0].(uint32)
+		s.event(frame, ifaceHyprlandToplevelExportFrameV1, "buffer",
+			uint32(shmFormatXRGB8888), uint32(s.width), uint32(s.height), uint32(s.stride))
+		s.event(frame, ifaceHyprlandToplevelExportFrameV1, "buffer_done")
+
+	case "zwlr_screencopy_frame_v1.copy", "hyprland_toplevel_export_frame_v1.copy":
 		bufID := args[0].(uint32)
 		info, ok := s.buffers[bufID]
 		if !ok {
@@ -236,8 +242,8 @@ func (s *fakeServer) handle(id uint32, op int, body []byte, fds *[]int) {
 			s.t.Errorf("fake: writing pixels: %v", err)
 			return
 		}
-		s.event(id, ifaceZwlrScreencopyFrameV1, "flags", uint32(frameFlagYInvert))
-		s.event(id, ifaceZwlrScreencopyFrameV1, "ready", uint32(0), uint32(0), uint32(0))
+		s.event(id, iface, "flags", uint32(frameFlagYInvert))
+		s.event(id, iface, "ready", uint32(0), uint32(0), uint32(0))
 
 	case "zwlr_output_configuration_head_v1.set_custom_mode":
 		s.askedW, s.askedH = args[0].(int32), args[1].(int32)
@@ -764,6 +770,37 @@ func TestCapture(t *testing.T) {
 	}
 	for _, want := range []string{"wl_shm.create_pool", "wl_shm_pool.create_buffer", "zwlr_screencopy_frame_v1.copy"} {
 		onlyRequest(t, s.log(), want)
+	}
+}
+
+func TestCaptureToplevelRequest(t *testing.T) {
+	c, s := startFake(t, append(fullGlobals(), Global{Name: 9, Interface: ifaceHyprlandToplevelExportManagerV1, Version: 2}))
+	s.reset()
+	img, err := c.CaptureToplevel(0xac116320, true)
+	if err != nil {
+		t.Fatalf("CaptureToplevel: %v", err)
+	}
+	if img.Bounds().Dx() != 4 || img.Bounds().Dy() != 2 {
+		t.Fatalf("image is %v, want 4x2", img.Bounds())
+	}
+	ct := onlyRequest(t, s.log(), "hyprland_toplevel_export_manager_v1.capture_toplevel")
+	if ct.args[1].(int32) != 1 || ct.args[2].(uint32) != 0xac116320 {
+		t.Errorf("capture_toplevel args = %v, want overlay_cursor 1 and handle 0xac116320", ct.args)
+	}
+	// ignore_damage: a window on a hidden workspace never sends damage.
+	if cp := onlyRequest(t, s.log(), "hyprland_toplevel_export_frame_v1.copy"); cp.args[1].(int32) != 1 {
+		t.Errorf("copy ignore_damage = %v, want 1", cp.args[1])
+	}
+	if err := c.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	onlyRequest(t, s.log(), "hyprland_toplevel_export_frame_v1.destroy")
+}
+
+func TestCaptureToplevelMissing(t *testing.T) {
+	c, _ := startFake(t, fullGlobals())
+	if _, err := c.CaptureToplevel(1, false); !errors.Is(err, ErrMissingProtocol) {
+		t.Fatalf("CaptureToplevel error = %v, want ErrMissingProtocol", err)
 	}
 }
 

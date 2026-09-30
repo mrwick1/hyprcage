@@ -29,6 +29,7 @@ var sources = []string{
 	"../../protocols/xdg-shell.xml",
 	"../../protocols/linux-dmabuf-v1.xml",
 	"../../protocols/viewporter.xml",
+	"../../protocols/hyprland-toplevel-export-v1.xml",
 }
 
 const outFile = "protocols_gen.go"

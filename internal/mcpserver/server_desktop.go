@@ -1,6 +1,8 @@
 package mcpserver
 
 import (
+	"time"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/desktop"
@@ -38,6 +40,27 @@ func (s *Server) desktop() (desktop.Desktop, error) {
 		return desktop.Desktop{H: h, D: c.Driver}, nil
 	}
 	return desktop.Desktop{H: h, D: h.Driver()}, nil
+}
+
+// desktopShot captures the desktop output, or one window on any workspace.
+func (s *Server) desktopShot(window string, settleMs int, o screen.ShotOptions) (*mcp.CallToolResult, error) {
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	conn, err := desktop.Open(d.H)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.CL.Close()
+	if settleMs > 0 {
+		time.Sleep(time.Duration(min(settleMs, 10000)) * time.Millisecond)
+	}
+	res, err := conn.Shot(window, o)
+	if err != nil {
+		return nil, err
+	}
+	return imageResult(res, desktop.Name), nil
 }
 
 // refuseDesktop refuses screen "desktop" in a tool made for agent screens.

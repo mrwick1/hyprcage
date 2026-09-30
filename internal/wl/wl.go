@@ -138,6 +138,8 @@ type Client struct {
 	vkMgr    uint32
 	scMgr    uint32
 	scMgrVer int
+	teMgr    uint32 // Hyprland toplevel export, absent under cage
+	teMgrVer int
 	ftMgr    uint32
 
 	pointer  uint32
@@ -233,6 +235,7 @@ func (c *Client) setup(input bool) error {
 	c.shm, _ = c.bind(ifaceWlShm, nil)
 	c.output, _ = c.bind(ifaceWlOutput, c.handleOutput)
 	c.scMgr, c.scMgrVer = c.bind(ifaceZwlrScreencopyManagerV1, nil)
+	c.teMgr, c.teMgrVer = c.bind(ifaceHyprlandToplevelExportManagerV1, nil)
 	if input {
 		c.seat, _ = c.bind(ifaceWlSeat, nil)
 		c.vpMgr, c.vpMgrVer = c.bind(ifaceZwlrVirtualPointerManagerV1, nil)
@@ -470,6 +473,12 @@ func (c *Client) CloseToplevel(id uint32) error {
 // Capture grabs the output through screencopy.
 func (c *Client) Capture(overlayCursor bool) (*image.RGBA, error) {
 	return c.capture(overlayCursor)
+}
+
+// CaptureToplevel captures one window by its Hyprland address (the low 32
+// bits are the handle of hyprland_toplevel_export_manager_v1), on any workspace.
+func (c *Client) CaptureToplevel(handle uint32, overlayCursor bool) (*image.RGBA, error) {
+	return c.captureToplevel(handle, overlayCursor)
 }
 
 // ----------------------------------------------------------------- handlers
