@@ -1,5 +1,6 @@
 // Package setup installs what hyprcage needs on the machine, with the
-// human's authorisation: cage, the agent's compositor, through the
+// human's authorisation: cage, the agent's compositor, and its helpers
+// (ffmpeg, wl-clipboard, tesseract with its English data), through the
 // distribution's package manager. Root is obtained the way a desktop
 // application store does it: sudo when it needs no password or a terminal
 // is there, otherwise a polkit dialog (pkexec) on the human's screen.
@@ -14,12 +15,26 @@ import (
 	"strings"
 )
 
-// Packages lists what hyprcage needs, with the binary that proves each
-// package is present.
-var Packages = []struct{ Package, Binary string }{
-	{"cage", "cage"},
-	{"ffmpeg", "ffmpeg"},        // recording
-	{"wl-clipboard", "wl-copy"}, // clipboard of a screen
+// OCRData is the path of the English language data of tesseract.
+const OCRData = "/usr/share/tessdata/eng.traineddata"
+
+// Package is one package hyprcage needs. Binary in PATH, or File on disk
+// when File is set, proves that the package is present.
+type Package struct{ Package, Binary, File string }
+
+// Packages lists what hyprcage needs.
+var Packages = []Package{
+	{Package: "cage", Binary: "cage"},
+	{Package: "ffmpeg", Binary: "ffmpeg"},        // recording
+	{Package: "wl-clipboard", Binary: "wl-copy"}, // clipboard of a screen
+	{Package: "tesseract", Binary: "tesseract"},  // OCR snapshot source
+	{Package: "tesseract-data-eng", File: OCRData},
+}
+
+// zypperNames maps the pacman package names that differ on openSUSE.
+var zypperNames = map[string]string{
+	"tesseract":          "tesseract-ocr",
+	"tesseract-data-eng": "tesseract-ocr-traineddata-english",
 }
 
 // Report says what Run found and did.
@@ -30,11 +45,18 @@ type Report struct {
 	Manual    string   `json:"manual,omitempty"`
 }
 
-// Missing returns the packages whose binary is not in PATH.
+// Missing returns the packages whose binary is not in PATH, or whose file
+// does not exist when the entry names a file.
 func Missing() []string {
 	var out []string
 	for _, p := range Packages {
-		if _, err := exec.LookPath(p.Binary); err != nil {
+		var err error
+		if p.File != "" {
+			_, err = os.Stat(p.File)
+		} else {
+			_, err = exec.LookPath(p.Binary)
+		}
+		if err != nil {
 			out = append(out, p.Package)
 		}
 	}
@@ -42,13 +64,21 @@ func Missing() []string {
 }
 
 // InstallArgv returns the command that installs pkgs with the first known
-// package manager on PATH: pacman (Arch) or zypper (openSUSE).
+// package manager on PATH: pacman (Arch) or zypper (openSUSE). pkgs are
+// pacman names; the zypper command uses the openSUSE names.
 func InstallArgv(lookPath func(string) (string, error), pkgs []string) ([]string, error) {
 	if _, err := lookPath("pacman"); err == nil {
 		return append([]string{"pacman", "-S", "--needed", "--noconfirm"}, pkgs...), nil
 	}
 	if _, err := lookPath("zypper"); err == nil {
-		return append([]string{"zypper", "--non-interactive", "install", "--no-recommends"}, pkgs...), nil
+		argv := []string{"zypper", "--non-interactive", "install", "--no-recommends"}
+		for _, p := range pkgs {
+			if z, ok := zypperNames[p]; ok {
+				p = z
+			}
+			argv = append(argv, p)
+		}
+		return argv, nil
 	}
 	return nil, errors.New("no known package manager (pacman or zypper): install " + strings.Join(pkgs, " and ") + " by hand")
 }

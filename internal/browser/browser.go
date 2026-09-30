@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -111,35 +110,18 @@ func portFree(port int) bool {
 }
 
 // listenerCmdline returns the argv, joined by spaces, of the process that
-// listens on 127.0.0.1:port, or "" when none does. Linux only: it reads
-// /proc/net/tcp and the fd links of the user's processes.
+// listens on 127.0.0.1:port, "" when none does, and "?" when its owner is
+// not visible to this user.
 func listenerCmdline(port int) string {
-	data, err := os.ReadFile("/proc/net/tcp")
+	pid, err := screen.ListenerPID(port)
 	if err != nil {
+		return "?"
+	}
+	if pid == 0 {
 		return ""
 	}
-	local := fmt.Sprintf("0100007F:%04X", port)
-	inode := ""
-	for _, line := range strings.Split(string(data), "\n")[1:] {
-		f := strings.Fields(line)
-		if len(f) > 9 && f[1] == local && f[3] == "0A" { // 0A is LISTEN
-			inode = f[9]
-			break
-		}
-	}
-	if inode == "" {
-		return ""
-	}
-	target := "socket:[" + inode + "]"
-	fds, _ := filepath.Glob("/proc/[0-9]*/fd/*")
-	for _, fd := range fds {
-		if link, err := os.Readlink(fd); err == nil && link == target {
-			pid := strings.Split(fd, "/")[2]
-			argv, _ := os.ReadFile("/proc/" + pid + "/cmdline")
-			return strings.ReplaceAll(string(argv), "\x00", " ")
-		}
-	}
-	return "?" // a listener whose owner this user cannot see
+	argv, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	return strings.ReplaceAll(string(argv), "\x00", " ")
 }
 
 // owned waits until something listens on 127.0.0.1:port and checks that
@@ -201,6 +183,12 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 	err = owned("--user-data-dir="+profile, port, 20*time.Second)
 	if err == nil {
 		ws, err = Ready(base, 5*time.Second)
+	}
+	if err == nil {
+		err = screen.ClaimDebug(rec, port) // the port belongs to the screen by this Chrome's PID
+	}
+	if err == nil {
+		err = registry.Save(rec)
 	}
 	if err != nil {
 		// Launch starts a new session, so -pid is its process group.
