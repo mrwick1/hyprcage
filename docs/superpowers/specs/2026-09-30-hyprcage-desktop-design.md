@@ -58,15 +58,22 @@ Out of scope:
   The nested instance gets its own signature under `/run/user/1000/hypr/` and one monitor `WAYLAND-1`.
 - The human's Hyprland ran with `--safe-mode` at spike time. This has no effect on the design.
 
-## To verify in task 1
+## Verified in task 1 (2026-09-30)
 
-1. `hyprland_toplevel_export_manager_v1` captures a window on a hidden workspace (on the nested instance).
-2. hyprcage's `wl` virtual pointer moves the cursor on a Hyprland socket, and `movecursor` restores the position.
-3. AT-SPI `EditableText.InsertText` works in a GTK entry and in a Qt line edit.
-4. A D-Bus `BecomeMonitor` connection sees `Notify` method calls and the `NotificationClosed` and `ActionInvoked` signals.
-5. `LatestInvokeAction` on swaync invokes the action, and the sending app receives `ActionInvoked`.
+Checks ran on the nested Hyprland that `tests/nested-hypr.sh` starts, except where a line names the human's instance.
 
-A failed item amends this spec before task 2 starts. The rulings file records each amendment.
+1. **Toplevel export of a hidden window:** not checked in task 1. The frame events of `hyprland_toplevel_export_frame_v1` use other opcodes than screencopy, so a probe needs the generated bindings. Task 3 checks it live.
+2. **Virtual pointer:** the `wl` virtual pointer moves the nested cursor to the requested position, and `movecursor` restores it. On the human's instance (1920x1080 at scale 1.5), `wl.Client.OutputSize` returns 960x540, because `wl_output.scale` is the integer 2. The logical size is 1280x720. The desktop pointer therefore takes its extent from the logical layout of `hyprctl monitors`, not from `OutputSize`. To verify: that Hyprland maps `motion_absolute` over the whole layout at a fractional scale. The nested output ignores scale changes, so only the human's instance can show it.
+3. **`EditableText.InsertText`:** works in the Thunar location entry (GTK3) and in a Wireshark line edit (Qt). The text appears, and no key is sent.
+4. **AT-SPI extents:** GTK3 and Qt report the same values for screen and window coordinates, relative to the window. The desktop AT-SPI source adds the window's `at` position from `hyprctl clients`.
+5. **Notification monitor:** `dbus-monitor` (which uses `BecomeMonitor`) sees `Notify`, its method return with the ID, `ActionInvoked` and `NotificationClosed`.
+6. **swaync actions:** `LatestInvokeAction u 0` invokes the first action, and `notify-send --action=ok=OK --wait` prints `ok`. swaync also has `CloseNotification u`.
+
+Consequences for the tests:
+
+- The notification E2E runs in `dbus-run-session`, with swaync on the nested `WAYLAND_DISPLAY`. The human's notification daemon never shows a test notification.
+- The environment variable `HYPRCAGE_NOTIFY_FILE` overrides the notification file path, so that tests never write to the human's file.
+- The nested monitor takes the size of its host window (1236x589 in task 1), not the configured 1280x800.
 
 ## Tool surface
 

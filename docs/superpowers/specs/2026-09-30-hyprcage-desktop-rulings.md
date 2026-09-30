@@ -1,0 +1,9 @@
+# hyprcage desktop control: rulings
+
+One line per ruling made during the build, in the format of the sub-project A rulings file.
+
+- Ruling: task 1 check 1 (toplevel export of a hidden window) moves to task 3 step 4 — the frame opcodes differ from screencopy, so a probe needs the generated bindings — cost if wrong: task 3 finds the gap later and the spec gets amended then.
+- Ruling: the desktop pointer takes its absolute-motion extent from the logical layout in `hyprctl monitors` (width/scale, height/scale, over all monitors), not from `wl.Client.OutputSize` — `OutputSize` returns 960x540 on the human's 1920x1080 at 1.5 — cost if wrong: pointer clicks land at the wrong place on the real desktop; the final report asks the human for one real-desktop click check.
+- Ruling: the desktop AT-SPI source always adds the window's `at` position — GTK3 and Qt give window-relative extents on Hyprland (task 1) — cost if wrong: offsets double for an app that gives screen extents.
+- Ruling: notification tests run in `dbus-run-session` with swaync on the nested instance, and `HYPRCAGE_NOTIFY_FILE` overrides the store path — no test notification may reach the human's screen or file — cost if wrong: one more env variable.
+- Ruling: `notify_act` without `action` calls `CloseNotification` on `org.freedesktop.Notifications` (the spec's choice), not swaync's own `CloseNotification` — the freedesktop call works with any daemon — cost if wrong: none.

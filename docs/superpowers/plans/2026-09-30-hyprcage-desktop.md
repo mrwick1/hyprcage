@@ -334,7 +334,7 @@ type Entry struct {
 	Action  string            `json:"action,omitempty"` // the invoked key, for "action"
 }
 
-func Path() string                          // ~/.local/state/hyprcage/notifications.jsonl
+func Path() string                          // $HYPRCAGE_NOTIFY_FILE, else ~/.local/state/hyprcage/notifications.jsonl
 func Append(path string, e Entry) error      // O_APPEND, mode 0600
 func Prune(path string, now time.Time) error // drop entries older than 48 h: temp file, then rename
 func Read(path string) ([]Entry, error)      // skips a torn last line
