@@ -77,9 +77,13 @@ func (p pairer) observe(msg *dbus.Message, serial uint32, now time.Time) (Entry,
 }
 
 // Run monitors the session bus and appends each notification event to
-// Path() until ctx ends. It prunes the file on start and every hour.
+// Path() until ctx ends. It creates the file and prunes it on start, and
+// prunes it every hour.
 func Run(ctx context.Context) error {
 	path := Path()
+	if err := Create(path); err != nil {
+		return err
+	}
 	if err := Prune(path, time.Now()); err != nil {
 		fmt.Fprintln(os.Stderr, "notifyd: prune:", err)
 	}

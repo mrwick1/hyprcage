@@ -35,6 +35,19 @@ func Path() string {
 	return filepath.Join(os.Getenv("HOME"), ".local", "state", "hyprcage", "notifications.jsonl")
 }
 
+// Create makes the file (0600) and its directory (0700) when they are
+// missing, so that the tools find a file before the first notification.
+func Create(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
 // Append adds e as one line, creating the file (0600) and its directory (0700).
 func Append(path string, e Entry) error {
 	line, err := json.Marshal(e)

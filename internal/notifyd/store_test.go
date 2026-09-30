@@ -102,3 +102,18 @@ func TestReadSkipsLongLine(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCreateModes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state", "n.jsonl")
+	if err := Create(path); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	di, _ := os.Stat(filepath.Dir(path))
+	if err != nil || fi.Mode().Perm() != 0o600 || di.Mode().Perm() != 0o700 {
+		t.Fatalf("file %v dir %v err %v, want 0600 and 0700", fi.Mode(), di.Mode(), err)
+	}
+	if got, err := Read(path); err != nil || len(got) != 0 {
+		t.Fatalf("Read of the new file: %v %v", got, err)
+	}
+}
