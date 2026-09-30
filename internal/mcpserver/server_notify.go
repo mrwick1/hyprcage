@@ -12,6 +12,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/notifyd"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
@@ -70,6 +71,9 @@ func compileMatch(match string) (*regexp.Regexp, error) {
 }
 
 func (s *Server) notifyList(in notifyListIn) (*mcp.CallToolResult, error) {
+	if err := desktop.Unlocked(); err != nil {
+		return nil, err
+	}
 	var since time.Time
 	if in.Since != "" {
 		if d, err := time.ParseDuration(in.Since); err == nil {
@@ -90,6 +94,9 @@ func (s *Server) notifyList(in notifyListIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) notifyAct(in notifyActIn) (*mcp.CallToolResult, error) {
+	if err := desktop.Unlocked(); err != nil {
+		return nil, err
+	}
 	entries, err := notifications(false)
 	if err != nil {
 		return nil, err
@@ -130,6 +137,9 @@ func (s *Server) notifyAct(in notifyActIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) notifyWait(in notifyWaitIn) (*mcp.CallToolResult, error) {
+	if err := desktop.Unlocked(); err != nil {
+		return nil, err
+	}
 	re, err := compileMatch(in.Match)
 	if err != nil {
 		return nil, err

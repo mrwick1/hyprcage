@@ -135,15 +135,20 @@ type Desktop struct {
 // lockedFn is Locked on /proc. Tests replace it.
 var lockedFn = func() bool { return Locked("/proc") }
 
+// Unlocked refuses with session_locked while hyprlock runs.
+func Unlocked() error {
+	if lockedFn() {
+		return screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
+	}
+	return nil
+}
+
 // session checks for a Hyprland session that is not locked.
 func (d Desktop) session() error {
 	if d.H == nil {
 		return screen.Errf(screen.CodeHyprland, "", "no Hyprland session")
 	}
-	if lockedFn() {
-		return screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
-	}
-	return nil
+	return Unlocked()
 }
 
 // ready checks the session and the window address before a window command.
