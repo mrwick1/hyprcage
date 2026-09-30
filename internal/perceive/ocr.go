@@ -3,11 +3,13 @@ package perceive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
@@ -58,6 +60,9 @@ func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
+	if crashedAfterOutput(err, out) {
+		err = nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -75,6 +80,20 @@ func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 		}
 	}
 	return nodes, nil
+}
+
+// crashedAfterOutput reports a tesseract killed by a signal after it wrote
+// its TSV. openSUSE's tesseract-ocr 5.5.3-2.1 frees uninitialized pointers
+// in TessBaseAPI::End, after the output is written.
+// ponytail: trusts that the crash comes after the last row; a crash that
+// cut the output short loses the rows after it.
+func crashedAfterOutput(err error, out []byte) bool {
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || !bytes.HasPrefix(out, []byte("level\tpage_num")) {
+		return false
+	}
+	ws, ok := ee.Sys().(syscall.WaitStatus)
+	return ok && ws.Signaled()
 }
 
 // store replaces the cache that Reveal reads.
