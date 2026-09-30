@@ -13,7 +13,6 @@ case "${1:-}" in
 start)
 	dir=$(mktemp -d /tmp/hc-nested.XXXXXX)
 	cat >"$dir/hyprland.conf" <<'EOF'
-monitor = , 1280x800, 0x0, 1
 misc {
   disable_hyprland_logo = true
   disable_splash_rendering = true
@@ -29,6 +28,13 @@ EOF
 	for _ in $(seq 50); do
 		sig=$(comm -13 <(echo "$before" | sort) <(ls "$base" | sort) | head -1)
 		if [ -n "$sig" ] && HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl monitors -j >/dev/null 2>&1; then
+			# The host window sits on a hidden workspace, so its output never
+			# renders and screencopy stalls. A headless output renders, and at
+			# 1920x1080 scale 1.5 it matches the human's monitor.
+			export HYPRLAND_INSTANCE_SIGNATURE=$sig
+			hyprctl output create headless HC >/dev/null
+			hyprctl keyword monitor "HC,1920x1080@60,0x0,1.5" >/dev/null
+			hyprctl keyword monitor "WAYLAND-1,disable" >/dev/null
 			echo "$sig"
 			exit 0
 		fi
