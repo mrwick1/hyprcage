@@ -646,6 +646,9 @@ func (s *Server) windows(in screenIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	cursor := true
 	if in.Cursor != nil {
 		cursor = *in.Cursor
@@ -670,6 +673,9 @@ func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		b, err := screen.ParseButton(in.Button)
 		if err != nil {
@@ -694,6 +700,9 @@ func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopPointer(in.Window, false, 0, func(p screen.PointerInput) error {
 			return screen.Click(p, in.X, in.Y, wl.ButtonLeft, 2, nil)
@@ -710,6 +719,9 @@ func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopHover(in.Window, in.X, in.Y)
 	}
@@ -724,6 +736,9 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
 			return screen.ScrollAt(p, in.X, in.Y, in.Direction, in.Amount)
@@ -740,6 +755,9 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
 			return screen.Drag(p, in.X1, in.Y1, in.X2, in.Y2, time.Duration(in.DurationMs)*time.Millisecond)

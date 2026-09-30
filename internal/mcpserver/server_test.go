@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -257,6 +258,27 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		}
 		if c.tool != "screen_create" && !strings.Contains(got, "unsupported_input") {
 			t.Errorf("%s: %q, want unsupported_input", c.tool, got)
+		}
+	}
+}
+
+func TestWindowRefusedOnAgentScreen(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	cs := connect(t)
+	xy := map[string]any{"x": 1, "y": 1}
+	for tool, args := range map[string]map[string]any{
+		"click": xy, "double_click": xy, "move": xy, "screenshot": {},
+		"scroll": {"x": 1, "y": 1, "direction": "down"},
+		"drag":   {"x1": 1, "y1": 1, "x2": 2, "y2": 2},
+	} {
+		args = maps.Clone(args)
+		args["screen"], args["window"] = "hc1", "0xa"
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: tool, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", tool, err)
+		}
+		if !res.IsError || !strings.Contains(text(res), "window applies to screen desktop only") {
+			t.Errorf("%s: isError=%v text=%q", tool, res.IsError, text(res))
 		}
 	}
 }
