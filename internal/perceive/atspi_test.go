@@ -22,7 +22,8 @@ type fakeTree struct {
 	scrolls []string
 	actions []string
 	actIdx  []int
-	actErr  error // returned by Scroll and DoAction when set
+	actErr  error    // returned by Scroll and DoAction when set
+	inserts []string // "<bus><path> <text>" per InsertText
 }
 
 func (f *fakeTree) Walk(context.Context, []int) ([]accessible, error) {
@@ -38,6 +39,11 @@ func (f *fakeTree) DoAction(_ context.Context, bus, path string, i int) error {
 	f.actions = append(f.actions, bus+path)
 	f.actIdx = append(f.actIdx, i)
 	return f.actErr
+}
+
+func (f *fakeTree) InsertText(_ context.Context, bus, path, text string) error {
+	f.inserts = append(f.inserts, bus+path+" "+text)
+	return nil
 }
 
 func thunarTree(t *testing.T) *fakeTree {

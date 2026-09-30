@@ -13,6 +13,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/wl"
 )
 
@@ -33,6 +34,7 @@ type actIn struct {
 	Keys            []string `json:"keys,omitempty"`
 	Direction       string   `json:"direction,omitempty"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty"`
+	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window of the snapshot that gave the ref"`
 }
 
 type findIn struct {
@@ -193,7 +195,7 @@ func (s *Server) snapshot(in snapIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
-	if err := refuseDesktop(in.Screen, "act on the desktop comes in a later build"); err != nil {
+	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
 	if in.Ref == "" {
@@ -204,18 +206,54 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
 	defer cancel()
+	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopAct(ctx, in, op)
+	}
 	cl, src, t, rec, err := s.source(ctx, in.Screen, "")
 	if err != nil {
 		return nil, err
 	}
 	defer src.Close()
-	d, err := perceive.Act(ctx, cl, src, t, perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction})
+	d, err := perceive.Act(ctx, cl, src, t, op)
 	if err != nil {
 		return nil, err
 	}
 	res := plain(d.String())
 	if in.ScreenshotAfter {
 		shot, err := s.afterAction(rec, cl, true, 0)
+		if err != nil {
+			return nil, err
+		}
+		res.Content = append(res.Content, shot.Content...)
+	}
+	return res, nil
+}
+
+// desktopAct acts on a desktop window with the source of the table's last read.
+func (s *Server) desktopAct(ctx context.Context, in actIn, op perceive.ActOp) (*mcp.CallToolResult, error) {
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	conn, target, err := s.desktopTarget(in.Window)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.CL.Close()
+	t := s.tableAt(desktopKey(in.Window))
+	src, err := perceive.ChooseDesktop(ctx, conn, target, t.SourceName())
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+	out, err := perceive.DesktopAct(ctx, desktop.Pointer{C: conn, D: d.D}, d, target.Windows, src, t, op)
+	if err != nil {
+		return nil, err
+	}
+	res := plain(out)
+	if in.ScreenshotAfter {
+		shot, err := s.desktopShot(in.Window, 150, screen.ShotOptions{MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
 		if err != nil {
 			return nil, err
 		}

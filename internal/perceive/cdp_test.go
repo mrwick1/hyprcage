@@ -43,6 +43,7 @@ type fakeCaller struct {
 	mu       sync.Mutex
 	detached []string
 	called   []string // DOM.resolveNode and Runtime.callFunctionOn calls
+	input    []string // the type of each Input.dispatchMouseEvent
 }
 
 func newFake(t *testing.T) *fakeCaller {
@@ -135,6 +136,13 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		json.Unmarshal(b, &fn)
 		in := f.contains[session] && strings.Contains(fn.FunctionDeclaration, ".host")
 		return fmt.Appendf(nil, `{"result":{"type":"boolean","value":%t}}`, in), nil
+	case "Input.dispatchMouseEvent":
+		var ev struct{ Type string }
+		json.Unmarshal(b, &ev)
+		f.mu.Lock()
+		f.input = append(f.input, ev.Type)
+		f.mu.Unlock()
+		return json.RawMessage(`{}`), nil
 	case "Runtime.releaseObjectGroup":
 		return json.RawMessage(`{}`), nil
 	case "DOM.getFrameOwner":

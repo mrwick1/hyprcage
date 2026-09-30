@@ -27,6 +27,7 @@ type tree interface {
 	Walk(ctx context.Context, pids []int) ([]accessible, error)
 	Scroll(ctx context.Context, bus, path string) error // Component.ScrollTo
 	DoAction(ctx context.Context, bus, path string, i int) error
+	InsertText(ctx context.Context, bus, path, text string) error // at the caret, or at the end
 }
 
 const atspiHint = "start the a11y bus (at-spi-bus-launcher) or use source=ocr"
@@ -325,6 +326,20 @@ func (s *atspiSource) Press(ctx context.Context, key string) error {
 	return nil
 }
 
+// Insert inserts text into the node through EditableText, without focus or keys.
+func (s *atspiSource) Insert(ctx context.Context, key, text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	o, err := s.known(key)
+	if err != nil {
+		return err
+	}
+	if err := s.t.InsertText(ctx, o.Bus, o.Path, text); err != nil {
+		return actErr(key, err, "the element takes no text; click it and use key")
+	}
+	return nil
+}
+
 func (s *atspiSource) Close() error {
 	if s.closer == nil {
 		return nil
@@ -497,10 +512,27 @@ func (d *dbusTree) DoAction(ctx context.Context, bus, path string, i int) error 
 	return d.ok(ctx, bus, path, "org.a11y.atspi.Action.DoAction", int32(i))
 }
 
+// InsertText inserts text at the caret. A caret of -1 (unknown) inserts at the end.
+func (d *dbusTree) InsertText(ctx context.Context, bus, path, text string) error {
+	const txt = "org.a11y.atspi.Text"
+	var v dbus.Variant
+	if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, txt, "CaretOffset"); err != nil {
+		return err
+	}
+	pos, _ := v.Value().(int32)
+	if pos < 0 {
+		if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, txt, "CharacterCount"); err != nil {
+			return err
+		}
+		pos, _ = v.Value().(int32)
+	}
+	return d.ok(ctx, bus, path, "org.a11y.atspi.EditableText.InsertText", pos, text, int32(len(text)))
+}
+
 // ok calls a method that answers a boolean, and turns false into errRefused.
-func (d *dbusTree) ok(ctx context.Context, bus, path, method string, arg any) error {
+func (d *dbusTree) ok(ctx context.Context, bus, path, method string, args ...any) error {
 	var done bool
-	if err := d.call(ctx, bus, path, method, &done, arg); err != nil {
+	if err := d.call(ctx, bus, path, method, &done, args...); err != nil {
 		return err
 	}
 	if !done {

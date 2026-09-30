@@ -238,7 +238,6 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		{"clipboard_get", nil, "no desktop"},
 		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
 		{"mirror", nil, "no desktop"},
-		{"act", map[string]any{"ref": "e1", "op": "click"}, "later build"},
 		{"screen_create", nil, "reserved"},
 	} {
 		args := map[string]any{"screen": "desktop"}
