@@ -11,7 +11,6 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
-	"github.com/hexadecimil/hyprcage/internal/wl"
 )
 
 // OCRData is the path of the English language data.
@@ -25,13 +24,16 @@ const ocrMinConf = 60
 // ocrSource reads the text of a screen with tesseract. It is the fallback for
 // applications with no accessibility tree.
 type ocrSource struct {
-	cl    *wl.Client
+	shot  func(screen.ShotOptions) (*screen.ShotResult, error)
 	mu    sync.Mutex
 	nodes map[string]Node // last Nodes result, by Key
 }
 
-// NewOCR returns the OCR source of the screen that cl is connected to.
-func NewOCR(cl *wl.Client) Source { return &ocrSource{cl: cl} }
+// NewOCR returns the OCR source that reads the images of shot: a screen
+// capture, or a desktop capture that carries its logical origin.
+func NewOCR(shot func(screen.ShotOptions) (*screen.ShotResult, error)) Source {
+	return &ocrSource{shot: shot}
+}
 
 func (s *ocrSource) Name() string { return "ocr" }
 
@@ -47,7 +49,7 @@ func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 	}
 	// Full size and PNG only: a downscaled or JPEG image reads worse, and
 	// the node coordinates must be screen pixels.
-	shot, err := screen.Shot(s.cl, screen.ShotOptions{Scale: 1, Format: "png", MaxSide: 1 << 20, MaxBytes: 1 << 30})
+	shot, err := s.shot(screen.ShotOptions{Scale: 1, Format: "png", MaxSide: 1 << 20, MaxBytes: 1 << 30})
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +68,12 @@ func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 	}
 	nodes := parseTSV(out)
 	scaleNodes(nodes, shot.Scale)
+	if shot.Origin != nil { // capture pixels to global logical pixels
+		for i := range nodes {
+			nodes[i].X = shot.Origin[0] + int(float64(nodes[i].X)*shot.LogicalPerPixel+0.5)
+			nodes[i].Y = shot.Origin[1] + int(float64(nodes[i].Y)*shot.LogicalPerPixel+0.5)
+		}
+	}
 	return nodes, nil
 }
 

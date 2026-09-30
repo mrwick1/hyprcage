@@ -62,6 +62,25 @@ func (c *Conn) Visible(addr string) (bool, error) {
 	return visible(w.Workspace.ID, mons), nil
 }
 
+// VisibleWindows returns the clients on a workspace that a monitor shows.
+func (c *Conn) VisibleWindows() ([]hypr.Client, error) {
+	all, err := c.H.Clients()
+	if err != nil {
+		return nil, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	mons, err := c.H.Monitors()
+	if err != nil {
+		return nil, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	var out []hypr.Client
+	for _, w := range all {
+		if visible(w.Workspace.ID, mons) {
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+
 // visible reports whether workspace ws is the active or the open special
 // workspace of a monitor.
 func visible(ws int, mons []hypr.Monitor) bool {
