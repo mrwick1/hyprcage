@@ -209,6 +209,10 @@ func (f *fakeDriver) Exec(command string, rules hypr.ExecRules) error {
 
 func (f *fakeDriver) WorkspaceCmd(id int) string { return fmt.Sprintf("dispatch workspace %d", id) }
 
+func (f *fakeDriver) MoveCursorCmd(x, y int) string {
+	return fmt.Sprintf("dispatch movecursor %d %d", x, y)
+}
+
 func (f *fakeDriver) MoveWindowCmd(addr string, ws int) string {
 	return fmt.Sprintf("dispatch movetoworkspacesilent %d,address:%s", ws, addr)
 }
@@ -217,6 +221,25 @@ func (f *fakeDriver) MoveWindowCmd(addr string, ws int) string {
 // clients[n] (the last one repeats, none: no window) and anything else with
 // "ok", and records every request.
 func fakeIPC(t *testing.T, clients ...string) (*hypr.Instance, *[]string) {
+	t.Helper()
+	return fakeIPCFunc(t, func(req string) string {
+		if req != "j/clients" {
+			return "ok"
+		}
+		reply := "[]"
+		if len(clients) > 0 {
+			reply = clients[0]
+			if len(clients) > 1 {
+				clients = clients[1:]
+			}
+		}
+		return reply
+	})
+}
+
+// fakeIPCFunc serves a command socket that answers each request with
+// reply(request) and records every request.
+func fakeIPCFunc(t *testing.T, reply func(string) string) (*hypr.Instance, *[]string) {
 	t.Helper()
 	dir := t.TempDir()
 	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
@@ -237,19 +260,9 @@ func fakeIPC(t *testing.T, clients ...string) (*hypr.Instance, *[]string) {
 			req := string(buf[:n])
 			mu.Lock()
 			reqs = append(reqs, req)
+			out := reply(req)
 			mu.Unlock()
-			if req == "j/clients" {
-				reply := "[]"
-				if len(clients) > 0 {
-					reply = clients[0]
-					if len(clients) > 1 {
-						clients = clients[1:]
-					}
-				}
-				_, _ = io.WriteString(c, reply)
-			} else {
-				_, _ = io.WriteString(c, "ok")
-			}
+			_, _ = io.WriteString(c, out)
 			c.Close()
 		}
 	}()
