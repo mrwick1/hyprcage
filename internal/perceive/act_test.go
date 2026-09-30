@@ -875,6 +875,31 @@ func TestFindAutoWaitsForSource(t *testing.T) {
 	}
 }
 
+// failingSource fails every read with no_source, like OCR when tesseract crashes.
+type failingSource struct{ fakeSource }
+
+func (f *failingSource) Nodes(context.Context) ([]Node, error) {
+	return nil, screen.Errf(screen.CodeNoSource, "", "tesseract: signal: segmentation fault")
+}
+
+// TestFindAutoRetriesFailedRead: an app not yet on the a11y bus makes auto
+// pick OCR, and a failed OCR read must not end the poll.
+func TestFindAutoRetriesFailedRead(t *testing.T) {
+	fastTiming(t)
+	calls := 0
+	choose := func(context.Context) (Source, error) {
+		calls++
+		if calls <= 2 {
+			return &failingSource{fakeSource{name: "ocr"}}, nil
+		}
+		return &fakeSource{name: "atspi", reads: [][]Node{{button("a1", "View", 22, 48)}}}, nil
+	}
+	got, err := FindAuto(context.Background(), choose, NewTable(), regexp.MustCompile("View"), "", 2*time.Second)
+	if err != nil || len(got) != 1 || got[0].Key != "a1" || calls != 3 {
+		t.Fatalf("got %+v, %v after %d chooses", got, err, calls)
+	}
+}
+
 func TestFindAutoTimeoutKeepsSource(t *testing.T) {
 	fastTiming(t)
 	choose := func(context.Context) (Source, error) {
