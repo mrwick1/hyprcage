@@ -44,6 +44,7 @@ func TestOrphanScreenName(t *testing.T) {
 		"hyprcage-gc-hc_1a2b3c.timer":            "hc-1a2b3c",
 		"hyprcage-gc-hc_1a2b3c.service":          "hc-1a2b3c",
 		"app-Hyprland-firefox-1.scope":           "",
+		"hyprcage-notifyd.service":               "",
 	}
 	for in, want := range cases {
 		if got := orphanScreenName(in); got != want {

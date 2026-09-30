@@ -95,7 +95,7 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 // or hyprcage-gc-<name>.timer.
 func orphanScreenName(unit string) string {
 	base := strings.TrimPrefix(unit, "hyprcage-")
-	if base == unit {
+	if base == unit || unit == "hyprcage-notifyd.service" { // the notification log belongs to no screen
 		return ""
 	}
 	if i := strings.LastIndex(base, "."); i >= 0 {
