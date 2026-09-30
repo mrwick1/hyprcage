@@ -7,9 +7,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -207,9 +209,14 @@ func (f *fakeDriver) Exec(command string, rules hypr.ExecRules) error {
 
 func (f *fakeDriver) WorkspaceCmd(id int) string { return fmt.Sprintf("dispatch workspace %d", id) }
 
-// fakeIPC serves a command socket that answers j/clients with no window and
-// anything else with "ok", and records every request.
-func fakeIPC(t *testing.T) (*hypr.Instance, *[]string) {
+func (f *fakeDriver) MoveWindowCmd(addr string, ws int) string {
+	return fmt.Sprintf("dispatch movetoworkspacesilent %d,address:%s", ws, addr)
+}
+
+// fakeIPC serves a command socket that answers the n-th j/clients with
+// clients[n] (the last one repeats, none: no window) and anything else with
+// "ok", and records every request.
+func fakeIPC(t *testing.T, clients ...string) (*hypr.Instance, *[]string) {
 	t.Helper()
 	dir := t.TempDir()
 	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
@@ -232,7 +239,14 @@ func fakeIPC(t *testing.T) (*hypr.Instance, *[]string) {
 			reqs = append(reqs, req)
 			mu.Unlock()
 			if req == "j/clients" {
-				_, _ = io.WriteString(c, "[]")
+				reply := "[]"
+				if len(clients) > 0 {
+					reply = clients[0]
+					if len(clients) > 1 {
+						clients = clients[1:]
+					}
+				}
+				_, _ = io.WriteString(c, reply)
 			} else {
 				_, _ = io.WriteString(c, "ok")
 			}
@@ -242,18 +256,18 @@ func fakeIPC(t *testing.T) (*hypr.Instance, *[]string) {
 	return &hypr.Instance{Signature: "fake", Dir: dir}, &reqs
 }
 
-func fakeDesktop(t *testing.T, locked bool) (Desktop, *fakeDriver, *[]string) {
+func fakeDesktop(t *testing.T, locked bool, clients ...string) (Desktop, *fakeDriver, *[]string) {
 	old := lockedFn
 	lockedFn = func() bool { return locked }
 	t.Cleanup(func() { lockedFn = old })
-	h, reqs := fakeIPC(t)
+	h, reqs := fakeIPC(t, clients...)
 	f := &fakeDriver{}
 	return Desktop{H: h, D: f}, f, reqs
 }
 
 func TestLaunchQuotesArgv(t *testing.T) {
 	d, f, _ := fakeDesktop(t, false)
-	pid, addr, err := d.Launch([]string{"echo", "a b;rm -rf x", "it's"}, map[string]string{"K": "v w"}, "/tmp/my dir", 4, 0)
+	pid, addr, _, err := d.Launch([]string{"echo", "a b;rm -rf x", "it's"}, map[string]string{"K": "v w"}, "/tmp/my dir", 4, 0)
 	if err != nil || pid != 0 || addr != "" {
 		t.Fatalf("got %d %q %v, want no window and no error", pid, addr, err)
 	}
@@ -261,9 +275,9 @@ func TestLaunchQuotesArgv(t *testing.T) {
 	if len(f.cmds) != 1 || f.cmds[0] != want {
 		t.Errorf("command %q, want %q", f.cmds, want)
 	}
-	_, _, err = d.Launch([]string{"x"}, map[string]string{"A=B;": "v"}, "", 4, 0)
+	_, _, _, err = d.Launch([]string{"x"}, map[string]string{"A=B;": "v"}, "", 4, 0)
 	wantCode(t, "bad env key", err, screen.CodeUnsupported)
-	_, _, err = d.Launch(nil, nil, "", 4, 0)
+	_, _, _, err = d.Launch(nil, nil, "", 4, 0)
 	wantCode(t, "empty argv", err, screen.CodeUnsupported)
 	if len(f.cmds) != 1 {
 		t.Errorf("a refused launch reached Exec: %q", f.cmds)
@@ -272,14 +286,14 @@ func TestLaunchQuotesArgv(t *testing.T) {
 
 func TestLaunchSilentWorkspace(t *testing.T) {
 	d, f, _ := fakeDesktop(t, false)
-	if _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0); err != nil {
+	if _, _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.rules) != 1 || f.rules[0] != (hypr.ExecRules{Workspace: "4 silent", NoInitialFocus: true}) {
 		t.Errorf("rules %+v", f.rules)
 	}
 	d, f, _ = fakeDesktop(t, true)
-	_, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0)
+	_, _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0)
 	wantCode(t, "locked launch", err, screen.CodeLocked)
 	if len(f.cmds) != 0 {
 		t.Errorf("a locked launch reached Exec")
@@ -297,4 +311,19 @@ func TestWorkspaceCommand(t *testing.T) {
 	}
 	d, _, _ = fakeDesktop(t, true)
 	wantCode(t, "locked workspace", d.Workspace(2), screen.CodeLocked)
+}
+
+// A single-instance app opens its window in its running process: the exec
+// rules miss it, so Launch moves it to the launch workspace.
+func TestLaunchSingleInstanceMoves(t *testing.T) {
+	d, _, reqs := fakeDesktop(t, false,
+		`[{"address":"0xa","pid":7,"workspace":{"id":1}}]`,
+		`[{"address":"0xa","pid":7,"workspace":{"id":1}},{"address":"0xb","pid":7,"workspace":{"id":1}}]`)
+	pid, addr, byWindow, err := d.Launch([]string{"thunar"}, nil, "", 4, time.Second)
+	if err != nil || pid != 7 || addr != "0xb" || !byWindow {
+		t.Fatalf("got %d %q %v %v, want 7 0xb matched by window", pid, addr, byWindow, err)
+	}
+	if !slices.Contains(*reqs, "dispatch movetoworkspacesilent 4,address:0xb") {
+		t.Errorf("requests %q, want the silent move", *reqs)
+	}
 }

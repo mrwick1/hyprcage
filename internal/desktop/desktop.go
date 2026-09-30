@@ -252,13 +252,19 @@ var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // "<ws> silent" (ws 0: the active workspace) and without initial focus.
 // Every argument is quoted, so none is parsed as shell syntax. Exec gives no
 // pid: Launch waits up to wait for a window that was not there before and
-// returns its pid and address, or 0 and "" when none appears.
-func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int, wait time.Duration) (int, string, error) {
+// returns its pid and address, or 0 and "" when none appears. byWindow
+// reports a window matched without the exec rules: its pid had a window
+// before (a single-instance app), or it mapped on another workspace. Launch
+// moves such a window to ws without following it.
+//
+// ponytail: the match is by new address only, so an unrelated window that
+// maps during the wait can be picked.
+func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int, wait time.Duration) (pid int, addr string, byWindow bool, err error) {
 	if err := d.session(); err != nil {
-		return 0, "", err
+		return 0, "", false, err
 	}
 	if len(argv) == 0 {
-		return 0, "", screen.Errf(screen.CodeUnsupported, "", "command must not be empty")
+		return 0, "", false, screen.Errf(screen.CodeUnsupported, "", "command must not be empty")
 	}
 	var parts []string
 	if cwd != "" {
@@ -268,7 +274,7 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 		parts = append(parts, "env")
 		for _, k := range slices.Sorted(maps.Keys(env)) {
 			if !envKeyRe.MatchString(k) {
-				return 0, "", screen.Errf(screen.CodeUnsupported, "", "%q is not an environment variable name", k)
+				return 0, "", false, screen.Errf(screen.CodeUnsupported, "", "%q is not an environment variable name", k)
 			}
 			parts = append(parts, k+"="+shellq.Quote(env[k]))
 		}
@@ -277,7 +283,7 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 	if ws == 0 {
 		mons, err := d.H.Monitors()
 		if err != nil {
-			return 0, "", screen.Errf(screen.CodeHyprland, "", "%v", err)
+			return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
 		}
 		for _, m := range mons {
 			if m.Focused {
@@ -286,11 +292,11 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 		}
 	}
 	if ws < 1 {
-		return 0, "", screen.Errf(screen.CodeUnsupported, "workspaces start at 1", "workspace %d", ws)
+		return 0, "", false, screen.Errf(screen.CodeUnsupported, "workspaces start at 1", "workspace %d", ws)
 	}
 	before, err := d.H.Clients()
 	if err != nil {
-		return 0, "", screen.Errf(screen.CodeHyprland, "", "%v", err)
+		return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
 	}
 	seen, pids := map[string]bool{}, map[int]bool{}
 	for _, c := range before {
@@ -298,7 +304,7 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 	}
 	rules := hypr.ExecRules{Workspace: fmt.Sprintf("%d silent", ws), NoInitialFocus: true}
 	if err := d.D.Exec(strings.Join(parts, " "), rules); err != nil {
-		return 0, "", screen.Errf(screen.CodeHyprland, "", "%v", err)
+		return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
 	}
 	for deadline := time.Now().Add(wait); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
 		all, err := d.H.Clients()
@@ -306,12 +312,19 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 			continue
 		}
 		for _, c := range all {
-			if !seen[c.Address] && !pids[c.PID] {
-				return c.PID, c.Address, nil
+			if seen[c.Address] {
+				continue
 			}
+			if c.Workspace.ID != ws {
+				if err := d.command(d.D.MoveWindowCmd(c.Address, ws)); err != nil {
+					return c.PID, c.Address, true, err
+				}
+				return c.PID, c.Address, true, nil
+			}
+			return c.PID, c.Address, pids[c.PID], nil
 		}
 	}
-	return 0, "", nil
+	return 0, "", false, nil
 }
 
 // Workspace switches the human's visible workspace.

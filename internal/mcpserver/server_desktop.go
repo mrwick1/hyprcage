@@ -133,7 +133,7 @@ func (s *Server) desktopLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	if in.WaitWindowMs != nil {
 		wait = time.Duration(*in.WaitWindowMs) * time.Millisecond
 	}
-	pid, addr, err := d.Launch(in.Command, in.Env, in.Cwd, in.Workspace, wait)
+	pid, addr, byWindow, err := d.Launch(in.Command, in.Env, in.Cwd, in.Workspace, wait)
 	if err != nil {
 		return nil, err
 	}
@@ -143,5 +143,8 @@ func (s *Server) desktopLaunch(in launchIn) (*mcp.CallToolResult, error) {
 		return textResult(out), nil
 	}
 	out["pid"], out["window"] = pid, addr
+	if byWindow {
+		out["note"] = "matched by new window, not by pid"
+	}
 	return textResult(out), nil
 }
