@@ -38,7 +38,7 @@ func desktopRun(t *testing.T, src Source, name string, op ActOp) (string, *fakeI
 
 func TestDesktopActClickPrefersPress(t *testing.T) {
 	f := &fakeTree{objs: []accessible{obj("/b", "push button", "Home", [4]int{10, 10, 20, 20}, "enabled")}}
-	out, in, _ := desktopRun(t, newDesktopATSPIWith(f, oneWindow), "Home", ActOp{Op: "click"})
+	out, in, _ := desktopRun(t, newDesktopATSPIWith(f, oneWindow, false), "Home", ActOp{Op: "click"})
 	if !slices.Equal(f.actions, []string{":1.5/b"}) {
 		t.Fatalf("DoAction calls %v", f.actions)
 	}
@@ -52,7 +52,7 @@ func TestDesktopActClickPrefersPress(t *testing.T) {
 
 func TestDesktopActTypeInserts(t *testing.T) {
 	f := &fakeTree{objs: []accessible{obj("/e", "entry", "Location", [4]int{10, 10, 200, 20}, "enabled", "editable")}}
-	out, in, _ := desktopRun(t, newDesktopATSPIWith(f, oneWindow), "Location", ActOp{Op: "type", Text: "/tmp"})
+	out, in, _ := desktopRun(t, newDesktopATSPIWith(f, oneWindow, false), "Location", ActOp{Op: "type", Text: "/tmp"})
 	if !slices.Equal(f.inserts, []string{":1.5/e /tmp"}) {
 		t.Fatalf("InsertText calls %v", f.inserts)
 	}

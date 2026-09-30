@@ -130,7 +130,7 @@ func (s *Server) desktopTarget(window string) (*desktop.Conn, perceive.Target, e
 		conn.CL.Close()
 		return nil, perceive.Target{}, err
 	}
-	return conn, perceive.Target{Windows: wins}, nil
+	return conn, perceive.Target{Windows: wins, Named: window != ""}, nil
 }
 
 // noWindow refuses window on an agent screen.

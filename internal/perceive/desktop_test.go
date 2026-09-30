@@ -3,6 +3,8 @@ package perceive
 import (
 	"context"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
@@ -15,7 +17,7 @@ func TestATSPIDesktopOffset(t *testing.T) {
 	btn := obj("/btn", "push button", "Back", [4]int{5, 15, 10, 10}) // centre (10,20) in the window
 	btn.Parent = "/win"
 	wins := []hypr.Client{{Address: "0xa", PID: 1, Title: "Home", At: [2]int{100, 200}, Size: [2]int{500, 400}}}
-	nodes, err := newDesktopATSPIWith(&fakeTree{objs: []accessible{app, win, btn}}, wins).Nodes(context.Background())
+	nodes, err := newDesktopATSPIWith(&fakeTree{objs: []accessible{app, win, btn}}, wins, false).Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,12 +32,43 @@ func TestATSPIDesktopOffset(t *testing.T) {
 	t.Fatalf("no Back node in %+v", nodes)
 }
 
+func TestATSPIDesktopKeepsNamedWindow(t *testing.T) {
+	app := obj("/app", "application", "app", [4]int{})
+	a := obj("/a", "frame", "A", [4]int{0, 0, 100, 100})
+	a.Parent = "/app"
+	inA := obj("/a1", "push button", "InA", [4]int{0, 0, 10, 10})
+	inA.Parent = "/a"
+	b := obj("/b", "frame", "B", [4]int{0, 0, 100, 100})
+	b.Parent = "/app"
+	inB := obj("/b1", "push button", "InB", [4]int{0, 0, 10, 10})
+	inB.Parent = "/b"
+	f := &fakeTree{objs: []accessible{app, a, inA, b, inB}}
+	win := hypr.Client{Address: "0xa", PID: 1, Title: "A"}
+	nodes, err := newDesktopATSPIWith(f, []hypr.Client{win}, true).Nodes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range nodes {
+		if n.Name == "B" || n.Name == "InB" {
+			t.Fatalf("node %q of window B in %+v", n.Name, nodes)
+		}
+	}
+	if !slices.ContainsFunc(nodes, func(n Node) bool { return n.Name == "InA" }) {
+		t.Fatalf("no InA in %+v", nodes)
+	}
+	win.Title = "C"
+	_, err = newDesktopATSPIWith(f, []hypr.Client{win}, true).Nodes(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "unsupported_input") {
+		t.Fatalf("unmatched title of two windows: err %v, want unsupported_input", err)
+	}
+}
+
 func TestATSPIDesktopFiltersPIDs(t *testing.T) {
 	mine := obj("/a", "push button", "Mine", [4]int{0, 0, 10, 10})
 	other := obj("/b", "push button", "Other", [4]int{0, 0, 10, 10})
 	other.Bus, other.PID = ":1.9", 2
 	wins := []hypr.Client{{Address: "0xa", PID: 1}}
-	nodes, err := newDesktopATSPIWith(&fakeTree{objs: []accessible{mine, other}}, wins).Nodes(context.Background())
+	nodes, err := newDesktopATSPIWith(&fakeTree{objs: []accessible{mine, other}}, wins, false).Nodes(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +82,7 @@ func TestChooseDesktopOrder(t *testing.T) {
 	p, a, c, n := devToolsPort, pidsHaveApps, newCDP, newDesktopATSPI
 	t.Cleanup(func() { devToolsPort, pidsHaveApps, newCDP, newDesktopATSPI = p, a, c, n })
 	newCDP = func(context.Context, int) (Source, error) { return &fakeSource{name: "cdp"}, nil }
-	newDesktopATSPI = func(context.Context, []hypr.Client) (Source, error) { return &fakeSource{name: "atspi"}, nil }
+	newDesktopATSPI = func(context.Context, []hypr.Client, bool) (Source, error) { return &fakeSource{name: "atspi"}, nil }
 	target := Target{Windows: []hypr.Client{{Address: "0xa", PID: 7}}}
 	for _, c := range []struct {
 		port int

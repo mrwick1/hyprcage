@@ -63,6 +63,9 @@ type atspiSource struct {
 	// place returns where the top-level window top sits: AT-SPI extents
 	// are relative to it.
 	place func(top accessible) (int, int)
+	// only, when set, filters the walked objects: the desktop keeps the
+	// top-level object of one window (windowTree).
+	only func([]accessible) ([]accessible, error)
 }
 
 // NewATSPI connects to the a11y bus of the session. The source keeps only
@@ -145,6 +148,9 @@ func (s *atspiSource) walk(ctx context.Context) ([]accessible, error) {
 		}
 		seen[k] = true
 		out = append(out, o)
+	}
+	if s.only != nil {
+		return s.only(out)
 	}
 	return out, nil
 }
