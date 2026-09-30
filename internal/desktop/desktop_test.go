@@ -2,11 +2,13 @@ package desktop
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
@@ -188,4 +190,111 @@ func TestInstanceFallback(t *testing.T) {
 	if !IsDesktop(Name) || IsDesktop("hc-1") || IsDesktop("") {
 		t.Error("IsDesktop")
 	}
+}
+
+// fakeDriver records the Exec calls and builds recognisable commands.
+type fakeDriver struct {
+	hypr.ConfigDriver
+	cmds  []string
+	rules []hypr.ExecRules
+}
+
+func (f *fakeDriver) Exec(command string, rules hypr.ExecRules) error {
+	f.cmds = append(f.cmds, command)
+	f.rules = append(f.rules, rules)
+	return nil
+}
+
+func (f *fakeDriver) WorkspaceCmd(id int) string { return fmt.Sprintf("dispatch workspace %d", id) }
+
+// fakeIPC serves a command socket that answers j/clients with no window and
+// anything else with "ok", and records every request.
+func fakeIPC(t *testing.T) (*hypr.Instance, *[]string) {
+	t.Helper()
+	dir := t.TempDir()
+	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	var mu sync.Mutex
+	reqs := []string{}
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 4096)
+			n, _ := c.Read(buf)
+			req := string(buf[:n])
+			mu.Lock()
+			reqs = append(reqs, req)
+			mu.Unlock()
+			if req == "j/clients" {
+				_, _ = io.WriteString(c, "[]")
+			} else {
+				_, _ = io.WriteString(c, "ok")
+			}
+			c.Close()
+		}
+	}()
+	return &hypr.Instance{Signature: "fake", Dir: dir}, &reqs
+}
+
+func fakeDesktop(t *testing.T, locked bool) (Desktop, *fakeDriver, *[]string) {
+	old := lockedFn
+	lockedFn = func() bool { return locked }
+	t.Cleanup(func() { lockedFn = old })
+	h, reqs := fakeIPC(t)
+	f := &fakeDriver{}
+	return Desktop{H: h, D: f}, f, reqs
+}
+
+func TestLaunchQuotesArgv(t *testing.T) {
+	d, f, _ := fakeDesktop(t, false)
+	pid, addr, err := d.Launch([]string{"echo", "a b;rm -rf x", "it's"}, map[string]string{"K": "v w"}, "/tmp/my dir", 4, 0)
+	if err != nil || pid != 0 || addr != "" {
+		t.Fatalf("got %d %q %v, want no window and no error", pid, addr, err)
+	}
+	want := `cd '/tmp/my dir' && env K='v w' echo 'a b;rm -rf x' 'it'\''s'`
+	if len(f.cmds) != 1 || f.cmds[0] != want {
+		t.Errorf("command %q, want %q", f.cmds, want)
+	}
+	_, _, err = d.Launch([]string{"x"}, map[string]string{"A=B;": "v"}, "", 4, 0)
+	wantCode(t, "bad env key", err, screen.CodeUnsupported)
+	_, _, err = d.Launch(nil, nil, "", 4, 0)
+	wantCode(t, "empty argv", err, screen.CodeUnsupported)
+	if len(f.cmds) != 1 {
+		t.Errorf("a refused launch reached Exec: %q", f.cmds)
+	}
+}
+
+func TestLaunchSilentWorkspace(t *testing.T) {
+	d, f, _ := fakeDesktop(t, false)
+	if _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.rules) != 1 || f.rules[0] != (hypr.ExecRules{Workspace: "4 silent", NoInitialFocus: true}) {
+		t.Errorf("rules %+v", f.rules)
+	}
+	d, f, _ = fakeDesktop(t, true)
+	_, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0)
+	wantCode(t, "locked launch", err, screen.CodeLocked)
+	if len(f.cmds) != 0 {
+		t.Errorf("a locked launch reached Exec")
+	}
+}
+
+func TestWorkspaceCommand(t *testing.T) {
+	d, _, reqs := fakeDesktop(t, false)
+	if err := d.Workspace(2); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "workspace 0", d.Workspace(0), screen.CodeUnsupported)
+	if len(*reqs) != 1 || (*reqs)[0] != "dispatch workspace 2" {
+		t.Errorf("requests %q", *reqs)
+	}
+	d, _, _ = fakeDesktop(t, true)
+	wantCode(t, "locked workspace", d.Workspace(2), screen.CodeLocked)
 }

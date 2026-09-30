@@ -50,7 +50,7 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
 		"snapshot", "act", "find"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
@@ -238,5 +238,17 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		if c.tool != "screen_create" && !strings.Contains(got, "unsupported_input") {
 			t.Errorf("%s: %q, want unsupported_input", c.tool, got)
 		}
+	}
+}
+
+func TestDesktopLaunchRefusesDebug(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "app_launch",
+		Arguments: map[string]any{"screen": "desktop", "command": []string{"chromium"}, "debug": true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "unsupported_input") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
 	}
 }
