@@ -105,6 +105,14 @@ func Open(ctx context.Context, port int) (*Session, error) {
 		c.Close()
 		return nil, screen.Errf(screen.CodeCDP, hint, "%v", err)
 	}
+	// Target.targetInfoChanged, which keeps a page's URL current, only comes
+	// with discovery on.
+	if _, err := c.Call(ctx, "", "Target.setDiscoverTargets", map[string]any{
+		"discover": true, "filter": []map[string]any{{"type": "page"}, {"exclude": true}},
+	}); err != nil {
+		c.Close()
+		return nil, screen.Errf(screen.CodeCDP, hint, "%v", err)
+	}
 	return s, nil
 }
 
@@ -151,6 +159,9 @@ func (s *Session) event(ev cdp.Event) {
 			ctx := context.Background()
 			s.c.Call(ctx, p.SessionID, "Runtime.enable", nil)
 			s.c.Call(ctx, p.SessionID, "Log.enable", nil)
+			// A popup waits for the debugger despite waitForDebuggerOnStart
+			// false, and holds its opener's renderer until released.
+			s.c.Call(ctx, p.SessionID, "Runtime.runIfWaitingForDebugger", nil)
 			if page && emu != (Emulation{}) {
 				s.apply(ctx, p.SessionID, emu)
 			}
@@ -307,21 +318,25 @@ func (s *Session) Eval(ctx context.Context, page, expression string, timeout tim
 		return nil, err
 	}
 	raw, err := s.c.CallFor(ctx, timeout, sid, "Runtime.evaluate", map[string]any{
-		"expression": expression, "returnByValue": true, "awaitPromise": true,
-		"userGesture": true, "replMode": true,
+		"expression": expression, "awaitPromise": true,
+		"userGesture": true, "replMode": true, "objectGroup": evalGroup,
 	})
+	defer func() {
+		go s.c.Call(context.Background(), sid, "Runtime.releaseObjectGroup", map[string]any{"objectGroup": evalGroup})
+	}()
+	r, err := evalResult(raw, err)
+	if err == nil && r.Result.ObjectID != "" {
+		// REPL mode awaits the script, not its value, so a promise comes back
+		// as itself. Returning the object from a function awaits it and
+		// serializes the result.
+		raw, err = s.c.CallFor(ctx, timeout, sid, "Runtime.callFunctionOn", map[string]any{
+			"objectId": r.Result.ObjectID, "functionDeclaration": "function() { return this }",
+			"returnByValue": true, "awaitPromise": true,
+		})
+		r, err = evalResult(raw, err)
+	}
 	if err != nil {
-		return nil, screen.Errf(screen.CodeCDP, "", "%v", err)
-	}
-	var r struct {
-		Result    remoteObject `json:"result"`
-		Exception *exception   `json:"exceptionDetails"`
-	}
-	if err := json.Unmarshal(raw, &r); err != nil {
 		return nil, err
-	}
-	if r.Exception != nil {
-		return nil, fmt.Errorf("the page threw: %s", r.Exception.String())
 	}
 	if r.Result.Value != nil {
 		return r.Result.Value, nil
@@ -401,6 +416,28 @@ func (s *Session) apply(ctx context.Context, sid string, e Emulation) error {
 		}
 	}
 	return nil
+}
+
+// evalGroup holds the objects an Eval keeps alive until it returns.
+const evalGroup = "hyprcage-eval"
+
+type evalReply struct {
+	Result    remoteObject `json:"result"`
+	Exception *exception   `json:"exceptionDetails"`
+}
+
+func evalResult(raw json.RawMessage, err error) (evalReply, error) {
+	var r evalReply
+	if err != nil {
+		return r, screen.Errf(screen.CodeCDP, "", "%v", err)
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return r, err
+	}
+	if r.Exception != nil {
+		return r, fmt.Errorf("the page threw: %s", r.Exception.String())
+	}
+	return r, nil
 }
 
 // HeapSnapshot writes a heap snapshot of the page to path and returns its
@@ -553,6 +590,7 @@ type remoteObject struct {
 	Value       json.RawMessage `json:"value"`
 	Unserial    string          `json:"unserializableValue"`
 	Description string          `json:"description"`
+	ObjectID    string          `json:"objectId"`
 }
 
 // String renders the object as the console shows it.
