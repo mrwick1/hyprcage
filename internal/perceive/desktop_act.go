@@ -156,7 +156,8 @@ func windowOf(wins []hypr.Client, n Node, op string) (string, error) {
 		"no single desktop window for %s on %s %q", op, n.Role, n.Name)
 }
 
-// menuTitle reports whether key is a menu of a menu bar in src's last read.
+// menuTitle reports whether key is a title of a menu bar in src's last read:
+// a "menu" (GTK) or a "menu item" (Qt) whose parent is the menu bar.
 func menuTitle(src Source, key string) bool {
 	a, ok := src.(*atspiSource)
 	if !ok {
@@ -165,7 +166,7 @@ func menuTitle(src Source, key string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	o := a.last[key]
-	return o.Role == "menu" && a.last[atspiKey(o.Bus, o.Parent)].Role == "menu bar"
+	return (o.Role == "menu" || o.Role == "menu item") && a.last[atspiKey(o.Bus, o.Parent)].Role == "menu bar"
 }
 
 // unsupported reports whether err means that the path cannot do the op.
