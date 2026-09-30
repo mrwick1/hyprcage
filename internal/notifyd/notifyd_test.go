@@ -1,6 +1,7 @@
 package notifyd
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ func TestPairNotifyReply(t *testing.T) {
 	if !ok {
 		t.Fatal("the reply gave no entry")
 	}
-	if e.ID != 42 || e.Event != "notify" || e.App != "app" || e.Summary != "hi" || e.Body != "there" || e.Actions["ok"] != "OK" {
+	if e.ID != 42 || e.Event != "notify" || e.App != "app" || e.Summary != "hi" || e.Body != "there" || !slices.Equal(e.Actions, []string{"ok", "OK"}) {
 		t.Fatalf("got %+v", e)
 	}
 	if _, ok := p.observe(reply, 4, now); ok {

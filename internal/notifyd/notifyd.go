@@ -41,15 +41,8 @@ func (p pairer) observe(msg *dbus.Message, serial uint32, now time.Time) (Entry,
 		var e Entry
 		var replaces uint32
 		var icon string
-		var actions []string
-		if str(dbus.FieldMember) != "Notify" || dbus.Store(msg.Body[:min(len(msg.Body), 6)], &e.App, &replaces, &icon, &e.Summary, &e.Body, &actions) != nil {
+		if str(dbus.FieldMember) != "Notify" || dbus.Store(msg.Body[:min(len(msg.Body), 6)], &e.App, &replaces, &icon, &e.Summary, &e.Body, &e.Actions) != nil {
 			return Entry{}, false
-		}
-		for i := 0; i+1 < len(actions); i += 2 {
-			if e.Actions == nil {
-				e.Actions = map[string]string{}
-			}
-			e.Actions[actions[i]] = actions[i+1]
 		}
 		e.Event, e.Time = "notify", now
 		if len(p) >= 256 { // calls whose return never came, such as errors

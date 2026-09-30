@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/notifyd"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
@@ -51,7 +53,7 @@ func TestToolsRegistered(t *testing.T) {
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
 		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
-		"snapshot", "act", "find"}
+		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -250,5 +252,49 @@ func TestDesktopLaunchRefusesDebug(t *testing.T) {
 	}
 	if !res.IsError || !strings.Contains(text(res), "unsupported_input") {
 		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestActRefusesNotLatest(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	path := filepath.Join(t.TempDir(), "n.jsonl")
+	t.Setenv("HYPRCAGE_NOTIFY_FILE", path)
+	now := time.Now()
+	for _, e := range []notifyd.Entry{
+		{ID: 1, Event: "notify", Actions: []string{"ok", "OK"}, Time: now},
+		{ID: 2, Event: "notify", Actions: []string{"ok", "OK"}, Time: now.Add(time.Second)},
+	} {
+		if err := notifyd.Append(path, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "notify_act", Arguments: map[string]any{"id": 1, "action": "ok"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "no_action") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestNotifydDown(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("HYPRCAGE_NOTIFY_FILE", filepath.Join(t.TempDir(), "missing.jsonl"))
+	cs := connect(t)
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"notify_list", map[string]any{}},
+		{"notify_act", map[string]any{"id": 1}},
+		{"notify_wait", map[string]any{"timeout_ms": 0}},
+	} {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.tool, Arguments: c.args})
+		if err != nil {
+			t.Fatalf("%s: %v", c.tool, err)
+		}
+		if !res.IsError || !strings.Contains(text(res), "notifyd_down") {
+			t.Errorf("%s: isError=%v text=%q", c.tool, res.IsError, text(res))
+		}
 	}
 }
