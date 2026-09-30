@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/devtools"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
@@ -34,7 +35,7 @@ Workflow: screen_create -> app_launch -> screenshot / click / type / key / scrol
 Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
-Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then the agent-chrome MCP tools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
+Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then snapshot / act / find; devtools_eval, devtools_console, devtools_trace and devtools_heap read page internals of any screen launched with DevTools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
 The human's own windows: desktop_windows, desktop_focus, desktop_move, desktop_type, desktop_key. They are not silent (each key briefly takes the human's focus) and refuse while the session is locked; prefer an agent screen whenever the task allows it.`
 
 // Server holds the per-session state.
@@ -44,6 +45,8 @@ type Server struct {
 	ctx *screen.Ctx
 	// tables holds one ref table per screen instance (tableKey), guarded by mu.
 	tables map[string]*perceive.Table
+	// devtools holds one DevTools session per screen instance (tableKey), guarded by mu.
+	devtools map[string]*devtools.Session
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -442,6 +445,7 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 	}
 	screen.CloseConn(rec.Name)
 	s.dropTable(rec)
+	s.dropDevtools(rec)
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}
@@ -518,6 +522,7 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 			return nil, err
 		}
 		out["debug_port"] = port
+		s.startDevtools(rec)
 	}
 	if clErr != nil || wait <= 0 {
 		if clErr != nil {

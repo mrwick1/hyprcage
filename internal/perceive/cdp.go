@@ -6,16 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/coder/websocket"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hexadecimil/hyprcage/internal/cdp"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
@@ -29,97 +27,14 @@ type caller interface {
 	Call(ctx context.Context, sessionID, method string, params any) (json.RawMessage, error)
 }
 
-// wsCaller sends the commands of every flattened session over the browser
-// websocket and matches the responses by id.
-type wsCaller struct {
-	conn    *websocket.Conn
-	mu      sync.Mutex
-	next    int64
-	pending map[int64]chan wsReply
-	done    chan struct{}
-	err     error // set before done closes
-}
-
-type wsReply struct {
-	ID     int64           `json:"id"`
-	Result json.RawMessage `json:"result"`
-	Error  *cdpError       `json:"error"`
-}
-
 // cdpError is an "error" reply: the browser answered, the command failed.
 // For DOM calls it means the node has no layout or is gone.
-type cdpError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-func (e *cdpError) Error() string { return fmt.Sprintf("cdp error %d: %s", e.Code, e.Message) }
+type cdpError = cdp.Error
 
 // isProto reports whether err is a CDP error reply, not a transport failure.
 func isProto(err error) bool {
 	var ce *cdpError
 	return errors.As(err, &ce)
-}
-
-func (w *wsCaller) readLoop() {
-	for {
-		_, data, err := w.conn.Read(context.Background())
-		if err != nil {
-			w.err = err
-			close(w.done)
-			return
-		}
-		var r wsReply
-		if json.Unmarshal(data, &r) != nil || r.ID == 0 {
-			continue // an event
-		}
-		w.mu.Lock()
-		ch := w.pending[r.ID]
-		delete(w.pending, r.ID)
-		w.mu.Unlock()
-		if ch != nil {
-			ch <- r
-		}
-	}
-}
-
-func (w *wsCaller) Call(ctx context.Context, sessionID, method string, params any) (json.RawMessage, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	ch := make(chan wsReply, 1)
-	w.mu.Lock()
-	w.next++
-	id := w.next
-	w.pending[id] = ch
-	w.mu.Unlock()
-	defer func() {
-		w.mu.Lock()
-		delete(w.pending, id)
-		w.mu.Unlock()
-	}()
-	msg, err := json.Marshal(struct {
-		ID        int64  `json:"id"`
-		Method    string `json:"method"`
-		Params    any    `json:"params,omitempty"`
-		SessionID string `json:"sessionId,omitempty"`
-	}{id, method, params, sessionID})
-	if err != nil {
-		return nil, err
-	}
-	if err := w.conn.Write(ctx, websocket.MessageText, msg); err != nil {
-		return nil, err
-	}
-	select {
-	case r := <-ch:
-		if r.Error != nil {
-			return nil, fmt.Errorf("%s: %w", method, r.Error)
-		}
-		return r.Result, nil
-	case <-w.done:
-		return nil, w.err
-	case <-ctx.Done():
-		return nil, fmt.Errorf("%s: %w", method, ctx.Err())
-	}
 }
 
 type cdpSession struct {
@@ -146,29 +61,12 @@ var errNoOwner = &cdpError{Message: "no attached session owns the frame"}
 
 // NewCDP dials the browser websocket that /json/version names on port.
 func NewCDP(ctx context.Context, port int) (Source, error) {
-	hc := http.Client{Timeout: 5 * time.Second}
-	resp, err := hc.Get(fmt.Sprintf("http://127.0.0.1:%d/json/version", port))
+	c, err := cdp.Dial(ctx, port, nil)
 	if err != nil {
-		return nil, screen.Errf(screen.CodeCDP, cdpHint, "no DevTools answer on 127.0.0.1:%d: %v", port, err)
+		return nil, screen.Errf(screen.CodeCDP, cdpHint, "%v", err)
 	}
-	defer resp.Body.Close()
-	var v struct {
-		URL string `json:"webSocketDebuggerUrl"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil || v.URL == "" {
-		return nil, screen.Errf(screen.CodeCDP, cdpHint, "no webSocketDebuggerUrl on 127.0.0.1:%d", port)
-	}
-	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	conn, _, err := websocket.Dial(dctx, v.URL, nil)
-	if err != nil {
-		return nil, screen.Errf(screen.CodeCDP, cdpHint, "dial %s: %v", v.URL, err)
-	}
-	conn.SetReadLimit(-1) // a full AX tree is megabytes
-	w := &wsCaller{conn: conn, pending: map[int64]chan wsReply{}, done: make(chan struct{})}
-	go w.readLoop()
-	s := newCDPWith(w, cdpTargetTypes).(*cdpSource)
-	s.closer = conn.CloseNow
+	s := newCDPWith(c, cdpTargetTypes).(*cdpSource)
+	s.closer = c.Close
 	return s, nil
 }
 

@@ -43,7 +43,7 @@ row() {
 launch_code() {
   $HC launch -debug "$1" -- code --user-data-dir="$tmp/code" --extensions-dir="$tmp/code-ext" >/dev/null
 }
-# A per-screen DevTools port: `hyprcage browser` uses the fixed browser.port.
+# The same launch path as the other rows; `hyprcage browser` also gets a per-screen port.
 launch_chrome() {
   $HC launch -debug "$1" -- ${CHROME:-google-chrome-stable} --ozone-platform=wayland \
     --user-data-dir="$tmp/chrome" --no-first-run --no-default-browser-check https://example.org >/dev/null

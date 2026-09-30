@@ -50,7 +50,7 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open",
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
 		"snapshot", "act", "find"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
@@ -114,21 +114,6 @@ func TestInvalidArgumentsAreRejected(t *testing.T) {
 	}
 }
 
-func TestBrowserOpenNamesConfiguredPort(t *testing.T) {
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
-	cfg := config.Default()
-	cfg.BrowserPort = 9333
-	res, err := connectCfg(t, cfg).ListTools(context.Background(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tl := range res.Tools {
-		if tl.Name == "browser_open" && !strings.Contains(tl.Description, "127.0.0.1:9333") {
-			t.Errorf("browser_open description: %q", tl.Description)
-		}
-	}
-}
-
 func TestPerceiveToolsListed(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	res, err := connect(t).ListTools(context.Background(), nil)
@@ -139,7 +124,7 @@ func TestPerceiveToolsListed(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = true
 	}
-	for _, name := range []string{"snapshot", "act", "find"} {
+	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap"} {
 		if !got[name] {
 			t.Errorf("tool %s missing", name)
 		}

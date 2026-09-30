@@ -1,11 +1,10 @@
 // Package browser runs the agent's Chrome on a screen with the DevTools
-// protocol on 127.0.0.1, for chrome-devtools-mcp --browserUrl to drive.
+// protocol on 127.0.0.1, for snapshot, act and the devtools_* tools.
 package browser
 
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -94,21 +93,6 @@ func CheckURL(raw string) error {
 
 var allowedSchemes = map[string]bool{"http": true, "https": true, "file": true, "data": true, "about": true}
 
-// portFree reports whether nothing holds port on 127.0.0.1.
-func portFree(port int) bool {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	if conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond); err == nil {
-		conn.Close()
-		return false
-	}
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	ln.Close()
-	return true
-}
-
 // listenerCmdline returns the argv, joined by spaces, of the process that
 // listens on 127.0.0.1:port, "" when none does, and "?" when its owner is
 // not visible to this user.
@@ -151,18 +135,20 @@ func gone(port int, timeout time.Duration) {
 	time.Sleep(500 * time.Millisecond)
 }
 
-// Open starts the agent Chrome on rec. A port in use means some other
-// program is there, the human's Chrome for instance: it is refused, never
-// shared.
+// Open starts the agent Chrome on rec, with DevTools on a free port of its
+// own. A fixed port would reach whatever Chrome already holds it, the
+// human's logged-in one for instance. A screen runs one DevTools app.
 func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 	if err := CheckURL(url); err != nil {
 		return Info{}, err
 	}
-	port := c.Cfg.BrowserPort
-	if !portFree(port) {
-		return Info{}, screen.Errf(screen.CodeBrowserBusy,
-			fmt.Sprintf("port %d is in use; close whatever holds it or set browser.port", port),
-			"something already listens on 127.0.0.1:%d", port)
+	if rec.DebugPort != 0 && screen.OwnsPort(rec) {
+		return Info{}, screen.Errf(screen.CodeBrowserBusy, "reuse it, or open the browser on another screen",
+			"screen %s already runs an app with DevTools on 127.0.0.1:%d", rec.Name, rec.DebugPort)
+	}
+	port, err := screen.FreePort()
+	if err != nil {
+		return Info{}, err
 	}
 	bin, err := Find(c.Cfg.BrowserCommand, exec.LookPath)
 	if err != nil {

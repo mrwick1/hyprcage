@@ -48,7 +48,6 @@ fps = 10              # frames per second of a recording
 
 [browser]
 command = ""          # Chrome binary for browser_open, empty to look one up on PATH
-port = 9222           # DevTools port of the agent's Chrome, always on 127.0.0.1
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and

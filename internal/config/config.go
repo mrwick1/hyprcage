@@ -54,7 +54,6 @@ type Config struct {
 	RecordMax      time.Duration // a recording stops by itself after this long
 	RecordFPS      int           // frames per second of a recording
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
-	BrowserPort    int           // DevTools port of the agent's Chrome, on 127.0.0.1
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -88,10 +87,9 @@ func Default() Config {
 		ShotMaxBytes:    1 << 20,
 		StableThreshold: 0.02,
 
-		RecordDir:   "~/Videos/agent",
-		RecordMax:   30 * time.Minute,
-		RecordFPS:   10,
-		BrowserPort: 9222,
+		RecordDir: "~/Videos/agent",
+		RecordMax: 30 * time.Minute,
+		RecordFPS: 10,
 	}
 }
 
@@ -180,7 +178,7 @@ type file struct {
 	} `toml:"record"`
 	Browser struct {
 		Command *string `toml:"command"`
-		Port    *int    `toml:"port"`
+		Port    *int    `toml:"port"` // ignored: each screen picks a free port; kept so older files load
 	} `toml:"browser"`
 }
 
@@ -249,7 +247,6 @@ func Apply(cfg *Config, text string) error {
 	if f.Browser.Command != nil {
 		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
 	}
-	setInt(&cfg.BrowserPort, f.Browser.Port)
 	return cfg.Validate()
 }
 
@@ -285,8 +282,6 @@ func (c Config) Validate() error {
 		return fmt.Errorf("record.fps: %d is not between 1 and 60", c.RecordFPS)
 	case c.RecordMax < time.Second:
 		return fmt.Errorf("record.max: %s is below 1s", c.RecordMax)
-	case c.BrowserPort < 1024 || c.BrowserPort > 65535:
-		return fmt.Errorf("browser.port: %d is not between 1024 and 65535", c.BrowserPort)
 	}
 	switch c.Renderer {
 	case "auto", "gles", "pixman":
