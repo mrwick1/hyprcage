@@ -75,18 +75,19 @@ func codeOf(err error) screen.Code {
 	return ""
 }
 
-func TestOpenBusyPort(t *testing.T) {
+func TestOpenIgnoresAPortItDoesNotOwn(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ln.Close()
 	cfg := config.Fallback()
-	cfg.BrowserPort = ln.Addr().(*net.TCPAddr).Port
 	cfg.BrowserCommand = "hc-no-such-browser" // reaching Find gives browser_not_running
-	_, err = Open(&screen.Ctx{Cfg: cfg}, &registry.Screen{Name: "hc-test"}, "")
-	if codeOf(err) != screen.CodeBrowserBusy {
-		t.Fatalf("plain TCP listener: want browser_running, got %v", err)
+	// A recorded port that a stranger holds is not the screen's app: Open picks a new port.
+	rec := &registry.Screen{Name: "hc-test", DebugPort: ln.Addr().(*net.TCPAddr).Port}
+	_, err = Open(&screen.Ctx{Cfg: cfg}, rec, "")
+	if codeOf(err) != screen.CodeBrowserDown {
+		t.Fatalf("want browser_not_running, got %v", err)
 	}
 }
 

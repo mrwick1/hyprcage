@@ -31,12 +31,13 @@ These files are optional. Each machine links them in from its own configuration.
 
 ## Chrome control
 
-Register the Chrome DevTools MCP once per machine:
+Nothing to register. `browser_open` starts Chrome on a screen with DevTools on a
+free 127.0.0.1 port of its own. `snapshot`, `act` and `find` drive the page. The
+`devtools_eval`, `devtools_console`, `devtools_trace` and `devtools_heap` tools
+read its internals. They also work on any app launched with `debug=true`.
 
-```sh
-claude mcp add --scope user agent-chrome -- npx -y chrome-devtools-mcp@latest --browserUrl http://127.0.0.1:9222
-```
+Every devtools tool checks that the port is still held by the process that opened
+it, so the tools never reach the human's own Chrome.
 
-The port in `--browserUrl` must be the `browser.port` of the hyprcage config
-(default 9222). When you change `browser.port`, register agent-chrome again
-with the new port.
+The `browser.port` config key is ignored. Older config files that still set it
+load without an error.
