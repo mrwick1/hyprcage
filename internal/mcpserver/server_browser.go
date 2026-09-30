@@ -37,6 +37,19 @@ type traceIn struct {
 	Path   string `json:"path,omitempty" jsonschema:"stop only: where to write the trace, default ~/.cache/hyprcage/devtools/"`
 }
 
+type emulateIn struct {
+	Screen    string  `json:"screen,omitempty"`
+	Width     int     `json:"width,omitempty" jsonschema:"viewport width in CSS pixels, with height"`
+	Height    int     `json:"height,omitempty" jsonschema:"viewport height in CSS pixels, with width"`
+	Scale     float64 `json:"scale,omitempty" jsonschema:"device pixel ratio, e.g. 3 for a phone"`
+	Mobile    bool    `json:"mobile,omitempty" jsonschema:"mobile layout: meta viewport, overlay scrollbars"`
+	Touch     bool    `json:"touch,omitempty" jsonschema:"touch events and pointer: coarse"`
+	UserAgent string  `json:"user_agent,omitempty"`
+	Network   string  `json:"network,omitempty" jsonschema:"offline, slow-3g, fast-3g, slow-4g or fast-4g (DevTools presets)"`
+	CPU       float64 `json:"cpu,omitempty" jsonschema:"CPU slowdown factor, e.g. 4"`
+	Color     string  `json:"color_scheme,omitempty" jsonschema:"prefers-color-scheme: dark or light"`
+}
+
 type heapIn struct {
 	Screen string `json:"screen,omitempty"`
 	Page   string `json:"page,omitempty" jsonschema:"part of the page URL, when more than one page is open"`
@@ -50,6 +63,22 @@ func (s *Server) registerBrowser(srv *mcp.Server) {
 	tool(s, srv, "devtools_console", "Read the console of a screen opened with browser_open or app_launch debug=true: console calls, uncaught exceptions and browser errors such as failed requests, oldest first.", s.devtoolsConsole)
 	tool(s, srv, "devtools_trace", "Record a performance trace of a screen's browser: action start, do the work, then action stop. Stop writes a file that the DevTools Performance panel loads.", s.devtoolsTrace)
 	tool(s, srv, "devtools_heap", "Take a heap snapshot of a page and write it to a file that the DevTools Memory panel loads. Compare two snapshots there to find a leak.", s.devtoolsHeap)
+	tool(s, srv, "devtools_emulate", "Make every page of a screen's browser, and each page it opens later, pretend to be a device: viewport, pixel ratio, mobile, touch, user agent, network and CPU throttling, color scheme. Each call replaces the whole emulation; a call with no fields returns to the plain desktop browser. Reload the page after changing user_agent or mobile.", s.devtoolsEmulate)
+}
+
+func (s *Server) devtoolsEmulate(in emulateIn) (*mcp.CallToolResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	rec, d, err := s.devtoolsScreen(ctx, in.Screen)
+	if err != nil {
+		return nil, err
+	}
+	e := devtools.Emulation{Width: in.Width, Height: in.Height, Scale: in.Scale, Mobile: in.Mobile, Touch: in.Touch,
+		UserAgent: in.UserAgent, Network: in.Network, CPU: in.CPU, Color: in.Color}
+	if err := d.Emulate(ctx, e); err != nil {
+		return nil, err
+	}
+	return textResult(map[string]any{"screen": rec.Name, "emulation": e}), nil
 }
 
 func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
