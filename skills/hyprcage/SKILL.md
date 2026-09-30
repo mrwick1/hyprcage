@@ -13,11 +13,11 @@ workspaces (6–9 by default), and are never interrupted.
 
 ## When
 
-| Situation                                               | hyprcage?                  |
-| ------------------------------------------------------- | -------------------------- |
-| You launch an app to test, measure, capture or drive it | **yes**                    |
-| The human says "open X", "show me X"                    | **no**, launch it normally |
-| Unsure                                                  | ask in one line            |
+| Situation | hyprcage? |
+|---|---|
+| You launch an app to test, measure, capture or drive it | **yes** |
+| The human says "open X", "show me X" | **no**, launch it normally |
+| Unsure | ask in one line |
 
 ## First use on a machine
 
