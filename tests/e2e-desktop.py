@@ -226,9 +226,6 @@ def child():
         else:
             raise SystemExit("swaync did not take org.freedesktop.Notifications")
         procs.append(subprocess.Popen([HC, "notifyd"], env=env, stdout=subprocess.DEVNULL, stderr=open(f"{tmp}/notifyd.log", "w")))
-        # notifyd creates the file on its first event only, and the notify_*
-        # tools refuse with notifyd_down while it is missing.
-        open(notify_file, "a").close()
         # at-spi-bus-launcher starts the a11y bus of the isolated session on
         # the first GetAddress. Its registry needs systemd activation, which
         # the isolated bus does not have, so the script starts it itself.
@@ -306,24 +303,21 @@ def child():
             text = ok(mcp.call("find", screen="desktop", window=w, text="^Help$", timeout_ms=15000), "find Help")
             h = [n for n in nodes(text) if n[2] == "Help"]
             need(h, f"no Help node: {text[:200]}")
+            cur = nested_cursor()
             r = ok(mcp.call("act", screen="desktop", window=w, ref=h[0][0], op="click"), "act click Help")
             p1 = r.splitlines()[0]
             text = ok(mcp.call("find", screen="desktop", window=w, text="^About", timeout_ms=5000), "find About")
             a = [n for n in nodes(text) if n[2].startswith("About")]
-            problem = ""
             if not a:
-                # The act did not open the menu. Record it, then open the menu
-                # with a pointer click to check the rest of the path.
-                problem = f"act click Help gave {r[:60]!r} and no About item; "
-                ok(mcp.call("click", screen="desktop", window=w, x=h[0][3], y=h[0][4]), "pointer click Help")
-                text = ok(mcp.call("find", screen="desktop", window=w, text="^About", timeout_ms=5000), "find About")
-                a = [n for n in nodes(text) if n[2].startswith("About")]
-                if not a:
-                    ok(mcp.call("desktop_key", address=w, keys=["Escape"]), "desktop_key Escape")
-                    raise Fail(problem + "no About item after a pointer click on Help either")
+                ok(mcp.call("desktop_key", address=w, keys=["Escape"]), "desktop_key Escape")
+            # A menu bar title opens by the pointer, which restores the cursor.
+            need(p1 == "path=pointer", f"act click Help: first line {p1}")
+            need(nested_cursor() == cur, f"nested cursor not restored: {cur} -> {nested_cursor()}")
+            need(a, f"act click Help gave {r[:60]!r} and no About item")
             before = {c["address"] for c in json.loads(nested("clients", "-j"))}
             r = ok(mcp.call("act", screen="desktop", window=w, ref=a[0][0], op="click"), "act click About")
             p2 = r.splitlines()[0]
+            need(p2 == "path=atspi", f"act click About: first line {p2}")
             dialog = None
             for _ in range(40):
                 new = [c for c in json.loads(nested("clients", "-j")) if c["address"] not in before]
@@ -338,9 +332,7 @@ def child():
                     break
                 time.sleep(0.25)
             need(not client(dialog["address"]), f"dialog {dialog['title']!r} is still open after Escape")
-            summary = f"About {p2}, dialog {dialog['title']!r} opened and closed with Escape"
-            need(not problem, problem + "after a pointer click on Help: " + summary)
-            return f"Help {p1}, " + summary
+            return f"Help {p1}, About {p2}, dialog {dialog['title']!r} opened and closed with Escape"
 
         def f_ocr():
             t = state["thunar"]
