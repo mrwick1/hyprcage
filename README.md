@@ -18,8 +18,8 @@ any other MCP client.
 **Claude Code**
 
 ```
-/plugin marketplace add hexadecimil/hyprcage
-/plugin install hyprcage@hyprcage
+/plugin marketplace add mrwick1/hyprcage
+/plugin install hyprcage@hyprcage-mrwick1
 ```
 
 The plugin fetches its binary on first start. If cage is missing, the agent

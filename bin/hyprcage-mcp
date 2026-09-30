@@ -14,7 +14,8 @@ find_bin() {
 # A release tag older than the one the plugin pins.
 outdated() {
   local have; have=$("$1" version 2>/dev/null | head -1) || return 1
-  case "$have" in v[0-9]*) ;; *) return 1 ;; esac
+  # A build from a checkout (git describe: vX.Y.Z-N-gHASH) is left alone.
+  case "$have" in *-g[0-9a-f]*) return 1 ;; v[0-9]*) ;; *) return 1 ;; esac
   [ "$have" != "$want" ] && [ "$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -1)" = "$have" ]
 }
 bin=$(find_bin || true)

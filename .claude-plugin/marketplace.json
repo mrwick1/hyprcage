@@ -1,11 +1,14 @@
 {
-  "name": "hyprcage",
-  "owner": { "name": "hexadecimil", "url": "https://github.com/hexadecimil/hyprcage" },
+  "name": "hyprcage-mrwick1",
+  "owner": {
+    "name": "mrwick1",
+    "url": "https://github.com/mrwick1/hyprcage"
+  },
   "plugins": [
     {
       "name": "hyprcage",
       "source": "./",
-      "description": "A caged desktop for AI agents on Hyprland: screen_create, app_launch, screenshot, click, type, key and screen_destroy on a virtual screen the human never sees moving."
+      "description": "A caged desktop for AI agents on Hyprland: hidden screens the agent drives by text refs (snapshot, act, find over CDP, AT-SPI or OCR), plus recording, clipboard and the human's windows."
     }
   ]
 }
