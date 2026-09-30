@@ -35,9 +35,24 @@ func Encoder(encodersOutput string) string {
 // stdin and writes out. The scale filter rounds the size down to even
 // numbers, which yuv420p needs.
 func FFmpegArgs(w, h, fps int, encoder, out string) []string {
-	return []string{"ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+	args := []string{"ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
 		"-f", "rawvideo", "-pix_fmt", "rgba", "-s", fmt.Sprintf("%dx%d", w, h), "-framerate", strconv.Itoa(fps), "-i", "-",
-		"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", encoder, "-pix_fmt", "yuv420p", out}
+		"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", encoder}
+	args = append(args, quality(encoder)...)
+	return append(args, "-pix_fmt", "yuv420p", out)
+}
+
+// quality keeps small UI text sharp. The ffmpeg defaults (CRF 23 for x264)
+// blur it. libopenh264 and mpeg4 have no CRF, so they get a high bitrate
+// and a low quantizer.
+func quality(encoder string) []string {
+	switch encoder {
+	case "libx264":
+		return []string{"-crf", "18", "-preset", "medium", "-tune", "stillimage"}
+	case "libopenh264":
+		return []string{"-b:v", "6M"}
+	}
+	return []string{"-q:v", "2"}
 }
 
 // Loop writes first, then one capture per frame period, to w until ctx
