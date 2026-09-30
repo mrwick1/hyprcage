@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
@@ -107,7 +108,11 @@ func runRecordChild(e *Env) int {
 	cfg := config.Fallback()
 	var display string
 	if target == record.Desktop {
-		inst, err := hypr.Discover()
+		found, err := hypr.Discover()
+		if err != nil {
+			return e.fail(err)
+		}
+		inst, err := desktop.Instance(found)
 		if err != nil {
 			return e.fail(err)
 		}
