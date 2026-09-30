@@ -43,6 +43,10 @@ func TestFFmpegArgs(t *testing.T) {
 			t.Errorf("argv lacks %q: %s", want, a)
 		}
 	}
+	x := strings.Join(FFmpegArgs(1920, 1080, 30, "libx264", "/tmp/o.mp4"), " ")
+	if !strings.Contains(x, "-c:v libx264 -crf 18 -preset medium -tune stillimage -pix_fmt yuv420p /tmp/o.mp4") {
+		t.Errorf("libx264 argv lacks the quality options: %s", x)
+	}
 }
 
 func TestLoopKeepsRealTime(t *testing.T) {

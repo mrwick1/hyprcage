@@ -44,7 +44,7 @@ render_device = ""    # DRM node cage renders on, empty to follow your composito
 [record]
 dir = "~/Videos/agent" # recordings of screens and of the desktop go here
 max = "30m"           # a recording stops by itself after this long
-fps = 10              # frames per second of a recording
+fps = 30              # frames per second of a recording
 
 [browser]
 command = ""          # Chrome binary for browser_open, empty to look one up on PATH

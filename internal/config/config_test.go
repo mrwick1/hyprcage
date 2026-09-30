@@ -138,7 +138,7 @@ func TestWriteDefault(t *testing.T) {
 
 func TestRecordAndBrowserKeys(t *testing.T) {
 	cfg := Default()
-	if cfg.RecordDir != "~/Videos/agent" || cfg.RecordMax != 30*time.Minute || cfg.RecordFPS != 10 {
+	if cfg.RecordDir != "~/Videos/agent" || cfg.RecordMax != 30*time.Minute || cfg.RecordFPS != 30 {
 		t.Fatalf("defaults: %+v", cfg)
 	}
 	err := Apply(&cfg, "[record]\ndir = \"/tmp/rec\"\nmax = \"5m\"\nfps = 5\n[browser]\ncommand = \"chromium\"\nport = 9333\n")

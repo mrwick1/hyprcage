@@ -89,7 +89,7 @@ func Default() Config {
 
 		RecordDir: "~/Videos/agent",
 		RecordMax: 30 * time.Minute,
-		RecordFPS: 10,
+		RecordFPS: 30,
 	}
 }
 
