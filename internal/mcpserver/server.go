@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/devtools"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
@@ -403,6 +404,9 @@ func (s *Server) register(srv *mcp.Server) {
 // --- handlers ---------------------------------------------------------------
 
 func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
+	if desktop.IsDesktop(in.Name) {
+		return nil, screen.Errf(screen.CodeInvalidName, "choose another name", "%q is reserved for the human's desktop", in.Name)
+	}
 	c, err := s.hypr()
 	if err != nil {
 		return nil, err
@@ -550,6 +554,9 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) appClose(in closeIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "app_close has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	_, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -566,6 +573,9 @@ func (s *Server) appClose(in closeIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) mirror(in mirrorIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "mirror has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
 		return nil, err
@@ -593,6 +603,9 @@ func (s *Server) mirror(in mirrorIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) windows(in screenIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_windows"); err != nil {
+		return nil, err
+	}
 	_, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -687,6 +700,9 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_type"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -698,6 +714,9 @@ func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_key"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -709,6 +728,9 @@ func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) wait(in waitIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "wait has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	if in.Ms > 0 {
 		time.Sleep(time.Duration(in.Ms) * time.Millisecond)
 	}
@@ -749,6 +771,9 @@ func (s *Server) doWait(cl *wl.Client, stableMs int, title string, timeoutMs int
 }
 
 func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "call desktop_type and desktop_key one by one"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err

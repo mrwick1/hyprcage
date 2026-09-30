@@ -4,6 +4,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/desktop"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 type desktopIn struct {
@@ -22,12 +23,29 @@ func (s *Server) registerDesktop(srv *mcp.Server) {
 	tool(s, srv, "desktop_key", "Press key combinations in one of the human's windows without focusing it (same focus blip as desktop_type).", s.desktopKey)
 }
 
+// desktop acts on the instance that desktop.Instance names. The driver is
+// the context's own when that instance is the context's.
 func (s *Server) desktop() (desktop.Desktop, error) {
 	c, err := s.hypr()
 	if err != nil {
 		return desktop.Desktop{}, err
 	}
-	return desktop.Desktop{H: c.Hypr, D: c.Driver}, nil
+	h, err := desktop.Instance(c.Hypr)
+	if err != nil {
+		return desktop.Desktop{}, err
+	}
+	if h == nil || h == c.Hypr {
+		return desktop.Desktop{H: h, D: c.Driver}, nil
+	}
+	return desktop.Desktop{H: h, D: h.Driver()}, nil
+}
+
+// refuseDesktop refuses screen "desktop" in a tool made for agent screens.
+func refuseDesktop(name, hint string) error {
+	if desktop.IsDesktop(name) {
+		return screen.Errf(screen.CodeUnsupported, hint, "this tool acts on agent screens, not on the desktop")
+	}
+	return nil
 }
 
 func (s *Server) desktopWindows(in struct{}) (*mcp.CallToolResult, error) {

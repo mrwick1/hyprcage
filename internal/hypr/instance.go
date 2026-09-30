@@ -39,7 +39,7 @@ func Discover() (*Instance, error) {
 	base := filepath.Join(rt, "hypr")
 	if sig := os.Getenv("HYPRLAND_INSTANCE_SIGNATURE"); sig != "" {
 		inst := &Instance{Signature: sig, Dir: filepath.Join(base, sig)}
-		if inst.alive() {
+		if inst.Alive() {
 			return inst, nil
 		}
 	}
@@ -53,7 +53,7 @@ func Discover() (*Instance, error) {
 			continue
 		}
 		inst := &Instance{Signature: e.Name(), Dir: filepath.Join(base, e.Name())}
-		if inst.alive() {
+		if inst.Alive() {
 			candidates = append(candidates, inst)
 		}
 	}
@@ -78,8 +78,8 @@ func (i *Instance) socket(name string) string {
 	return filepath.Join(i.Dir, name)
 }
 
-// alive reports whether the instance answers on its command socket.
-func (i *Instance) alive() bool {
+// Alive reports whether the instance answers on its command socket.
+func (i *Instance) Alive() bool {
 	if _, err := os.Stat(i.socket(".socket.sock")); err != nil {
 		return false
 	}

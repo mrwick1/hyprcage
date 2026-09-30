@@ -22,7 +22,7 @@ import (
 )
 
 // Desktop is the target name of the human's own screen.
-const Desktop = "desktop"
+const Desktop = desktop.Name
 
 // lockedFn reports whether the human's session is locked.
 var lockedFn = func() bool { return desktop.Locked("/proc") }

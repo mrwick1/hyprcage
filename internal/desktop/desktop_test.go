@@ -2,6 +2,8 @@ package desktop
 
 import (
 	"errors"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -130,5 +132,60 @@ func TestPartialTypeCountsKeys(t *testing.T) {
 	wantCode(t, "type", err, screen.CodeHyprland)
 	if err == nil || !strings.Contains(err.Error(), "0 of 2 keys sent") {
 		t.Errorf("type: %v, want the sent count", err)
+	}
+}
+
+// fakeInstance serves a Hyprland command socket that answers every request,
+// under $XDG_RUNTIME_DIR/hypr/<sig>.
+func fakeInstance(t *testing.T, sig string) {
+	t.Helper()
+	dir := filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", sig)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 256)
+			_, _ = c.Read(buf)
+			_, _ = io.WriteString(c, "Hyprland 0.0")
+			c.Close()
+		}
+	}()
+}
+
+func TestInstanceOverride(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	fakeInstance(t, "nested")
+	fallback := &hypr.Instance{Signature: "human"}
+	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "nested")
+	inst, err := Instance(fallback)
+	if err != nil || inst.Signature != "nested" || inst.Dir != filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", "nested") {
+		t.Fatalf("got %+v %v, want the nested instance", inst, err)
+	}
+	for _, bad := range []string{"../nested", "a/b", "..", "gone"} {
+		t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", bad)
+		if inst, err := Instance(fallback); err == nil {
+			t.Errorf("%q: got %+v, want an error", bad, inst)
+		}
+	}
+}
+
+func TestInstanceFallback(t *testing.T) {
+	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "")
+	fallback := &hypr.Instance{Signature: "human"}
+	if inst, err := Instance(fallback); err != nil || inst != fallback {
+		t.Fatalf("got %+v %v, want the fallback", inst, err)
+	}
+	if !IsDesktop(Name) || IsDesktop("hc-1") || IsDesktop("") {
+		t.Error("IsDesktop")
 	}
 }

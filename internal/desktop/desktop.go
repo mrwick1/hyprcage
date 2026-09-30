@@ -14,6 +14,34 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
+// Name is the screen argument that targets the human's desktop.
+const Name = "desktop"
+
+// IsDesktop reports whether a screen argument names the desktop.
+func IsDesktop(name string) bool { return name == Name }
+
+// Instance returns the desktop's Hyprland instance: HYPRCAGE_DESKTOP_INSTANCE
+// when set, otherwise fallback. It refuses a signature with a path separator
+// and an instance that does not answer.
+func Instance(fallback *hypr.Instance) (*hypr.Instance, error) {
+	sig := os.Getenv("HYPRCAGE_DESKTOP_INSTANCE")
+	if sig == "" {
+		return fallback, nil
+	}
+	if strings.Contains(sig, "/") || strings.Contains(sig, "..") {
+		return nil, screen.Errf(screen.CodeInvalidName, "give a signature from $XDG_RUNTIME_DIR/hypr", "HYPRCAGE_DESKTOP_INSTANCE=%q is not a signature", sig)
+	}
+	rt, err := hypr.RuntimeDir()
+	if err != nil {
+		return nil, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	inst := &hypr.Instance{Signature: sig, Dir: filepath.Join(rt, "hypr", sig)}
+	if !inst.Alive() {
+		return nil, screen.Errf(screen.CodeHyprland, "", "HYPRCAGE_DESKTOP_INSTANCE=%s does not answer", sig)
+	}
+	return inst, nil
+}
+
 // Locked reports whether hyprlock runs, by the comm of every process under
 // procRoot ("/proc" outside tests).
 func Locked(procRoot string) bool {

@@ -200,3 +200,43 @@ func TestFindInvalidRegexp(t *testing.T) {
 		t.Errorf("isError=%v text=%q", res.IsError, text(res))
 	}
 }
+
+func TestDesktopRefusedByScreenTools(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	cs := connect(t)
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+		hint string
+	}{
+		{"key", map[string]any{"keys": []string{"Return"}}, "desktop_key"},
+		{"type", map[string]any{"text": "a"}, "desktop_type"},
+		{"windows", nil, "desktop_windows"},
+		{"wait", map[string]any{"ms": 1}, "no desktop"},
+		{"batch", map[string]any{"actions": []any{}}, "desktop_"},
+		{"app_close", map[string]any{"toplevel": 1}, "no desktop"},
+		{"clipboard_get", nil, "no desktop"},
+		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
+		{"mirror", nil, "no desktop"},
+		{"screen_create", nil, "reserved"},
+	} {
+		args := map[string]any{"screen": "desktop"}
+		if c.tool == "screen_create" {
+			args = map[string]any{"name": "desktop"}
+		}
+		for k, v := range c.args {
+			args[k] = v
+		}
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.tool, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", c.tool, err)
+		}
+		got := text(res)
+		if !res.IsError || !strings.Contains(got, c.hint) {
+			t.Errorf("%s: isError=%v text=%q, want %q", c.tool, res.IsError, got, c.hint)
+		}
+		if c.tool != "screen_create" && !strings.Contains(got, "unsupported_input") {
+			t.Errorf("%s: %q, want unsupported_input", c.tool, got)
+		}
+	}
+}

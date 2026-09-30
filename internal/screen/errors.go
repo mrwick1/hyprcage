@@ -30,6 +30,9 @@ const (
 	CodeRefOffscreen Code = "ref_offscreen"
 	CodeRefOccluded  Code = "ref_occluded" // another element covers the node
 	CodeCDP          Code = "cdp_unreachable"
+	CodeWindowHidden Code = "window_hidden" // pointer input on a window of a hidden workspace
+	CodeNoAction     Code = "no_action"
+	CodeNotifydDown  Code = "notifyd_down"
 )
 
 // Error carries a code, a message and a hint for the caller.
