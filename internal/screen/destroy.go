@@ -30,6 +30,7 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 
 	CloseConn(rec.Name)
 	StopMirror(rec.Name)
+	killDebug(rec) // before cage: Chromium left the slice and survives it
 	if sysd.Available() {
 		sysd.StopScreen(rec.Name) // applications, mirror, cage, slice, reset-failed
 		sysd.DisarmTimer(sysd.GCTimerName(rec.Name))
@@ -63,7 +64,7 @@ func Alive(rec *registry.Screen) bool {
 func waitNoProcesses(name string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for {
-		if len(screenProcesses(name)) == 0 {
+		if len(ScreenProcesses(name)) == 0 {
 			return true
 		}
 		if time.Now().After(deadline) {

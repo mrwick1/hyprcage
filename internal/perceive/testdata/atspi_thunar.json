@@ -1,0 +1,4005 @@
+[
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/root",
+  "role": "application",
+  "name": "thunar",
+  "states": [],
+  "extents": [
+   -1,
+   -1,
+   -1,
+   -1
+  ],
+  "parent": "",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/89",
+  "role": "frame",
+  "name": "tmp - Thunar",
+  "states": [
+   "active",
+   "enabled",
+   "resizable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   0,
+   1280,
+   800
+  ],
+  "parent": "/org/a11y/atspi/accessible/root",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/1",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   0,
+   1280,
+   800
+  ],
+  "parent": "/org/a11y/atspi/accessible/89",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/2",
+  "role": "tool bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   27,
+   1280,
+   42
+  ],
+  "parent": "/org/a11y/atspi/accessible/1",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/5",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/88",
+  "role": "toggle button",
+  "name": "Menu",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/5",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/6",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "has-tooltip",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   4,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/92",
+  "role": "button",
+  "name": "Back",
+  "states": [
+   "focusable",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   4,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/6",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/7",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "has-tooltip",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   41,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/83",
+  "role": "button",
+  "name": "Forward",
+  "states": [
+   "focusable",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   41,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/7",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/8",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   78,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/76",
+  "role": "button",
+  "name": "Open Parent",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   78,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/8",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/9",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   115,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/95",
+  "role": "button",
+  "name": "Home",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   115,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/9",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/10",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/91",
+  "role": "button",
+  "name": "New Tab",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/10",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/11",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/82",
+  "role": "button",
+  "name": "New Window",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/11",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/12",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/84",
+  "role": "toggle button",
+  "name": "Split View",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/12",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/13",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "has-tooltip"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/78",
+  "role": "button",
+  "name": "Undo",
+  "states": [
+   "focusable",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/13",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/14",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "has-tooltip"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/79",
+  "role": "button",
+  "name": "Redo",
+  "states": [
+   "focusable",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/14",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/15",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/96",
+  "role": "button",
+  "name": "Zoom Out",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/15",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/16",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/90",
+  "role": "button",
+  "name": "Zoom In",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/16",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/17",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/80",
+  "role": "button",
+  "name": "Normal Size",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/17",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/18",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/35",
+  "role": "radio button",
+  "name": "",
+  "states": [
+   "checked",
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/18",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/19",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/36",
+  "role": "radio button",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/19",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/20",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/37",
+  "role": "radio button",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/20",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/21",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/38",
+  "role": "toggle button",
+  "name": "Menu",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/21",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/44",
+  "role": "menu item",
+  "name": "Icon View",
+  "states": [
+   "has-tooltip",
+   "selectable",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/38",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/46",
+  "role": "menu item",
+  "name": "List View",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "selectable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/38",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/47",
+  "role": "menu item",
+  "name": "Compact View",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "selectable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/38",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/22",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   31,
+   1088,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/39",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   157,
+   31,
+   1078,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/22",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/48",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   157,
+   31,
+   1078,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/39",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/87",
+  "role": "text",
+  "name": "",
+  "states": [
+   "editable",
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "visible"
+  ],
+  "extents": [
+   157,
+   31,
+   1078,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/48",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/86",
+  "role": "icon",
+  "name": "dialog-error-symbolic",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   166,
+   40,
+   16,
+   16
+  ],
+  "parent": "/org/a11y/atspi/accessible/87",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/23",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/77",
+  "role": "button",
+  "name": "Reload",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/23",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/24",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   1240,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/94",
+  "role": "toggle button",
+  "name": "Search for Files...",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   1240,
+   31,
+   37,
+   35
+  ],
+  "parent": "/org/a11y/atspi/accessible/24",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/25",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "has-tooltip",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/2",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/85",
+  "role": "button",
+  "name": "Open Terminal Here",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/25",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/3",
+  "role": "menu bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   0,
+   1280,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/1",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/26",
+  "role": "menu",
+  "name": "File",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   0,
+   42,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/27",
+  "role": "menu",
+  "name": "Edit",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   42,
+   0,
+   43,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/28",
+  "role": "menu",
+  "name": "View",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   85,
+   0,
+   50,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/29",
+  "role": "menu",
+  "name": "Go",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   135,
+   0,
+   36,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/30",
+  "role": "menu",
+  "name": "Bookmarks",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   171,
+   0,
+   95,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/31",
+  "role": "menu",
+  "name": "Help",
+  "states": [
+   "enabled",
+   "selectable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   266,
+   0,
+   49,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/32",
+  "role": "menu item",
+  "name": "",
+  "states": [
+   "selectable",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   1248,
+   0,
+   32,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/3",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/4",
+  "role": "split pane",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   69,
+   1280,
+   731
+  ],
+  "parent": "/org/a11y/atspi/accessible/1",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/33",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "vertical",
+   "visible"
+  ],
+  "extents": [
+   0,
+   69,
+   151,
+   731
+  ],
+  "parent": "/org/a11y/atspi/accessible/4",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/40",
+  "role": "scroll pane",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   0,
+   69,
+   151,
+   731
+  ],
+  "parent": "/org/a11y/atspi/accessible/33",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/49",
+  "role": "table",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "has-tooltip",
+   "sensitive",
+   "showing",
+   "visible",
+   "manages-descendants"
+  ],
+  "extents": [
+   0,
+   70,
+   151,
+   730
+  ],
+  "parent": "/org/a11y/atspi/accessible/40",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/97",
+  "role": "table column header",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/98",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   147,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/99",
+  "role": "table cell",
+  "name": "Places",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   151,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/100",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/101",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/102",
+  "role": "table cell",
+  "name": "Places",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/103",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/104",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/105",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   71,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/98",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/106",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/107",
+  "role": "table cell",
+  "name": "Computer",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/108",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/109",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   100,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/110",
+  "role": "table cell",
+  "name": "Computer",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   100,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/111",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/112",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/113",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   100,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/106",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/114",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/115",
+  "role": "table cell",
+  "name": "mrwick",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/116",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/117",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   126,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/118",
+  "role": "table cell",
+  "name": "mrwick",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   126,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/119",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/120",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/121",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   126,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/114",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/122",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/123",
+  "role": "table cell",
+  "name": "Recent",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/124",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/125",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   152,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/126",
+  "role": "table cell",
+  "name": "Recent",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   152,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/127",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/128",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/129",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   152,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/122",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/130",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/131",
+  "role": "table cell",
+  "name": "Trash",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/132",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/133",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   178,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/134",
+  "role": "table cell",
+  "name": "Trash",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   178,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/135",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/136",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/137",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   178,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/130",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/138",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/139",
+  "role": "table cell",
+  "name": "coding",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/140",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/141",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   204,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/142",
+  "role": "table cell",
+  "name": "coding",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   204,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/143",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/144",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/145",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   204,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/138",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/146",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   147,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/147",
+  "role": "table cell",
+  "name": "Devices",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   151,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/148",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/149",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/150",
+  "role": "table cell",
+  "name": "Devices",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/151",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/152",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/153",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   230,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/146",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/154",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/155",
+  "role": "table cell",
+  "name": "File System",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/156",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/157",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   259,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/158",
+  "role": "table cell",
+  "name": "File System",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   259,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/159",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/160",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/161",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   259,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/154",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/162",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   285,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/163",
+  "role": "table cell",
+  "name": "media",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   285,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/164",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   285,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/165",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   285,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/166",
+  "role": "table cell",
+  "name": "media",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   285,
+   89,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/167",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   285,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/168",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   133,
+   285,
+   20,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/169",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   285,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/162",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/170",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   147,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/171",
+  "role": "table cell",
+  "name": "Network",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   151,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/172",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/173",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/174",
+  "role": "table cell",
+  "name": "Network",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/175",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/176",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/177",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   311,
+   0,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/170",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/178",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   147,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/49",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/179",
+  "role": "table cell",
+  "name": "Browse Network",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/180",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   12,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/181",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   16,
+   340,
+   24,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/182",
+  "role": "table cell",
+  "name": "Browse Network",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   42,
+   340,
+   111,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/183",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/184",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/185",
+  "role": "table cell",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "selectable",
+   "sensitive",
+   "showing",
+   "single-line",
+   "transient",
+   "visible"
+  ],
+  "extents": [
+   2,
+   340,
+   0,
+   24
+  ],
+  "parent": "/org/a11y/atspi/accessible/178",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/50",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/40",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/51",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "vertical",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/40",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/41",
+  "role": "icon",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/33",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/34",
+  "role": "split pane",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   69,
+   1128,
+   731
+  ],
+  "parent": "/org/a11y/atspi/accessible/4",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/42",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   69,
+   1128,
+   731
+  ],
+  "parent": "/org/a11y/atspi/accessible/34",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/52",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   773,
+   1128,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/42",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/57",
+  "role": "status bar",
+  "name": "1051 folders  |  925 files: 895.6\u00a0MiB (939,075,475 bytes)  |  Free space: 4.9\u00a0GiB",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   162,
+   773,
+   1108,
+   27
+  ],
+  "parent": "/org/a11y/atspi/accessible/52",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/81",
+  "role": "info bar",
+  "name": "Information",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/42",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/58",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/81",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/63",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/58",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/66",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/63",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/67",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/63",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/72",
+  "role": "button",
+  "name": "Empty Trash",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/67",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/73",
+  "role": "button",
+  "name": "Restore Selected Items",
+  "states": [
+   "focusable",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/67",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/68",
+  "role": "button",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/63",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/53",
+  "role": "split pane",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "horizontal",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   69,
+   1128,
+   704
+  ],
+  "parent": "/org/a11y/atspi/accessible/42",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/59",
+  "role": "page tab list",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   69,
+   1128,
+   704
+  ],
+  "parent": "/org/a11y/atspi/accessible/53",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/61",
+  "role": "page tab",
+  "name": "",
+  "states": [
+   "enabled",
+   "selectable",
+   "selected",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   -1,
+   -1,
+   -1,
+   -1
+  ],
+  "parent": "/org/a11y/atspi/accessible/59",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/60",
+  "role": "directory pane",
+  "name": "Icon view",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   69,
+   1128,
+   704
+  ],
+  "parent": "/org/a11y/atspi/accessible/61",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/93",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "focused",
+   "sensitive",
+   "showing",
+   "visible"
+  ],
+  "extents": [
+   152,
+   70,
+   1128,
+   702
+  ],
+  "parent": "/org/a11y/atspi/accessible/60",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/74",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/60",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/75",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "showing",
+   "vertical",
+   "visible"
+  ],
+  "extents": [
+   1274,
+   70,
+   6,
+   702
+  ],
+  "parent": "/org/a11y/atspi/accessible/60",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/43",
+  "role": "scroll pane",
+  "name": "",
+  "states": [
+   "enabled",
+   "focusable",
+   "sensitive"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/34",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/54",
+  "role": "viewport",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/43",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/62",
+  "role": "filler",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "vertical",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/54",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/64",
+  "role": "icon",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/62",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/65",
+  "role": "panel",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/62",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/69",
+  "role": "label",
+  "name": "",
+  "states": [
+   "enabled",
+   "multi-line",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/65",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/70",
+  "role": "label",
+  "name": "Size: ",
+  "states": [
+   "enabled",
+   "multi-line",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/65",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/71",
+  "role": "label",
+  "name": "",
+  "states": [
+   "enabled",
+   "multi-line",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/65",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/55",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "horizontal",
+   "sensitive",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/43",
+  "pid": 587021
+ },
+ {
+  "bus": ":fixture.587021",
+  "path": "/org/a11y/atspi/accessible/56",
+  "role": "scroll bar",
+  "name": "",
+  "states": [
+   "enabled",
+   "sensitive",
+   "vertical",
+   "visible"
+  ],
+  "extents": [
+   -2147483648,
+   -2147483648,
+   1,
+   1
+  ],
+  "parent": "/org/a11y/atspi/accessible/43",
+  "pid": 587021
+ }
+]

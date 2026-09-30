@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/setup"
@@ -112,6 +115,24 @@ func runDoctor(e *Env) int {
 	tool("cage", "fail", "the agent's compositor; `hyprcage setup` installs it")
 	tool("ffmpeg", "warn", "recording needs it; `hyprcage setup` installs it")
 	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `hyprcage setup` installs it")
+	if err := perceive.A11yBusOK(context.Background()); err != nil {
+		add("a11y bus", "warn", "unreachable, snapshot cannot read GTK/Qt apps through AT-SPI: "+err.Error())
+	} else {
+		add("a11y bus", "ok", "org.a11y.Bus answers GetAddress")
+	}
+	recs, _ := registry.List()
+	for _, r := range recs {
+		if r.DebugPort > 0 {
+			st, d := cdpCheck(r)
+			add("cdp "+r.Name, st, d)
+		}
+	}
+	tool("tesseract", "warn", "the OCR snapshot source needs it; `hyprcage setup` installs it")
+	if _, err := os.Stat(perceive.OCRData); err != nil {
+		add("ocr data", "warn", "no "+perceive.OCRData+"; run hyprcage setup")
+	} else {
+		add("ocr data", "ok", perceive.OCRData)
+	}
 
 	if len(setup.Missing()) > 0 {
 		if _, err := exec.LookPath("pkexec"); err == nil {
@@ -138,6 +159,18 @@ func runDoctor(e *Env) int {
 		}
 	}
 	return worst
+}
+
+// cdpCheck reports whether the DevTools port of rec answers and whether
+// the process recorded as its owner still listens on it.
+func cdpCheck(rec *registry.Screen) (string, string) {
+	if err := screen.WaitDebug(rec.DebugPort, 300*time.Millisecond); err != nil {
+		return "warn", fmt.Sprintf("no answer on 127.0.0.1:%d; snapshot falls back to AT-SPI or OCR", rec.DebugPort)
+	}
+	if !screen.OwnsPort(rec) {
+		return "warn", fmt.Sprintf("127.0.0.1:%d answers but its recorded owner no longer holds it; relaunch the app with debug=true", rec.DebugPort)
+	}
+	return "ok", fmt.Sprintf("127.0.0.1:%d answers and its recorded owner holds it", rec.DebugPort)
 }
 
 func keys(m map[int]int) []int {

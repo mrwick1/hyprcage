@@ -49,3 +49,27 @@ func TestPackagesCoverTheNewTools(t *testing.T) {
 		t.Errorf("missing packages: %v", want)
 	}
 }
+
+func TestMissingFilePackage(t *testing.T) {
+	saved := Packages
+	defer func() { Packages = saved }()
+	Packages = []Package{
+		{Package: "present-file", File: "setup_test.go"},
+		{Package: "absent-file", File: "/nonexistent/hyprcage/eng.traineddata"},
+	}
+	if got := Missing(); !reflect.DeepEqual(got, []string{"absent-file"}) {
+		t.Fatalf("Missing() = %v, want [absent-file]", got)
+	}
+}
+
+func TestInstallArgvZypperNames(t *testing.T) {
+	got, _ := InstallArgv(fakeLook("zypper"), []string{"cage", "tesseract", "tesseract-data-eng"})
+	want := []string{"zypper", "--non-interactive", "install", "--no-recommends", "cage", "tesseract-ocr", "tesseract-ocr-traineddata-english"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	got, _ = InstallArgv(fakeLook("pacman"), []string{"tesseract", "tesseract-data-eng"})
+	if want := []string{"pacman", "-S", "--needed", "--noconfirm", "tesseract", "tesseract-data-eng"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

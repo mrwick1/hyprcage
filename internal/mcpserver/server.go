@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -30,6 +31,7 @@ import (
 
 const instructions = `hyprcage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
+Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
 Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then the agent-chrome MCP tools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
@@ -40,6 +42,8 @@ type Server struct {
 	cfg config.Config
 	mu  sync.Mutex // one tool at a time: the Wayland client is single-threaded
 	ctx *screen.Ctx
+	// tables holds one ref table per screen instance (tableKey), guarded by mu.
+	tables map[string]*perceive.Table
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -243,6 +247,7 @@ type launchIn struct {
 	Cwd          string            `json:"cwd,omitempty" jsonschema:"working directory"`
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
+	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
 }
 
 type closeIn struct {
@@ -370,7 +375,7 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg and wl-clipboard) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording or the clipboard fails because ffmpeg or wl-clipboard is missing, then retry.", s.setup)
+	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
 	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
@@ -389,6 +394,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "wait", "Wait for a delay, for the image to stop changing (stable_ms) or for a window title (regexp).", s.wait)
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
 	s.registerFork(srv)
+	s.registerPerceive(srv)
 }
 
 // --- handlers ---------------------------------------------------------------
@@ -435,6 +441,7 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	screen.CloseConn(rec.Name)
+	s.dropTable(rec)
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}
@@ -491,11 +498,27 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 			}
 		}
 	}
-	pid, logPath, err := screen.Launch(s.ctx, rec, in.Command, in.Cwd, in.Env)
+	command, port := in.Command, 0
+	if in.Debug {
+		if command, port, err = screen.PrepareDebug(rec, command); err != nil {
+			return nil, err
+		}
+	}
+	pid, logPath, err := screen.Launch(s.ctx, rec, command, in.Cwd, in.Env)
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]any{"pid": pid, "screen": rec.Name, "log": logPath}
+	if in.Debug {
+		if err := screen.ConfirmDebug(rec, port, 10*time.Second); err != nil {
+			// The app keeps running: the agent can still drive it.
+			if se := (*screen.Error)(nil); errors.As(err, &se) {
+				se.Msg = fmt.Sprintf("%s; the app runs as pid %d, log %s", se.Msg, pid, logPath)
+			}
+			return nil, err
+		}
+		out["debug_port"] = port
+	}
 	if clErr != nil || wait <= 0 {
 		if clErr != nil {
 			out["note"] = "launched; window tracking unavailable: " + clErr.Error()

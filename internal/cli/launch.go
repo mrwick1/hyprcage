@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -19,11 +20,12 @@ func runLaunch(e *Env) int {
 	cwd := fs.String("cwd", "", "working directory of the application")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE for the application (repeatable)")
+	debug := fs.Bool("debug", false, "Chromium or Electron app: open a DevTools port on 127.0.0.1")
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
 	if fs.NArg() < 2 {
-		return e.errorf("usage: hyprcage launch [--cwd D] [--env K=V]... <screen> -- <command...>")
+		return e.errorf("usage: hyprcage launch [--cwd D] [--env K=V]... [--debug] <screen> -- <command...>")
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -45,10 +47,22 @@ func runLaunch(e *Env) int {
 		}
 		extra[k] = v
 	}
-	pid, logPath, err := screen.Launch(c, rec, fs.Args()[1:], *cwd, extra)
+	command, port := fs.Args()[1:], 0
+	if *debug {
+		if command, port, err = screen.PrepareDebug(rec, command); err != nil {
+			return e.fail(err)
+		}
+	}
+	pid, logPath, err := screen.Launch(c, rec, command, *cwd, extra)
 	if err != nil {
 		return e.fail(err)
 	}
 	fmt.Fprintf(e.Stdout, "pid=%d\nlog=%s\n", pid, logPath)
+	if *debug {
+		if err := screen.ConfirmDebug(rec, port, 10*time.Second); err != nil {
+			return e.fail(err) // the app keeps running
+		}
+		fmt.Fprintf(e.Stdout, "debug_port=%d\n", port)
+	}
 	return ExitOK
 }

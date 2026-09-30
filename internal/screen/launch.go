@@ -38,6 +38,10 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 		"ELECTRON_OZONE_PLATFORM_HINT": "auto",
 		"SDL_VIDEODRIVER":              "wayland",
 		"HYPRCAGE_SCREEN":              rec.Name,
+		// Qt and GTK build their accessibility tree only when asked.
+		"QT_LINUX_ACCESSIBILITY_ALWAYS_ON": "1",
+		"ACCESSIBILITY_ENABLED":            "1",
+		"GNOME_ACCESSIBILITY":              "1",
 	}
 	if rec.InnerX11 != "" {
 		env["DISPLAY"] = rec.InnerX11
