@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
@@ -190,6 +191,23 @@ func TestTablePerScreenInstance(t *testing.T) {
 	}
 }
 
+func TestDesktopTablesAreSeparate(t *testing.T) {
+	s := newServer(config.Default())
+	s.tableAt(desktopKey("0xa")).Assign([]perceive.Node{{Key: "atspi:1:/b", Role: "button", Name: "Back"}})
+	if _, ok := s.tableAt(desktopKey("0xa")).Lookup("e1"); !ok {
+		t.Fatal("e1 unknown on its own table")
+	}
+	for _, tb := range []*perceive.Table{
+		s.tableAt(desktopKey("0xb")),
+		s.tableAt(desktopKey("")),
+		s.table(&registry.Screen{Name: "hc-1", CreatedAt: time.Unix(1, 0)}),
+	} {
+		if _, ok := tb.Lookup("e1"); ok {
+			t.Error("a ref from desktop:0xa resolves on another table")
+		}
+	}
+}
+
 func TestFindInvalidRegexp(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "find", Arguments: map[string]any{"text": "("}})
@@ -218,6 +236,7 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		{"clipboard_get", nil, "no desktop"},
 		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
 		{"mirror", nil, "no desktop"},
+		{"act", map[string]any{"ref": "e1", "op": "click"}, "later build"},
 		{"screen_create", nil, "reserved"},
 	} {
 		args := map[string]any{"screen": "desktop"}
