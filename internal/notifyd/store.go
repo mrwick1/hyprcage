@@ -4,7 +4,6 @@
 package notifyd
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -56,23 +55,25 @@ func Append(path string, e Entry) error {
 	return f.Close()
 }
 
+// maxLine is the longest line that Read parses.
+const maxLine = 1 << 20
+
 // Read returns the entries of the file. A line that does not parse, such
-// as the torn last line of a crashed write, is skipped.
+// as the torn last line of a crashed write, or that is longer than maxLine,
+// is skipped.
 func Read(path string) ([]Entry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	var out []Entry
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(nil, 1<<20)
-	for sc.Scan() {
+	for line := range bytes.Lines(data) {
 		var e Entry
-		if json.Unmarshal(sc.Bytes(), &e) == nil {
+		if len(line) <= maxLine && json.Unmarshal(line, &e) == nil {
 			out = append(out, e)
 		}
 	}
-	return out, sc.Err()
+	return out, nil
 }
 
 // Prune drops the entries older than Keep. It writes the rest to a

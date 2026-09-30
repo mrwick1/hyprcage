@@ -3,6 +3,7 @@ package notifyd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -81,5 +82,23 @@ func TestReadTornLine(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != 1 {
 		t.Fatalf("got %+v, want only ID 1", got)
+	}
+}
+
+func TestReadSkipsLongLine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "n.jsonl")
+	long := `{"id":9,"body":"` + strings.Repeat("x", 2<<20) + `"}` + "\n"
+	if err := os.WriteFile(path, []byte(long), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Append(path, Entry{ID: 1, Event: "notify", Time: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Read(path)
+	if err != nil || len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("got %+v %v, want only ID 1", got, err)
+	}
+	if err := Prune(path, time.Now()); err != nil {
+		t.Fatal(err)
 	}
 }
