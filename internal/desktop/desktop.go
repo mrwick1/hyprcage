@@ -185,12 +185,16 @@ func (d Desktop) Windows() ([]hypr.Client, error) {
 	}
 	out := []hypr.Client{}
 	for _, c := range all {
-		if c.Class != "hyprcage-mirror" {
+		if !own(c) {
 			out = append(out, c)
 		}
 	}
 	return out, nil
 }
+
+// own reports whether c is hyprcage's own window: a mirror. An agent
+// screen's cage runs on the headless backend and has no window here.
+func own(c hypr.Client) bool { return c.Class == "hyprcage-mirror" }
 
 // Focus gives keyboard focus to a window. This one moves the human's focus
 // on purpose.
@@ -312,7 +316,7 @@ func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int
 			continue
 		}
 		for _, c := range all {
-			if seen[c.Address] {
+			if seen[c.Address] || own(c) {
 				continue
 			}
 			if c.Workspace.ID != ws {

@@ -340,3 +340,14 @@ func TestLaunchSingleInstanceMoves(t *testing.T) {
 		t.Errorf("requests %q, want the silent move", *reqs)
 	}
 }
+
+// A mirror window that opens during the launch is hyprcage's, not the app's.
+func TestLaunchSkipsMirror(t *testing.T) {
+	d, _, _ := fakeDesktop(t, false,
+		`[]`,
+		`[{"address":"0xm","pid":9,"class":"hyprcage-mirror","workspace":{"id":2}},{"address":"0xb","pid":7,"workspace":{"id":4}}]`)
+	pid, addr, _, err := d.Launch([]string{"thunar"}, nil, "", 4, time.Second)
+	if err != nil || pid != 7 || addr != "0xb" {
+		t.Fatalf("got %d %q %v, want 7 0xb", pid, addr, err)
+	}
+}
