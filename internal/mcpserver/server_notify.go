@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -102,7 +103,12 @@ func (s *Server) notifyAct(in notifyActIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	obj, path, call, arg := "org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications.CloseNotification", in.ID
-	if in.Action != "" {
+	if in.Action == "" {
+		open := func(n notifyd.Notification) bool { return n.ID == in.ID && !n.Closed }
+		if !slices.ContainsFunc(notifyd.List(entries, time.Time{}, "", nil), open) {
+			return nil, screen.Errf(screen.CodeNoAction, "see notify_list", "notification %d is unknown or already closed", in.ID)
+		}
+	} else {
 		n, ok := notifyd.Latest(entries)
 		if !ok || n.ID != in.ID {
 			return nil, screen.Errf(screen.CodeNoAction, "only the latest open notification takes an action; see notify_list", "notification %d is not the latest open one", in.ID)
