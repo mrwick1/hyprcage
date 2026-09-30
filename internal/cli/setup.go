@@ -18,7 +18,8 @@ func runSetup(e *Env) int {
 		return ExitUsage
 	}
 	rep, err := setup.Run()
-	err = errors.Join(err, setup.Notifyd())
+	note, nerr := setup.Notifyd()
+	rep.Notifyd, err = note, errors.Join(err, nerr)
 	if *asJSON {
 		if err != nil {
 			rep.Manual = err.Error()
@@ -33,6 +34,6 @@ func runSetup(e *Env) int {
 	default:
 		fmt.Fprintf(e.Stdout, "installed %s via %s\n", strings.Join(rep.Installed, ", "), rep.Method)
 	}
-	fmt.Fprintln(e.Stdout, "enabled "+setup.NotifydUnit)
+	fmt.Fprintln(e.Stdout, rep.Notifyd)
 	return ExitOK
 }

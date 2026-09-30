@@ -270,13 +270,17 @@ unregister_agents() {
 UNIT_DIR=$HOME/.config/systemd/user
 
 install_notifyd() {
-  local src=$SRC_DIR/contrib/hyprcage-notifyd.service
-  mkdir -p "$UNIT_DIR"
+  local src=$SRC_DIR/contrib/hyprcage-notifyd.service unit exe
   if [ -f "$src" ]; then
-    cp -f "$src" "$UNIT_DIR/"
+    unit=$(cat "$src")
   else
-    curl -fsSL -o "$UNIT_DIR/hyprcage-notifyd.service" "https://raw.githubusercontent.com/$REPO/${VERSION:-main}/contrib/hyprcage-notifyd.service" || { warn "could not fetch hyprcage-notifyd.service"; return; }
+    unit=$(curl -fsSL "https://raw.githubusercontent.com/$REPO/${VERSION:-main}/contrib/hyprcage-notifyd.service") || { warn "could not fetch hyprcage-notifyd.service"; return; }
   fi
+  # ExecStart runs the binary installed above, quoted for systemd.
+  exe=$(cd "$BIN_DIR" && pwd -P)/hyprcage
+  exe=${exe//\\/\\\\}; exe=${exe//\"/\\\"}; exe=${exe//%/%%}
+  mkdir -p "$UNIT_DIR"
+  printf '%s\n' "${unit/"%h/.local/bin/hyprcage"/"\"$exe\""}" >"$UNIT_DIR/hyprcage-notifyd.service"
   systemctl --user daemon-reload && systemctl --user enable --now hyprcage-notifyd.service >/dev/null 2>&1 \
     && say "hyprcage-notifyd.service enabled" || warn "could not enable hyprcage-notifyd.service; run  systemctl --user enable --now hyprcage-notifyd.service"
 }

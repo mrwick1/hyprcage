@@ -454,7 +454,8 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 
 func (s *Server) setup(in struct{}) (*mcp.CallToolResult, error) {
 	rep, err := setup.Run()
-	err = errors.Join(err, setup.Notifyd())
+	note, nerr := setup.Notifyd()
+	rep.Notifyd, err = note, errors.Join(err, nerr)
 	if err != nil {
 		rep.Manual = err.Error()
 		data, _ := json.MarshalIndent(rep, "", "  ")
