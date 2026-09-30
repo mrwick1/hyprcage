@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -278,7 +279,8 @@ func actErr(key string, err error, unsupported string) error {
 	var de dbus.Error
 	if errors.As(err, &de) {
 		switch de.Name {
-		case "org.freedesktop.DBus.Error.UnknownMethod", "org.freedesktop.DBus.Error.UnknownInterface":
+		case "org.freedesktop.DBus.Error.UnknownMethod", "org.freedesktop.DBus.Error.UnknownInterface",
+			"org.freedesktop.DBus.Error.UnknownProperty", "org.freedesktop.DBus.Error.InvalidArgs":
 			return screen.Errf(screen.CodeUnsupported, unsupported, "%s: %v", key, err)
 		}
 		return screen.Errf(screen.CodeStaleRef, "take a new snapshot", "%s: %v", key, err)
@@ -520,19 +522,34 @@ func (d *dbusTree) DoAction(ctx context.Context, bus, path string, i int) error 
 
 // InsertText inserts text at the caret. A caret of -1 (unknown) inserts at the end.
 func (d *dbusTree) InsertText(ctx context.Context, bus, path, text string) error {
-	const txt = "org.a11y.atspi.Text"
-	var v dbus.Variant
-	if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, txt, "CaretOffset"); err != nil {
+	args, err := insertArgs(text, func(prop string) (int32, error) {
+		var v dbus.Variant
+		if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, "org.a11y.atspi.Text", prop); err != nil {
+			return 0, err
+		}
+		n, ok := v.Value().(int32)
+		if !ok {
+			return 0, errRefused
+		}
+		return n, nil
+	})
+	if err != nil {
 		return err
 	}
-	pos, _ := v.Value().(int32)
-	if pos < 0 {
-		if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, txt, "CharacterCount"); err != nil {
-			return err
+	return d.ok(ctx, bus, path, "org.a11y.atspi.EditableText.InsertText", args...)
+}
+
+// insertArgs returns the arguments of EditableText.InsertText: the caret,
+// else the end when the caret is unknown or unreadable, the text, and its
+// length in characters. get reads a Text property.
+func insertArgs(text string, get func(prop string) (int32, error)) ([]any, error) {
+	pos, err := get("CaretOffset")
+	if err != nil || pos < 0 {
+		if pos, err = get("CharacterCount"); err != nil {
+			return nil, err
 		}
-		pos, _ = v.Value().(int32)
 	}
-	return d.ok(ctx, bus, path, "org.a11y.atspi.EditableText.InsertText", pos, text, int32(len(text)))
+	return []any{pos, text, int32(utf8.RuneCountInString(text))}, nil
 }
 
 // ok calls a method that answers a boolean, and turns false into errRefused.

@@ -445,3 +445,21 @@ func TestATSPIDialogOffset(t *testing.T) {
 		}
 	}
 }
+
+func TestInsertArgs(t *testing.T) {
+	noCaret := errors.New("no caret")
+	get := func(prop string) (int32, error) {
+		if prop == "CaretOffset" {
+			return 0, noCaret
+		}
+		return 4, nil
+	}
+	args, err := insertArgs("héllo", get)
+	if err != nil || !slices.Equal(args, []any{int32(4), "héllo", int32(5)}) {
+		t.Fatalf("unreadable caret: %v %v, want insert at the end (4) of 5 characters", args, err)
+	}
+	_, err = insertArgs("x", func(string) (int32, error) { return 0, dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownProperty"} })
+	if !unsupported(actErr("k", err, "")) {
+		t.Fatalf("no Text properties: %v, want unsupported_input", actErr("k", err, ""))
+	}
+}
