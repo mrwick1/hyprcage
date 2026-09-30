@@ -1,5 +1,5 @@
 {
   "name": "hyprcage",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A caged desktop for AI agents on Hyprland: a virtual screen the agent drives by text refs without touching the human's desktop."
 }

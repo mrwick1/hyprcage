@@ -288,3 +288,42 @@ func TestEmulateRejectsBadInput(t *testing.T) {
 		}
 	}
 }
+
+func TestEvalAwaitsAPromiseValue(t *testing.T) {
+	s, f := newFake()
+	f.reply = func(method string, params any) (any, error) {
+		switch method {
+		case "Runtime.evaluate":
+			// REPL mode hands back the promise itself.
+			return map[string]any{"result": map[string]any{"type": "object", "subtype": "promise", "objectId": "P1"}}, nil
+		case "Runtime.callFunctionOn":
+			if p := params.(map[string]any); p["objectId"] != "P1" || p["awaitPromise"] != true {
+				t.Errorf("callFunctionOn params %v", p)
+			}
+			return map[string]any{"result": map[string]any{"type": "number", "value": 5}}, nil
+		}
+		return nil, nil
+	}
+	attach(s, "S1", "T1", "https://a.test/")
+	if got, err := s.Eval(context.Background(), "", "Promise.resolve(5)", time.Second); err != nil || string(got) != "5" {
+		t.Fatalf("got %s %v, want 5", got, err)
+	}
+}
+
+func TestAttachReleasesAWaitingPage(t *testing.T) {
+	s, f := newFake()
+	attach(s, "S1", "T1", "")
+	deadline := time.Now().Add(time.Second)
+	for {
+		f.mu.Lock()
+		calls := strings.Join(f.calls, "\n")
+		f.mu.Unlock()
+		if strings.Contains(calls, "S1 Runtime.runIfWaitingForDebugger") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("popup never released:\n%s", calls)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
