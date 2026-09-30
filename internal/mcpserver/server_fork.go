@@ -21,6 +21,7 @@ func (s *Server) registerFork(srv *mcp.Server) {
 	s.registerClip(srv)
 	s.registerDesktop(srv)
 	s.registerBrowser(srv)
+	s.registerNotify(srv)
 }
 
 func (s *Server) recordTarget(target string) (string, bool, error) {

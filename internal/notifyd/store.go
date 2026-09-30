@@ -18,14 +18,14 @@ const Keep = 48 * time.Hour
 
 // Entry is one line of the file.
 type Entry struct {
-	ID      uint32            `json:"id"`
-	App     string            `json:"app"`
-	Summary string            `json:"summary"`
-	Body    string            `json:"body"`
-	Actions map[string]string `json:"actions,omitempty"` // key -> label
-	Time    time.Time         `json:"time"`
-	Event   string            `json:"event"`            // "notify", "closed" or "action"
-	Action  string            `json:"action,omitempty"` // the invoked key, for "action"
+	ID      uint32    `json:"id"`
+	App     string    `json:"app"`
+	Summary string    `json:"summary"`
+	Body    string    `json:"body"`
+	Actions []string  `json:"actions,omitempty"` // key, label, key, label... in Notify order
+	Time    time.Time `json:"time"`
+	Event   string    `json:"event"`            // "notify", "closed" or "action"
+	Action  string    `json:"action,omitempty"` // the invoked key, for "action"
 }
 
 // Path is $HYPRCAGE_NOTIFY_FILE, else ~/.local/state/hyprcage/notifications.jsonl.
