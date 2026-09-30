@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,7 +9,8 @@ import (
 )
 
 // runSetup installs cage with the human's authorisation
-// (sudo in a terminal, a polkit dialog otherwise).
+// (sudo in a terminal, a polkit dialog otherwise), then the user unit of
+// the notification daemon.
 func runSetup(e *Env) int {
 	fs := e.flags("setup")
 	asJSON := fs.Bool("json", false, "JSON output")
@@ -16,6 +18,7 @@ func runSetup(e *Env) int {
 		return ExitUsage
 	}
 	rep, err := setup.Run()
+	err = errors.Join(err, setup.Notifyd())
 	if *asJSON {
 		if err != nil {
 			rep.Manual = err.Error()
@@ -30,5 +33,6 @@ func runSetup(e *Env) int {
 	default:
 		fmt.Fprintf(e.Stdout, "installed %s via %s\n", strings.Join(rep.Installed, ", "), rep.Method)
 	}
+	fmt.Fprintln(e.Stdout, "enabled "+setup.NotifydUnit)
 	return ExitOK
 }
