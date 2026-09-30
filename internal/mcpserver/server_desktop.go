@@ -1,6 +1,9 @@
 package mcpserver
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/desktop"
@@ -9,7 +12,7 @@ import (
 
 type desktopIn struct {
 	Address   string   `json:"address,omitempty" jsonschema:"window address from desktop_windows, e.g. 0x55ebac116320"`
-	Workspace int      `json:"workspace,omitempty" jsonschema:"target workspace (desktop_move)"`
+	Workspace int      `json:"workspace,omitempty" jsonschema:"target workspace (desktop_move, desktop_workspace)"`
 	Text      string   `json:"text,omitempty" jsonschema:"text to type (desktop_type); US layout characters only"`
 	Keys      []string `json:"keys,omitempty" jsonschema:"combinations such as [\"ctrl+l\", \"Return\"] (desktop_key)"`
 }
@@ -20,6 +23,7 @@ func (s *Server) registerDesktop(srv *mcp.Server) {
 	tool(s, srv, "desktop_focus", "Give keyboard focus to one of the human's windows. This moves the human's focus: only when the task needs it.", s.desktopFocus)
 	tool(s, srv, "desktop_move", "Move one of the human's windows to a workspace, without following it.", s.desktopMove)
 	tool(s, srv, "desktop_type", "Type text into one of the human's windows without focusing it. Each key briefly takes the human's keyboard focus and gives it back. US layout characters only.", s.desktopType)
+	tool(s, srv, "desktop_workspace", "Switch the human's visible workspace. This is the only tool that changes the human's view: only when the human asks for it.", s.desktopWorkspace)
 	tool(s, srv, "desktop_key", "Press key combinations in one of the human's windows without focusing it (same focus blip as desktop_type).", s.desktopKey)
 }
 
@@ -102,4 +106,45 @@ func (s *Server) desktopKey(in desktopIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return textResult(map[string]string{"status": "ok"}), nil
+}
+
+func (s *Server) desktopWorkspace(in desktopIn) (*mcp.CallToolResult, error) {
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	if err := d.Workspace(in.Workspace); err != nil {
+		return nil, err
+	}
+	return textResult(map[string]string{"status": "ok"}), nil
+}
+
+// desktopLaunch runs app_launch on the desktop, on a workspace without
+// switching to it.
+func (s *Server) desktopLaunch(in launchIn) (*mcp.CallToolResult, error) {
+	if in.Debug {
+		return nil, screen.Errf(screen.CodeUnsupported, "launch it on an agent screen", "debug is for agent screens only")
+	}
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	wait := s.cfg.WindowTimeout
+	if in.WaitWindowMs != nil {
+		wait = time.Duration(*in.WaitWindowMs) * time.Millisecond
+	}
+	pid, addr, byWindow, err := d.Launch(in.Command, in.Env, in.Cwd, in.Workspace, wait)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"screen": desktop.Name}
+	if addr == "" {
+		out["note"] = fmt.Sprintf("launched; no new window within %d ms; the app may still be starting (see desktop_windows)", wait.Milliseconds())
+		return textResult(out), nil
+	}
+	out["pid"], out["window"] = pid, addr
+	if byWindow {
+		out["note"] = "matched by new window, not by pid"
+	}
+	return textResult(out), nil
 }

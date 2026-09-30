@@ -252,6 +252,7 @@ type launchIn struct {
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
 	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
+	Workspace    int               `json:"workspace,omitempty" jsonschema:"desktop only: workspace to launch on, without switching to it (default: the active workspace)"`
 }
 
 type closeIn struct {
@@ -487,6 +488,9 @@ func (s *Server) screenList(in listIn) (*mcp.CallToolResult, error) {
 func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	if len(in.Command) == 0 {
 		return nil, fmt.Errorf("command must not be empty")
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopLaunch(in)
 	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
