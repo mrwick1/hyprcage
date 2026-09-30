@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"maps"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/notifyd"
+	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 )
 
@@ -50,8 +54,8 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
-		"snapshot", "act", "find"}
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap",
+		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -190,6 +194,23 @@ func TestTablePerScreenInstance(t *testing.T) {
 	}
 }
 
+func TestDesktopTablesAreSeparate(t *testing.T) {
+	s := newServer(config.Default())
+	s.tableAt(desktopKey("0xa")).Assign([]perceive.Node{{Key: "atspi:1:/b", Role: "button", Name: "Back"}})
+	if _, ok := s.tableAt(desktopKey("0xa")).Lookup("e1"); !ok {
+		t.Fatal("e1 unknown on its own table")
+	}
+	for _, tb := range []*perceive.Table{
+		s.tableAt(desktopKey("0xb")),
+		s.tableAt(desktopKey("")),
+		s.table(&registry.Screen{Name: "hc-1", CreatedAt: time.Unix(1, 0)}),
+	} {
+		if _, ok := tb.Lookup("e1"); ok {
+			t.Error("a ref from desktop:0xa resolves on another table")
+		}
+	}
+}
+
 func TestFindInvalidRegexp(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "find", Arguments: map[string]any{"text": "("}})
@@ -198,5 +219,122 @@ func TestFindInvalidRegexp(t *testing.T) {
 	}
 	if !res.IsError || !strings.Contains(text(res), "regular expression") {
 		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestDesktopRefusedByScreenTools(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	cs := connect(t)
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+		hint string
+	}{
+		{"key", map[string]any{"keys": []string{"Return"}}, "desktop_key"},
+		{"type", map[string]any{"text": "a"}, "desktop_type"},
+		{"windows", nil, "desktop_windows"},
+		{"wait", map[string]any{"ms": 1}, "no desktop"},
+		{"batch", map[string]any{"actions": []any{}}, "desktop_"},
+		{"app_close", map[string]any{"toplevel": 1}, "no desktop"},
+		{"clipboard_get", nil, "no desktop"},
+		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
+		{"mirror", nil, "no desktop"},
+		{"screen_create", nil, "reserved"},
+	} {
+		args := map[string]any{"screen": "desktop"}
+		if c.tool == "screen_create" {
+			args = map[string]any{"name": "desktop"}
+		}
+		for k, v := range c.args {
+			args[k] = v
+		}
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.tool, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", c.tool, err)
+		}
+		got := text(res)
+		if !res.IsError || !strings.Contains(got, c.hint) {
+			t.Errorf("%s: isError=%v text=%q, want %q", c.tool, res.IsError, got, c.hint)
+		}
+		if c.tool != "screen_create" && !strings.Contains(got, "unsupported_input") {
+			t.Errorf("%s: %q, want unsupported_input", c.tool, got)
+		}
+	}
+}
+
+func TestWindowRefusedOnAgentScreen(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	cs := connect(t)
+	xy := map[string]any{"x": 1, "y": 1}
+	for tool, args := range map[string]map[string]any{
+		"click": xy, "double_click": xy, "move": xy, "screenshot": {},
+		"scroll": {"x": 1, "y": 1, "direction": "down"},
+		"drag":   {"x1": 1, "y1": 1, "x2": 2, "y2": 2},
+	} {
+		args = maps.Clone(args)
+		args["screen"], args["window"] = "hc1", "0xa"
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: tool, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", tool, err)
+		}
+		if !res.IsError || !strings.Contains(text(res), "window applies to screen desktop only") {
+			t.Errorf("%s: isError=%v text=%q", tool, res.IsError, text(res))
+		}
+	}
+}
+
+func TestDesktopLaunchRefusesDebug(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "app_launch",
+		Arguments: map[string]any{"screen": "desktop", "command": []string{"chromium"}, "debug": true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "unsupported_input") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestActRefusesNotLatest(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	path := filepath.Join(t.TempDir(), "n.jsonl")
+	t.Setenv("HYPRCAGE_NOTIFY_FILE", path)
+	now := time.Now()
+	for _, e := range []notifyd.Entry{
+		{ID: 1, Event: "notify", Actions: []string{"ok", "OK"}, Time: now},
+		{ID: 2, Event: "notify", Actions: []string{"ok", "OK"}, Time: now.Add(time.Second)},
+	} {
+		if err := notifyd.Append(path, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "notify_act", Arguments: map[string]any{"id": 1, "action": "ok"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "no_action") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+func TestNotifydDown(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("HYPRCAGE_NOTIFY_FILE", filepath.Join(t.TempDir(), "missing.jsonl"))
+	cs := connect(t)
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"notify_list", map[string]any{}},
+		{"notify_act", map[string]any{"id": 1}},
+		{"notify_wait", map[string]any{"timeout_ms": 0}},
+	} {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: c.tool, Arguments: c.args})
+		if err != nil {
+			t.Fatalf("%s: %v", c.tool, err)
+		}
+		if !res.IsError || !strings.Contains(text(res), "notifyd_down") {
+			t.Errorf("%s: isError=%v text=%q", c.tool, res.IsError, text(res))
+		}
 	}
 }

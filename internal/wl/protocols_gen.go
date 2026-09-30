@@ -10,187 +10,200 @@
 //   xdg-shell.xml
 //   linux-dmabuf-v1.xml
 //   viewporter.xml
+//   hyprland-toplevel-export-v1.xml
 
 package wl
 
 // Request opcodes (index of the request in its interface's XML order).
 const (
-	reqWlBufferDestroy                                           = 0
-	reqWlCompositorCreateSurface                                 = 0
-	reqWlCompositorCreateRegion                                  = 1
-	reqWlCompositorRelease                                       = 2
-	reqWlDataDeviceStartDrag                                     = 0
-	reqWlDataDeviceSetSelection                                  = 1
-	reqWlDataDeviceRelease                                       = 2
-	reqWlDataDeviceManagerCreateDataSource                       = 0
-	reqWlDataDeviceManagerGetDataDevice                          = 1
-	reqWlDataDeviceManagerRelease                                = 2
-	reqWlDataOfferAccept                                         = 0
-	reqWlDataOfferReceive                                        = 1
-	reqWlDataOfferDestroy                                        = 2
-	reqWlDataOfferFinish                                         = 3
-	reqWlDataOfferSetActions                                     = 4
-	reqWlDataSourceOffer                                         = 0
-	reqWlDataSourceDestroy                                       = 1
-	reqWlDataSourceSetActions                                    = 2
-	reqWlDisplaySync                                             = 0
-	reqWlDisplayGetRegistry                                      = 1
-	reqWlFixesDestroy                                            = 0
-	reqWlFixesDestroyRegistry                                    = 1
-	reqWlFixesAckGlobalRemove                                    = 2
-	reqWlKeyboardRelease                                         = 0
-	reqWlOutputRelease                                           = 0
-	reqWlPointerSetCursor                                        = 0
-	reqWlPointerRelease                                          = 1
-	reqWlRegionDestroy                                           = 0
-	reqWlRegionAdd                                               = 1
-	reqWlRegionSubtract                                          = 2
-	reqWlRegistryBind                                            = 0
-	reqWlSeatGetPointer                                          = 0
-	reqWlSeatGetKeyboard                                         = 1
-	reqWlSeatGetTouch                                            = 2
-	reqWlSeatRelease                                             = 3
-	reqWlShellGetShellSurface                                    = 0
-	reqWlShellSurfacePong                                        = 0
-	reqWlShellSurfaceMove                                        = 1
-	reqWlShellSurfaceResize                                      = 2
-	reqWlShellSurfaceSetToplevel                                 = 3
-	reqWlShellSurfaceSetTransient                                = 4
-	reqWlShellSurfaceSetFullscreen                               = 5
-	reqWlShellSurfaceSetPopup                                    = 6
-	reqWlShellSurfaceSetMaximized                                = 7
-	reqWlShellSurfaceSetTitle                                    = 8
-	reqWlShellSurfaceSetClass                                    = 9
-	reqWlShmCreatePool                                           = 0
-	reqWlShmRelease                                              = 1
-	reqWlShmPoolCreateBuffer                                     = 0
-	reqWlShmPoolDestroy                                          = 1
-	reqWlShmPoolResize                                           = 2
-	reqWlSubcompositorDestroy                                    = 0
-	reqWlSubcompositorGetSubsurface                              = 1
-	reqWlSubsurfaceDestroy                                       = 0
-	reqWlSubsurfaceSetPosition                                   = 1
-	reqWlSubsurfacePlaceAbove                                    = 2
-	reqWlSubsurfacePlaceBelow                                    = 3
-	reqWlSubsurfaceSetSync                                       = 4
-	reqWlSubsurfaceSetDesync                                     = 5
-	reqWlSurfaceDestroy                                          = 0
-	reqWlSurfaceAttach                                           = 1
-	reqWlSurfaceDamage                                           = 2
-	reqWlSurfaceFrame                                            = 3
-	reqWlSurfaceSetOpaqueRegion                                  = 4
-	reqWlSurfaceSetInputRegion                                   = 5
-	reqWlSurfaceCommit                                           = 6
-	reqWlSurfaceSetBufferTransform                               = 7
-	reqWlSurfaceSetBufferScale                                   = 8
-	reqWlSurfaceDamageBuffer                                     = 9
-	reqWlSurfaceOffset                                           = 10
-	reqWlSurfaceGetRelease                                       = 11
-	reqWlTouchRelease                                            = 0
-	reqWpViewportDestroy                                         = 0
-	reqWpViewportSetSource                                       = 1
-	reqWpViewportSetDestination                                  = 2
-	reqWpViewporterDestroy                                       = 0
-	reqWpViewporterGetViewport                                   = 1
-	reqXdgPopupDestroy                                           = 0
-	reqXdgPopupGrab                                              = 1
-	reqXdgPopupReposition                                        = 2
-	reqXdgPositionerDestroy                                      = 0
-	reqXdgPositionerSetSize                                      = 1
-	reqXdgPositionerSetAnchorRect                                = 2
-	reqXdgPositionerSetAnchor                                    = 3
-	reqXdgPositionerSetGravity                                   = 4
-	reqXdgPositionerSetConstraintAdjustment                      = 5
-	reqXdgPositionerSetOffset                                    = 6
-	reqXdgPositionerSetReactive                                  = 7
-	reqXdgPositionerSetParentSize                                = 8
-	reqXdgPositionerSetParentConfigure                           = 9
-	reqXdgSurfaceDestroy                                         = 0
-	reqXdgSurfaceGetToplevel                                     = 1
-	reqXdgSurfaceGetPopup                                        = 2
-	reqXdgSurfaceSetWindowGeometry                               = 3
-	reqXdgSurfaceAckConfigure                                    = 4
-	reqXdgToplevelDestroy                                        = 0
-	reqXdgToplevelSetParent                                      = 1
-	reqXdgToplevelSetTitle                                       = 2
-	reqXdgToplevelSetAppId                                       = 3
-	reqXdgToplevelShowWindowMenu                                 = 4
-	reqXdgToplevelMove                                           = 5
-	reqXdgToplevelResize                                         = 6
-	reqXdgToplevelSetMaxSize                                     = 7
-	reqXdgToplevelSetMinSize                                     = 8
-	reqXdgToplevelSetMaximized                                   = 9
-	reqXdgToplevelUnsetMaximized                                 = 10
-	reqXdgToplevelSetFullscreen                                  = 11
-	reqXdgToplevelUnsetFullscreen                                = 12
-	reqXdgToplevelSetMinimized                                   = 13
-	reqXdgWmBaseDestroy                                          = 0
-	reqXdgWmBaseCreatePositioner                                 = 1
-	reqXdgWmBaseGetXdgSurface                                    = 2
-	reqXdgWmBasePong                                             = 3
-	reqZwlrForeignToplevelHandleV1SetMaximized                   = 0
-	reqZwlrForeignToplevelHandleV1UnsetMaximized                 = 1
-	reqZwlrForeignToplevelHandleV1SetMinimized                   = 2
-	reqZwlrForeignToplevelHandleV1UnsetMinimized                 = 3
-	reqZwlrForeignToplevelHandleV1Activate                       = 4
-	reqZwlrForeignToplevelHandleV1Close                          = 5
-	reqZwlrForeignToplevelHandleV1SetRectangle                   = 6
-	reqZwlrForeignToplevelHandleV1Destroy                        = 7
-	reqZwlrForeignToplevelHandleV1SetFullscreen                  = 8
-	reqZwlrForeignToplevelHandleV1UnsetFullscreen                = 9
-	reqZwlrForeignToplevelManagerV1Stop                          = 0
-	reqZwlrOutputConfigurationHeadV1SetMode                      = 0
-	reqZwlrOutputConfigurationHeadV1SetCustomMode                = 1
-	reqZwlrOutputConfigurationHeadV1SetPosition                  = 2
-	reqZwlrOutputConfigurationHeadV1SetTransform                 = 3
-	reqZwlrOutputConfigurationHeadV1SetScale                     = 4
-	reqZwlrOutputConfigurationHeadV1SetAdaptiveSync              = 5
-	reqZwlrOutputConfigurationV1EnableHead                       = 0
-	reqZwlrOutputConfigurationV1DisableHead                      = 1
-	reqZwlrOutputConfigurationV1Apply                            = 2
-	reqZwlrOutputConfigurationV1Test                             = 3
-	reqZwlrOutputConfigurationV1Destroy                          = 4
-	reqZwlrOutputHeadV1Release                                   = 0
-	reqZwlrOutputManagerV1CreateConfiguration                    = 0
-	reqZwlrOutputManagerV1Stop                                   = 1
-	reqZwlrOutputModeV1Release                                   = 0
-	reqZwlrScreencopyFrameV1Copy                                 = 0
-	reqZwlrScreencopyFrameV1Destroy                              = 1
-	reqZwlrScreencopyFrameV1CopyWithDamage                       = 2
-	reqZwlrScreencopyManagerV1CaptureOutput                      = 0
-	reqZwlrScreencopyManagerV1CaptureOutputRegion                = 1
-	reqZwlrScreencopyManagerV1Destroy                            = 2
-	reqZwlrVirtualPointerManagerV1CreateVirtualPointer           = 0
-	reqZwlrVirtualPointerManagerV1Destroy                        = 1
-	reqZwlrVirtualPointerManagerV1CreateVirtualPointerWithOutput = 2
-	reqZwlrVirtualPointerV1Motion                                = 0
-	reqZwlrVirtualPointerV1MotionAbsolute                        = 1
-	reqZwlrVirtualPointerV1Button                                = 2
-	reqZwlrVirtualPointerV1Axis                                  = 3
-	reqZwlrVirtualPointerV1Frame                                 = 4
-	reqZwlrVirtualPointerV1AxisSource                            = 5
-	reqZwlrVirtualPointerV1AxisStop                              = 6
-	reqZwlrVirtualPointerV1AxisDiscrete                          = 7
-	reqZwlrVirtualPointerV1Destroy                               = 8
-	reqZwpLinuxBufferParamsV1Destroy                             = 0
-	reqZwpLinuxBufferParamsV1Add                                 = 1
-	reqZwpLinuxBufferParamsV1Create                              = 2
-	reqZwpLinuxBufferParamsV1CreateImmed                         = 3
-	reqZwpLinuxBufferParamsV1SetSamplingDevice                   = 4
-	reqZwpLinuxDmabufFeedbackV1Destroy                           = 0
-	reqZwpLinuxDmabufV1Destroy                                   = 0
-	reqZwpLinuxDmabufV1CreateParams                              = 1
-	reqZwpLinuxDmabufV1GetDefaultFeedback                        = 2
-	reqZwpLinuxDmabufV1GetSurfaceFeedback                        = 3
-	reqZwpVirtualKeyboardManagerV1CreateVirtualKeyboard          = 0
-	reqZwpVirtualKeyboardV1Keymap                                = 0
-	reqZwpVirtualKeyboardV1Key                                   = 1
-	reqZwpVirtualKeyboardV1Modifiers                             = 2
-	reqZwpVirtualKeyboardV1Destroy                               = 3
+	reqHyprlandToplevelExportFrameV1Copy                                   = 0
+	reqHyprlandToplevelExportFrameV1Destroy                                = 1
+	reqHyprlandToplevelExportManagerV1CaptureToplevel                      = 0
+	reqHyprlandToplevelExportManagerV1Destroy                              = 1
+	reqHyprlandToplevelExportManagerV1CaptureToplevelWithWlrToplevelHandle = 2
+	reqWlBufferDestroy                                                     = 0
+	reqWlCompositorCreateSurface                                           = 0
+	reqWlCompositorCreateRegion                                            = 1
+	reqWlCompositorRelease                                                 = 2
+	reqWlDataDeviceStartDrag                                               = 0
+	reqWlDataDeviceSetSelection                                            = 1
+	reqWlDataDeviceRelease                                                 = 2
+	reqWlDataDeviceManagerCreateDataSource                                 = 0
+	reqWlDataDeviceManagerGetDataDevice                                    = 1
+	reqWlDataDeviceManagerRelease                                          = 2
+	reqWlDataOfferAccept                                                   = 0
+	reqWlDataOfferReceive                                                  = 1
+	reqWlDataOfferDestroy                                                  = 2
+	reqWlDataOfferFinish                                                   = 3
+	reqWlDataOfferSetActions                                               = 4
+	reqWlDataSourceOffer                                                   = 0
+	reqWlDataSourceDestroy                                                 = 1
+	reqWlDataSourceSetActions                                              = 2
+	reqWlDisplaySync                                                       = 0
+	reqWlDisplayGetRegistry                                                = 1
+	reqWlFixesDestroy                                                      = 0
+	reqWlFixesDestroyRegistry                                              = 1
+	reqWlFixesAckGlobalRemove                                              = 2
+	reqWlKeyboardRelease                                                   = 0
+	reqWlOutputRelease                                                     = 0
+	reqWlPointerSetCursor                                                  = 0
+	reqWlPointerRelease                                                    = 1
+	reqWlRegionDestroy                                                     = 0
+	reqWlRegionAdd                                                         = 1
+	reqWlRegionSubtract                                                    = 2
+	reqWlRegistryBind                                                      = 0
+	reqWlSeatGetPointer                                                    = 0
+	reqWlSeatGetKeyboard                                                   = 1
+	reqWlSeatGetTouch                                                      = 2
+	reqWlSeatRelease                                                       = 3
+	reqWlShellGetShellSurface                                              = 0
+	reqWlShellSurfacePong                                                  = 0
+	reqWlShellSurfaceMove                                                  = 1
+	reqWlShellSurfaceResize                                                = 2
+	reqWlShellSurfaceSetToplevel                                           = 3
+	reqWlShellSurfaceSetTransient                                          = 4
+	reqWlShellSurfaceSetFullscreen                                         = 5
+	reqWlShellSurfaceSetPopup                                              = 6
+	reqWlShellSurfaceSetMaximized                                          = 7
+	reqWlShellSurfaceSetTitle                                              = 8
+	reqWlShellSurfaceSetClass                                              = 9
+	reqWlShmCreatePool                                                     = 0
+	reqWlShmRelease                                                        = 1
+	reqWlShmPoolCreateBuffer                                               = 0
+	reqWlShmPoolDestroy                                                    = 1
+	reqWlShmPoolResize                                                     = 2
+	reqWlSubcompositorDestroy                                              = 0
+	reqWlSubcompositorGetSubsurface                                        = 1
+	reqWlSubsurfaceDestroy                                                 = 0
+	reqWlSubsurfaceSetPosition                                             = 1
+	reqWlSubsurfacePlaceAbove                                              = 2
+	reqWlSubsurfacePlaceBelow                                              = 3
+	reqWlSubsurfaceSetSync                                                 = 4
+	reqWlSubsurfaceSetDesync                                               = 5
+	reqWlSurfaceDestroy                                                    = 0
+	reqWlSurfaceAttach                                                     = 1
+	reqWlSurfaceDamage                                                     = 2
+	reqWlSurfaceFrame                                                      = 3
+	reqWlSurfaceSetOpaqueRegion                                            = 4
+	reqWlSurfaceSetInputRegion                                             = 5
+	reqWlSurfaceCommit                                                     = 6
+	reqWlSurfaceSetBufferTransform                                         = 7
+	reqWlSurfaceSetBufferScale                                             = 8
+	reqWlSurfaceDamageBuffer                                               = 9
+	reqWlSurfaceOffset                                                     = 10
+	reqWlSurfaceGetRelease                                                 = 11
+	reqWlTouchRelease                                                      = 0
+	reqWpViewportDestroy                                                   = 0
+	reqWpViewportSetSource                                                 = 1
+	reqWpViewportSetDestination                                            = 2
+	reqWpViewporterDestroy                                                 = 0
+	reqWpViewporterGetViewport                                             = 1
+	reqXdgPopupDestroy                                                     = 0
+	reqXdgPopupGrab                                                        = 1
+	reqXdgPopupReposition                                                  = 2
+	reqXdgPositionerDestroy                                                = 0
+	reqXdgPositionerSetSize                                                = 1
+	reqXdgPositionerSetAnchorRect                                          = 2
+	reqXdgPositionerSetAnchor                                              = 3
+	reqXdgPositionerSetGravity                                             = 4
+	reqXdgPositionerSetConstraintAdjustment                                = 5
+	reqXdgPositionerSetOffset                                              = 6
+	reqXdgPositionerSetReactive                                            = 7
+	reqXdgPositionerSetParentSize                                          = 8
+	reqXdgPositionerSetParentConfigure                                     = 9
+	reqXdgSurfaceDestroy                                                   = 0
+	reqXdgSurfaceGetToplevel                                               = 1
+	reqXdgSurfaceGetPopup                                                  = 2
+	reqXdgSurfaceSetWindowGeometry                                         = 3
+	reqXdgSurfaceAckConfigure                                              = 4
+	reqXdgToplevelDestroy                                                  = 0
+	reqXdgToplevelSetParent                                                = 1
+	reqXdgToplevelSetTitle                                                 = 2
+	reqXdgToplevelSetAppId                                                 = 3
+	reqXdgToplevelShowWindowMenu                                           = 4
+	reqXdgToplevelMove                                                     = 5
+	reqXdgToplevelResize                                                   = 6
+	reqXdgToplevelSetMaxSize                                               = 7
+	reqXdgToplevelSetMinSize                                               = 8
+	reqXdgToplevelSetMaximized                                             = 9
+	reqXdgToplevelUnsetMaximized                                           = 10
+	reqXdgToplevelSetFullscreen                                            = 11
+	reqXdgToplevelUnsetFullscreen                                          = 12
+	reqXdgToplevelSetMinimized                                             = 13
+	reqXdgWmBaseDestroy                                                    = 0
+	reqXdgWmBaseCreatePositioner                                           = 1
+	reqXdgWmBaseGetXdgSurface                                              = 2
+	reqXdgWmBasePong                                                       = 3
+	reqZwlrForeignToplevelHandleV1SetMaximized                             = 0
+	reqZwlrForeignToplevelHandleV1UnsetMaximized                           = 1
+	reqZwlrForeignToplevelHandleV1SetMinimized                             = 2
+	reqZwlrForeignToplevelHandleV1UnsetMinimized                           = 3
+	reqZwlrForeignToplevelHandleV1Activate                                 = 4
+	reqZwlrForeignToplevelHandleV1Close                                    = 5
+	reqZwlrForeignToplevelHandleV1SetRectangle                             = 6
+	reqZwlrForeignToplevelHandleV1Destroy                                  = 7
+	reqZwlrForeignToplevelHandleV1SetFullscreen                            = 8
+	reqZwlrForeignToplevelHandleV1UnsetFullscreen                          = 9
+	reqZwlrForeignToplevelManagerV1Stop                                    = 0
+	reqZwlrOutputConfigurationHeadV1SetMode                                = 0
+	reqZwlrOutputConfigurationHeadV1SetCustomMode                          = 1
+	reqZwlrOutputConfigurationHeadV1SetPosition                            = 2
+	reqZwlrOutputConfigurationHeadV1SetTransform                           = 3
+	reqZwlrOutputConfigurationHeadV1SetScale                               = 4
+	reqZwlrOutputConfigurationHeadV1SetAdaptiveSync                        = 5
+	reqZwlrOutputConfigurationV1EnableHead                                 = 0
+	reqZwlrOutputConfigurationV1DisableHead                                = 1
+	reqZwlrOutputConfigurationV1Apply                                      = 2
+	reqZwlrOutputConfigurationV1Test                                       = 3
+	reqZwlrOutputConfigurationV1Destroy                                    = 4
+	reqZwlrOutputHeadV1Release                                             = 0
+	reqZwlrOutputManagerV1CreateConfiguration                              = 0
+	reqZwlrOutputManagerV1Stop                                             = 1
+	reqZwlrOutputModeV1Release                                             = 0
+	reqZwlrScreencopyFrameV1Copy                                           = 0
+	reqZwlrScreencopyFrameV1Destroy                                        = 1
+	reqZwlrScreencopyFrameV1CopyWithDamage                                 = 2
+	reqZwlrScreencopyManagerV1CaptureOutput                                = 0
+	reqZwlrScreencopyManagerV1CaptureOutputRegion                          = 1
+	reqZwlrScreencopyManagerV1Destroy                                      = 2
+	reqZwlrVirtualPointerManagerV1CreateVirtualPointer                     = 0
+	reqZwlrVirtualPointerManagerV1Destroy                                  = 1
+	reqZwlrVirtualPointerManagerV1CreateVirtualPointerWithOutput           = 2
+	reqZwlrVirtualPointerV1Motion                                          = 0
+	reqZwlrVirtualPointerV1MotionAbsolute                                  = 1
+	reqZwlrVirtualPointerV1Button                                          = 2
+	reqZwlrVirtualPointerV1Axis                                            = 3
+	reqZwlrVirtualPointerV1Frame                                           = 4
+	reqZwlrVirtualPointerV1AxisSource                                      = 5
+	reqZwlrVirtualPointerV1AxisStop                                        = 6
+	reqZwlrVirtualPointerV1AxisDiscrete                                    = 7
+	reqZwlrVirtualPointerV1Destroy                                         = 8
+	reqZwpLinuxBufferParamsV1Destroy                                       = 0
+	reqZwpLinuxBufferParamsV1Add                                           = 1
+	reqZwpLinuxBufferParamsV1Create                                        = 2
+	reqZwpLinuxBufferParamsV1CreateImmed                                   = 3
+	reqZwpLinuxBufferParamsV1SetSamplingDevice                             = 4
+	reqZwpLinuxDmabufFeedbackV1Destroy                                     = 0
+	reqZwpLinuxDmabufV1Destroy                                             = 0
+	reqZwpLinuxDmabufV1CreateParams                                        = 1
+	reqZwpLinuxDmabufV1GetDefaultFeedback                                  = 2
+	reqZwpLinuxDmabufV1GetSurfaceFeedback                                  = 3
+	reqZwpVirtualKeyboardManagerV1CreateVirtualKeyboard                    = 0
+	reqZwpVirtualKeyboardV1Keymap                                          = 0
+	reqZwpVirtualKeyboardV1Key                                             = 1
+	reqZwpVirtualKeyboardV1Modifiers                                       = 2
+	reqZwpVirtualKeyboardV1Destroy                                         = 3
 )
 
 // Event opcodes (index of the event in its interface's XML order).
 const (
+	evtHyprlandToplevelExportFrameV1Buffer         = 0
+	evtHyprlandToplevelExportFrameV1Damage         = 1
+	evtHyprlandToplevelExportFrameV1Flags          = 2
+	evtHyprlandToplevelExportFrameV1Ready          = 3
+	evtHyprlandToplevelExportFrameV1Failed         = 4
+	evtHyprlandToplevelExportFrameV1LinuxDmabuf    = 5
+	evtHyprlandToplevelExportFrameV1BufferDone     = 6
 	evtWlBufferRelease                             = 0
 	evtWlCallbackDone                              = 0
 	evtWlDataDeviceDataOffer                       = 0
@@ -318,58 +331,86 @@ const (
 
 // Interface names.
 const (
-	ifaceWlBuffer                      = "wl_buffer"
-	ifaceWlCallback                    = "wl_callback"
-	ifaceWlCompositor                  = "wl_compositor"
-	ifaceWlDataDevice                  = "wl_data_device"
-	ifaceWlDataDeviceManager           = "wl_data_device_manager"
-	ifaceWlDataOffer                   = "wl_data_offer"
-	ifaceWlDataSource                  = "wl_data_source"
-	ifaceWlDisplay                     = "wl_display"
-	ifaceWlFixes                       = "wl_fixes"
-	ifaceWlKeyboard                    = "wl_keyboard"
-	ifaceWlOutput                      = "wl_output"
-	ifaceWlPointer                     = "wl_pointer"
-	ifaceWlRegion                      = "wl_region"
-	ifaceWlRegistry                    = "wl_registry"
-	ifaceWlSeat                        = "wl_seat"
-	ifaceWlShell                       = "wl_shell"
-	ifaceWlShellSurface                = "wl_shell_surface"
-	ifaceWlShm                         = "wl_shm"
-	ifaceWlShmPool                     = "wl_shm_pool"
-	ifaceWlSubcompositor               = "wl_subcompositor"
-	ifaceWlSubsurface                  = "wl_subsurface"
-	ifaceWlSurface                     = "wl_surface"
-	ifaceWlTouch                       = "wl_touch"
-	ifaceWpViewport                    = "wp_viewport"
-	ifaceWpViewporter                  = "wp_viewporter"
-	ifaceXdgPopup                      = "xdg_popup"
-	ifaceXdgPositioner                 = "xdg_positioner"
-	ifaceXdgSurface                    = "xdg_surface"
-	ifaceXdgToplevel                   = "xdg_toplevel"
-	ifaceXdgWmBase                     = "xdg_wm_base"
-	ifaceZwlrForeignToplevelHandleV1   = "zwlr_foreign_toplevel_handle_v1"
-	ifaceZwlrForeignToplevelManagerV1  = "zwlr_foreign_toplevel_manager_v1"
-	ifaceZwlrOutputConfigurationHeadV1 = "zwlr_output_configuration_head_v1"
-	ifaceZwlrOutputConfigurationV1     = "zwlr_output_configuration_v1"
-	ifaceZwlrOutputHeadV1              = "zwlr_output_head_v1"
-	ifaceZwlrOutputManagerV1           = "zwlr_output_manager_v1"
-	ifaceZwlrOutputModeV1              = "zwlr_output_mode_v1"
-	ifaceZwlrScreencopyFrameV1         = "zwlr_screencopy_frame_v1"
-	ifaceZwlrScreencopyManagerV1       = "zwlr_screencopy_manager_v1"
-	ifaceZwlrVirtualPointerManagerV1   = "zwlr_virtual_pointer_manager_v1"
-	ifaceZwlrVirtualPointerV1          = "zwlr_virtual_pointer_v1"
-	ifaceZwpLinuxBufferParamsV1        = "zwp_linux_buffer_params_v1"
-	ifaceZwpLinuxDmabufFeedbackV1      = "zwp_linux_dmabuf_feedback_v1"
-	ifaceZwpLinuxDmabufV1              = "zwp_linux_dmabuf_v1"
-	ifaceZwpVirtualKeyboardManagerV1   = "zwp_virtual_keyboard_manager_v1"
-	ifaceZwpVirtualKeyboardV1          = "zwp_virtual_keyboard_v1"
+	ifaceHyprlandToplevelExportFrameV1   = "hyprland_toplevel_export_frame_v1"
+	ifaceHyprlandToplevelExportManagerV1 = "hyprland_toplevel_export_manager_v1"
+	ifaceWlBuffer                        = "wl_buffer"
+	ifaceWlCallback                      = "wl_callback"
+	ifaceWlCompositor                    = "wl_compositor"
+	ifaceWlDataDevice                    = "wl_data_device"
+	ifaceWlDataDeviceManager             = "wl_data_device_manager"
+	ifaceWlDataOffer                     = "wl_data_offer"
+	ifaceWlDataSource                    = "wl_data_source"
+	ifaceWlDisplay                       = "wl_display"
+	ifaceWlFixes                         = "wl_fixes"
+	ifaceWlKeyboard                      = "wl_keyboard"
+	ifaceWlOutput                        = "wl_output"
+	ifaceWlPointer                       = "wl_pointer"
+	ifaceWlRegion                        = "wl_region"
+	ifaceWlRegistry                      = "wl_registry"
+	ifaceWlSeat                          = "wl_seat"
+	ifaceWlShell                         = "wl_shell"
+	ifaceWlShellSurface                  = "wl_shell_surface"
+	ifaceWlShm                           = "wl_shm"
+	ifaceWlShmPool                       = "wl_shm_pool"
+	ifaceWlSubcompositor                 = "wl_subcompositor"
+	ifaceWlSubsurface                    = "wl_subsurface"
+	ifaceWlSurface                       = "wl_surface"
+	ifaceWlTouch                         = "wl_touch"
+	ifaceWpViewport                      = "wp_viewport"
+	ifaceWpViewporter                    = "wp_viewporter"
+	ifaceXdgPopup                        = "xdg_popup"
+	ifaceXdgPositioner                   = "xdg_positioner"
+	ifaceXdgSurface                      = "xdg_surface"
+	ifaceXdgToplevel                     = "xdg_toplevel"
+	ifaceXdgWmBase                       = "xdg_wm_base"
+	ifaceZwlrForeignToplevelHandleV1     = "zwlr_foreign_toplevel_handle_v1"
+	ifaceZwlrForeignToplevelManagerV1    = "zwlr_foreign_toplevel_manager_v1"
+	ifaceZwlrOutputConfigurationHeadV1   = "zwlr_output_configuration_head_v1"
+	ifaceZwlrOutputConfigurationV1       = "zwlr_output_configuration_v1"
+	ifaceZwlrOutputHeadV1                = "zwlr_output_head_v1"
+	ifaceZwlrOutputManagerV1             = "zwlr_output_manager_v1"
+	ifaceZwlrOutputModeV1                = "zwlr_output_mode_v1"
+	ifaceZwlrScreencopyFrameV1           = "zwlr_screencopy_frame_v1"
+	ifaceZwlrScreencopyManagerV1         = "zwlr_screencopy_manager_v1"
+	ifaceZwlrVirtualPointerManagerV1     = "zwlr_virtual_pointer_manager_v1"
+	ifaceZwlrVirtualPointerV1            = "zwlr_virtual_pointer_v1"
+	ifaceZwpLinuxBufferParamsV1          = "zwp_linux_buffer_params_v1"
+	ifaceZwpLinuxDmabufFeedbackV1        = "zwp_linux_dmabuf_feedback_v1"
+	ifaceZwpLinuxDmabufV1                = "zwp_linux_dmabuf_v1"
+	ifaceZwpVirtualKeyboardManagerV1     = "zwp_virtual_keyboard_manager_v1"
+	ifaceZwpVirtualKeyboardV1            = "zwp_virtual_keyboard_v1"
 )
 
 // protoIfaces describes every interface of the bundled protocols: its
 // maximum version and, for each request and event, its opcode (the slice
 // index) and argument signature.
 var protoIfaces = map[string]*ifaceSpec{
+	"hyprland_toplevel_export_frame_v1": {
+		Name:    "hyprland_toplevel_export_frame_v1",
+		Version: 2,
+		Requests: []msgSpec{
+			{Name: "copy", Opcode: 0, Since: 1, Args: []argSpec{{Name: "buffer", Type: argObject, Interface: "wl_buffer"}, {Name: "ignore_damage", Type: argInt}}},
+			{Name: "destroy", Opcode: 1, Since: 1, Destructor: true},
+		},
+		Events: []msgSpec{
+			{Name: "buffer", Opcode: 0, Since: 1, Args: []argSpec{{Name: "format", Type: argUint}, {Name: "width", Type: argUint}, {Name: "height", Type: argUint}, {Name: "stride", Type: argUint}}},
+			{Name: "damage", Opcode: 1, Since: 1, Args: []argSpec{{Name: "x", Type: argUint}, {Name: "y", Type: argUint}, {Name: "width", Type: argUint}, {Name: "height", Type: argUint}}},
+			{Name: "flags", Opcode: 2, Since: 1, Args: []argSpec{{Name: "flags", Type: argUint}}},
+			{Name: "ready", Opcode: 3, Since: 1, Args: []argSpec{{Name: "tv_sec_hi", Type: argUint}, {Name: "tv_sec_lo", Type: argUint}, {Name: "tv_nsec", Type: argUint}}},
+			{Name: "failed", Opcode: 4, Since: 1},
+			{Name: "linux_dmabuf", Opcode: 5, Since: 1, Args: []argSpec{{Name: "format", Type: argUint}, {Name: "width", Type: argUint}, {Name: "height", Type: argUint}}},
+			{Name: "buffer_done", Opcode: 6, Since: 1},
+		},
+	},
+	"hyprland_toplevel_export_manager_v1": {
+		Name:    "hyprland_toplevel_export_manager_v1",
+		Version: 2,
+		Requests: []msgSpec{
+			{Name: "capture_toplevel", Opcode: 0, Since: 1, Args: []argSpec{{Name: "frame", Type: argNewID, Interface: "hyprland_toplevel_export_frame_v1"}, {Name: "overlay_cursor", Type: argInt}, {Name: "handle", Type: argUint}}},
+			{Name: "destroy", Opcode: 1, Since: 1, Destructor: true},
+			{Name: "capture_toplevel_with_wlr_toplevel_handle", Opcode: 2, Since: 2, Args: []argSpec{{Name: "frame", Type: argNewID, Interface: "hyprland_toplevel_export_frame_v1"}, {Name: "overlay_cursor", Type: argInt}, {Name: "handle", Type: argObject, Interface: "zwlr_foreign_toplevel_handle_v1"}}},
+		},
+	},
 	"wl_buffer": {
 		Name:    "wl_buffer",
 		Version: 1,

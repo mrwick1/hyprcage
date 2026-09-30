@@ -22,7 +22,8 @@ type fakeTree struct {
 	scrolls []string
 	actions []string
 	actIdx  []int
-	actErr  error // returned by Scroll and DoAction when set
+	actErr  error    // returned by Scroll and DoAction when set
+	inserts []string // "<bus><path> <text>" per InsertText
 }
 
 func (f *fakeTree) Walk(context.Context, []int) ([]accessible, error) {
@@ -38,6 +39,11 @@ func (f *fakeTree) DoAction(_ context.Context, bus, path string, i int) error {
 	f.actions = append(f.actions, bus+path)
 	f.actIdx = append(f.actIdx, i)
 	return f.actErr
+}
+
+func (f *fakeTree) InsertText(_ context.Context, bus, path, text string) error {
+	f.inserts = append(f.inserts, bus+path+" "+text)
+	return nil
 }
 
 func thunarTree(t *testing.T) *fakeTree {
@@ -437,5 +443,23 @@ func TestATSPIDialogOffset(t *testing.T) {
 		if i < 0 || src[i].X != tc.wantX || src[i].Y != tc.wantY {
 			t.Errorf("%s: OK at %+v, want (%d,%d)", tc.role, src, tc.wantX, tc.wantY)
 		}
+	}
+}
+
+func TestInsertArgs(t *testing.T) {
+	noCaret := errors.New("no caret")
+	get := func(prop string) (int32, error) {
+		if prop == "CaretOffset" {
+			return 0, noCaret
+		}
+		return 4, nil
+	}
+	args, err := insertArgs("héllo", get)
+	if err != nil || !slices.Equal(args, []any{int32(4), "héllo", int32(5)}) {
+		t.Fatalf("unreadable caret: %v %v, want insert at the end (4) of 5 characters", args, err)
+	}
+	_, err = insertArgs("x", func(string) (int32, error) { return 0, dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownProperty"} })
+	if !unsupported(actErr("k", err, "")) {
+		t.Fatalf("no Text properties: %v, want unsupported_input", actErr("k", err, ""))
 	}
 }

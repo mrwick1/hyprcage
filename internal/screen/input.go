@@ -29,8 +29,16 @@ func ParseButton(s string) (wl.Button, error) {
 	return 0, fmt.Errorf("unknown button %q (left, right, middle)", s)
 }
 
+// PointerInput is the pointer part of *wl.Client.
+type PointerInput interface {
+	Move(x, y int) error
+	PressButton(b wl.Button, pressed bool) error
+	Scroll(axis wl.Axis, steps int) error
+	HoldModifiers(mods []string) error
+}
+
 // Click moves to (x, y) and clicks count times with the given button.
-func Click(cl *wl.Client, x, y int, b wl.Button, count int, modifiers []string) error {
+func Click(cl PointerInput, x, y int, b wl.Button, count int, modifiers []string) error {
 	if count <= 0 {
 		count = 1
 	}
@@ -60,7 +68,7 @@ func Click(cl *wl.Client, x, y int, b wl.Button, count int, modifiers []string) 
 
 // Drag presses at (x1, y1), moves in dragSteps interpolated steps and
 // releases at (x2, y2).
-func Drag(cl *wl.Client, x1, y1, x2, y2 int, duration time.Duration) error {
+func Drag(cl PointerInput, x1, y1, x2, y2 int, duration time.Duration) error {
 	if duration <= 0 {
 		duration = dragDuration
 	}
@@ -84,7 +92,7 @@ func Drag(cl *wl.Client, x1, y1, x2, y2 int, duration time.Duration) error {
 }
 
 // ScrollAt moves to (x, y) and scrolls amount wheel clicks in a direction.
-func ScrollAt(cl *wl.Client, x, y int, direction string, amount int) error {
+func ScrollAt(cl PointerInput, x, y int, direction string, amount int) error {
 	if amount <= 0 {
 		amount = 3
 	}

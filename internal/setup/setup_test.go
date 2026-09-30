@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +72,12 @@ func TestInstallArgvZypperNames(t *testing.T) {
 	got, _ = InstallArgv(fakeLook("pacman"), []string{"tesseract", "tesseract-data-eng"})
 	if want := []string{"pacman", "-S", "--needed", "--noconfirm", "tesseract", "tesseract-data-eng"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestNotifydUnitExecStart(t *testing.T) {
+	got := string(notifydUnit(`/opt/my bin/100%/hyprcage`))
+	if !strings.Contains(got, `ExecStart="/opt/my bin/100%%/hyprcage" notifyd`+"\n") {
+		t.Fatalf("unit:\n%s", got)
 	}
 }

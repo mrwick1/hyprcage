@@ -2,10 +2,16 @@ package desktop
 
 import (
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -130,5 +136,218 @@ func TestPartialTypeCountsKeys(t *testing.T) {
 	wantCode(t, "type", err, screen.CodeHyprland)
 	if err == nil || !strings.Contains(err.Error(), "0 of 2 keys sent") {
 		t.Errorf("type: %v, want the sent count", err)
+	}
+}
+
+// fakeInstance serves a Hyprland command socket that answers every request,
+// under $XDG_RUNTIME_DIR/hypr/<sig>.
+func fakeInstance(t *testing.T, sig string) {
+	t.Helper()
+	dir := filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", sig)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 256)
+			_, _ = c.Read(buf)
+			_, _ = io.WriteString(c, "Hyprland 0.0")
+			c.Close()
+		}
+	}()
+}
+
+func TestInstanceOverride(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	fakeInstance(t, "nested")
+	fallback := &hypr.Instance{Signature: "human"}
+	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "nested")
+	inst, err := Instance(fallback)
+	if err != nil || inst.Signature != "nested" || inst.Dir != filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", "nested") {
+		t.Fatalf("got %+v %v, want the nested instance", inst, err)
+	}
+	for _, bad := range []string{"../nested", "a/b", "..", "gone"} {
+		t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", bad)
+		if inst, err := Instance(fallback); err == nil {
+			t.Errorf("%q: got %+v, want an error", bad, inst)
+		}
+	}
+}
+
+func TestInstanceFallback(t *testing.T) {
+	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "")
+	fallback := &hypr.Instance{Signature: "human"}
+	if inst, err := Instance(fallback); err != nil || inst != fallback {
+		t.Fatalf("got %+v %v, want the fallback", inst, err)
+	}
+	if !IsDesktop(Name) || IsDesktop("hc-1") || IsDesktop("") {
+		t.Error("IsDesktop")
+	}
+}
+
+// fakeDriver records the Exec calls and builds recognisable commands.
+type fakeDriver struct {
+	hypr.ConfigDriver
+	cmds  []string
+	rules []hypr.ExecRules
+}
+
+func (f *fakeDriver) Exec(command string, rules hypr.ExecRules) error {
+	f.cmds = append(f.cmds, command)
+	f.rules = append(f.rules, rules)
+	return nil
+}
+
+func (f *fakeDriver) WorkspaceCmd(id int) string { return fmt.Sprintf("dispatch workspace %d", id) }
+
+func (f *fakeDriver) MoveCursorCmd(x, y int) string {
+	return fmt.Sprintf("dispatch movecursor %d %d", x, y)
+}
+
+func (f *fakeDriver) MoveWindowCmd(addr string, ws int) string {
+	return fmt.Sprintf("dispatch movetoworkspacesilent %d,address:%s", ws, addr)
+}
+
+// fakeIPC serves a command socket that answers the n-th j/clients with
+// clients[n] (the last one repeats, none: no window) and anything else with
+// "ok", and records every request.
+func fakeIPC(t *testing.T, clients ...string) (*hypr.Instance, *[]string) {
+	t.Helper()
+	return fakeIPCFunc(t, func(req string) string {
+		if req != "j/clients" {
+			return "ok"
+		}
+		reply := "[]"
+		if len(clients) > 0 {
+			reply = clients[0]
+			if len(clients) > 1 {
+				clients = clients[1:]
+			}
+		}
+		return reply
+	})
+}
+
+// fakeIPCFunc serves a command socket that answers each request with
+// reply(request) and records every request.
+func fakeIPCFunc(t *testing.T, reply func(string) string) (*hypr.Instance, *[]string) {
+	t.Helper()
+	dir := t.TempDir()
+	l, err := net.Listen("unix", filepath.Join(dir, ".socket.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	var mu sync.Mutex
+	reqs := []string{}
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			buf := make([]byte, 4096)
+			n, _ := c.Read(buf)
+			req := string(buf[:n])
+			mu.Lock()
+			reqs = append(reqs, req)
+			out := reply(req)
+			mu.Unlock()
+			_, _ = io.WriteString(c, out)
+			c.Close()
+		}
+	}()
+	return &hypr.Instance{Signature: "fake", Dir: dir}, &reqs
+}
+
+func fakeDesktop(t *testing.T, locked bool, clients ...string) (Desktop, *fakeDriver, *[]string) {
+	old := lockedFn
+	lockedFn = func() bool { return locked }
+	t.Cleanup(func() { lockedFn = old })
+	h, reqs := fakeIPC(t, clients...)
+	f := &fakeDriver{}
+	return Desktop{H: h, D: f}, f, reqs
+}
+
+func TestLaunchQuotesArgv(t *testing.T) {
+	d, f, _ := fakeDesktop(t, false)
+	pid, addr, _, err := d.Launch([]string{"echo", "a b;rm -rf x", "it's"}, map[string]string{"K": "v w"}, "/tmp/my dir", 4, 0)
+	if err != nil || pid != 0 || addr != "" {
+		t.Fatalf("got %d %q %v, want no window and no error", pid, addr, err)
+	}
+	want := `cd '/tmp/my dir' && env K='v w' echo 'a b;rm -rf x' 'it'\''s'`
+	if len(f.cmds) != 1 || f.cmds[0] != want {
+		t.Errorf("command %q, want %q", f.cmds, want)
+	}
+	_, _, _, err = d.Launch([]string{"x"}, map[string]string{"A=B;": "v"}, "", 4, 0)
+	wantCode(t, "bad env key", err, screen.CodeUnsupported)
+	_, _, _, err = d.Launch(nil, nil, "", 4, 0)
+	wantCode(t, "empty argv", err, screen.CodeUnsupported)
+	if len(f.cmds) != 1 {
+		t.Errorf("a refused launch reached Exec: %q", f.cmds)
+	}
+}
+
+func TestLaunchSilentWorkspace(t *testing.T) {
+	d, f, _ := fakeDesktop(t, false)
+	if _, _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.rules) != 1 || f.rules[0] != (hypr.ExecRules{Workspace: "4 silent", NoInitialFocus: true}) {
+		t.Errorf("rules %+v", f.rules)
+	}
+	d, f, _ = fakeDesktop(t, true)
+	_, _, _, err := d.Launch([]string{"thunar"}, nil, "", 4, 0)
+	wantCode(t, "locked launch", err, screen.CodeLocked)
+	if len(f.cmds) != 0 {
+		t.Errorf("a locked launch reached Exec")
+	}
+}
+
+func TestWorkspaceCommand(t *testing.T) {
+	d, _, reqs := fakeDesktop(t, false)
+	if err := d.Workspace(2); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "workspace 0", d.Workspace(0), screen.CodeUnsupported)
+	if len(*reqs) != 1 || (*reqs)[0] != "dispatch workspace 2" {
+		t.Errorf("requests %q", *reqs)
+	}
+	d, _, _ = fakeDesktop(t, true)
+	wantCode(t, "locked workspace", d.Workspace(2), screen.CodeLocked)
+}
+
+// A single-instance app opens its window in its running process: the exec
+// rules miss it, so Launch moves it to the launch workspace.
+func TestLaunchSingleInstanceMoves(t *testing.T) {
+	d, _, reqs := fakeDesktop(t, false,
+		`[{"address":"0xa","pid":7,"workspace":{"id":1}}]`,
+		`[{"address":"0xa","pid":7,"workspace":{"id":1}},{"address":"0xb","pid":7,"workspace":{"id":1}}]`)
+	pid, addr, byWindow, err := d.Launch([]string{"thunar"}, nil, "", 4, time.Second)
+	if err != nil || pid != 7 || addr != "0xb" || !byWindow {
+		t.Fatalf("got %d %q %v %v, want 7 0xb matched by window", pid, addr, byWindow, err)
+	}
+	if !slices.Contains(*reqs, "dispatch movetoworkspacesilent 4,address:0xb") {
+		t.Errorf("requests %q, want the silent move", *reqs)
+	}
+}
+
+// A mirror window that opens during the launch is hyprcage's, not the app's.
+func TestLaunchSkipsMirror(t *testing.T) {
+	d, _, _ := fakeDesktop(t, false,
+		`[]`,
+		`[{"address":"0xm","pid":9,"class":"hyprcage-mirror","workspace":{"id":2}},{"address":"0xb","pid":7,"workspace":{"id":4}}]`)
+	pid, addr, _, err := d.Launch([]string{"thunar"}, nil, "", 4, time.Second)
+	if err != nil || pid != 7 || addr != "0xb" {
+		t.Fatalf("got %d %q %v, want 7 0xb", pid, addr, err)
 	}
 }

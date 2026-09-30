@@ -18,6 +18,9 @@ func (s *Server) registerClip(srv *mcp.Server) {
 }
 
 func (s *Server) clipboardGet(in clipIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "the clipboard tools have no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
 		return nil, err
@@ -30,6 +33,9 @@ func (s *Server) clipboardGet(in clipIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) clipboardSet(in clipIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "the clipboard tools have no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
 		return nil, err

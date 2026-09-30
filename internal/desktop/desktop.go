@@ -5,14 +5,47 @@ package desktop
 
 import (
 	"bytes"
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/hyprcage/internal/shellq"
 )
+
+// Name is the screen argument that targets the human's desktop.
+const Name = "desktop"
+
+// IsDesktop reports whether a screen argument names the desktop.
+func IsDesktop(name string) bool { return name == Name }
+
+// Instance returns the desktop's Hyprland instance: HYPRCAGE_DESKTOP_INSTANCE
+// when set, otherwise fallback. It refuses a signature with a path separator
+// and an instance that does not answer.
+func Instance(fallback *hypr.Instance) (*hypr.Instance, error) {
+	sig := os.Getenv("HYPRCAGE_DESKTOP_INSTANCE")
+	if sig == "" {
+		return fallback, nil
+	}
+	if strings.Contains(sig, "/") || strings.Contains(sig, "..") {
+		return nil, screen.Errf(screen.CodeInvalidName, "give a signature from $XDG_RUNTIME_DIR/hypr", "HYPRCAGE_DESKTOP_INSTANCE=%q is not a signature", sig)
+	}
+	rt, err := hypr.RuntimeDir()
+	if err != nil {
+		return nil, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	inst := &hypr.Instance{Signature: sig, Dir: filepath.Join(rt, "hypr", sig)}
+	if !inst.Alive() {
+		return nil, screen.Errf(screen.CodeHyprland, "", "HYPRCAGE_DESKTOP_INSTANCE=%s does not answer", sig)
+	}
+	return inst, nil
+}
 
 // Locked reports whether hyprlock runs, by the comm of every process under
 // procRoot ("/proc" outside tests).
@@ -102,15 +135,20 @@ type Desktop struct {
 // lockedFn is Locked on /proc. Tests replace it.
 var lockedFn = func() bool { return Locked("/proc") }
 
+// Unlocked refuses with session_locked while hyprlock runs.
+func Unlocked() error {
+	if lockedFn() {
+		return screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
+	}
+	return nil
+}
+
 // session checks for a Hyprland session that is not locked.
 func (d Desktop) session() error {
 	if d.H == nil {
 		return screen.Errf(screen.CodeHyprland, "", "no Hyprland session")
 	}
-	if lockedFn() {
-		return screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
-	}
-	return nil
+	return Unlocked()
 }
 
 // ready checks the session and the window address before a window command.
@@ -152,12 +190,16 @@ func (d Desktop) Windows() ([]hypr.Client, error) {
 	}
 	out := []hypr.Client{}
 	for _, c := range all {
-		if c.Class != "hyprcage-mirror" {
+		if !own(c) {
 			out = append(out, c)
 		}
 	}
 	return out, nil
 }
+
+// own reports whether c is hyprcage's own window: a mirror. An agent
+// screen's cage runs on the headless backend and has no window here.
+func own(c hypr.Client) bool { return c.Class == "hyprcage-mirror" }
 
 // Focus gives keyboard focus to a window. This one moves the human's focus
 // on purpose.
@@ -211,4 +253,96 @@ func (d Desktop) Key(addr string, combos []string) error {
 		keys = append(keys, key{mods, k})
 	}
 	return d.send(addr, keys)
+}
+
+var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// Launch runs argv on the desktop through the driver's Exec, on workspace
+// "<ws> silent" (ws 0: the active workspace) and without initial focus.
+// Every argument is quoted, so none is parsed as shell syntax. Exec gives no
+// pid: Launch waits up to wait for a window that was not there before and
+// returns its pid and address, or 0 and "" when none appears. byWindow
+// reports a window matched without the exec rules: its pid had a window
+// before (a single-instance app), or it mapped on another workspace. Launch
+// moves such a window to ws without following it.
+//
+// ponytail: the match is by new address only, so an unrelated window that
+// maps during the wait can be picked.
+func (d Desktop) Launch(argv []string, env map[string]string, cwd string, ws int, wait time.Duration) (pid int, addr string, byWindow bool, err error) {
+	if err := d.session(); err != nil {
+		return 0, "", false, err
+	}
+	if len(argv) == 0 {
+		return 0, "", false, screen.Errf(screen.CodeUnsupported, "", "command must not be empty")
+	}
+	var parts []string
+	if cwd != "" {
+		parts = append(parts, "cd", shellq.Quote(cwd), "&&")
+	}
+	if len(env) > 0 {
+		parts = append(parts, "env")
+		for _, k := range slices.Sorted(maps.Keys(env)) {
+			if !envKeyRe.MatchString(k) {
+				return 0, "", false, screen.Errf(screen.CodeUnsupported, "", "%q is not an environment variable name", k)
+			}
+			parts = append(parts, k+"="+shellq.Quote(env[k]))
+		}
+	}
+	parts = append(parts, shellq.Join(argv))
+	if ws == 0 {
+		mons, err := d.H.Monitors()
+		if err != nil {
+			return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
+		}
+		for _, m := range mons {
+			if m.Focused {
+				ws = m.ActiveWorkspace.ID
+			}
+		}
+	}
+	if ws < 1 {
+		return 0, "", false, screen.Errf(screen.CodeUnsupported, "workspaces start at 1", "workspace %d", ws)
+	}
+	before, err := d.H.Clients()
+	if err != nil {
+		return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	seen, pids := map[string]bool{}, map[int]bool{}
+	for _, c := range before {
+		seen[c.Address], pids[c.PID] = true, true
+	}
+	rules := hypr.ExecRules{Workspace: fmt.Sprintf("%d silent", ws), NoInitialFocus: true}
+	if err := d.D.Exec(strings.Join(parts, " "), rules); err != nil {
+		return 0, "", false, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	for deadline := time.Now().Add(wait); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		all, err := d.H.Clients()
+		if err != nil {
+			continue
+		}
+		for _, c := range all {
+			if seen[c.Address] || own(c) {
+				continue
+			}
+			if c.Workspace.ID != ws {
+				if err := d.command(d.D.MoveWindowCmd(c.Address, ws)); err != nil {
+					return c.PID, c.Address, true, err
+				}
+				return c.PID, c.Address, true, nil
+			}
+			return c.PID, c.Address, pids[c.PID], nil
+		}
+	}
+	return 0, "", false, nil
+}
+
+// Workspace switches the human's visible workspace.
+func (d Desktop) Workspace(ws int) error {
+	if err := d.session(); err != nil {
+		return err
+	}
+	if ws < 1 {
+		return screen.Errf(screen.CodeUnsupported, "workspaces start at 1", "workspace %d", ws)
+	}
+	return d.command(d.D.WorkspaceCmd(ws))
 }

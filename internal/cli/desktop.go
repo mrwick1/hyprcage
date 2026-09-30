@@ -10,9 +10,13 @@ import (
 )
 
 func openDesktop() (desktop.Desktop, error) {
-	inst, err := hypr.Discover()
+	found, err := hypr.Discover()
 	if err != nil {
 		return desktop.Desktop{}, screen.Errf(screen.CodeHyprland, "", "%v", err)
+	}
+	inst, err := desktop.Instance(found)
+	if err != nil {
+		return desktop.Desktop{}, err
 	}
 	return desktop.Desktop{H: inst, D: inst.Driver()}, nil
 }

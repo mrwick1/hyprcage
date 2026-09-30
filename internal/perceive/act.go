@@ -119,6 +119,53 @@ var ops = map[string]bool{"click": true, "double_click": true, "type": true, "ke
 func ValidOp(op string) bool { return ops[op] }
 
 func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff, error) {
+	return actWith(ctx, src, t, op, func(n Node, press bool) error {
+		var err error
+		switch {
+		case press:
+			err = src.Press(ctx, n.Key)
+		case op.Op == "click":
+			err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) })
+		case op.Op == "double_click":
+			err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 2) })
+		case op.Op == "type":
+			click := func() error { return pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }) }
+			// OCR has no focus state: click, then type. Other sources click once
+			// more, at a fresh stable centre, when the field does not report focused.
+			// The second click passes the same guards as the first.
+			if err = click(); err == nil && src.Name() != "ocr" && !waitFocus(ctx, src, n.Key) {
+				if n, _, err = aim(ctx, src, n, op.Op); err == nil {
+					if err = click(); err == nil {
+						waitFocus(ctx, src, n.Key)
+					}
+				}
+			}
+			if err == nil {
+				err = in.typeText(op.Text) // focused or not: the text goes out once
+			}
+		case op.Op == "key":
+			err = in.keys(op.Keys)
+		case op.Op == "hover":
+			err = in.move(n.X, n.Y)
+		case op.Op == "scroll":
+			err = pressAt(ctx, in, n, func() error { return in.scroll(n.X, n.Y, direction(op), 3) })
+		}
+		return err
+	})
+}
+
+// direction is the scroll direction of op, "down" by default.
+func direction(op ActOp) string {
+	if op.Direction == "" {
+		return "down"
+	}
+	return op.Direction
+}
+
+// actWith resolves and aims the ref as act does, runs send, waits for the
+// tree to settle, and returns the diff. press tells send to use src.Press.
+// The node is empty for the op "key".
+func actWith(ctx context.Context, src Source, t *Table, op ActOp, send func(n Node, press bool) error) (Diff, error) {
 	if !ops[op.Op] {
 		return Diff{}, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", op.Op)
 	}
@@ -150,40 +197,7 @@ func act(ctx context.Context, in inputter, src Source, t *Table, op ActOp) (Diff
 		}
 	}
 
-	switch {
-	case press:
-		err = src.Press(ctx, n.Key)
-	case op.Op == "click":
-		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) })
-	case op.Op == "double_click":
-		err = pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 2) })
-	case op.Op == "type":
-		click := func() error { return pressAt(ctx, in, n, func() error { return in.click(n.X, n.Y, 1) }) }
-		// OCR has no focus state: click, then type. Other sources click once
-		// more, at a fresh stable centre, when the field does not report focused.
-		// The second click passes the same guards as the first.
-		if err = click(); err == nil && src.Name() != "ocr" && !waitFocus(ctx, src, n.Key) {
-			if n, _, err = aim(ctx, src, n, op.Op); err == nil {
-				if err = click(); err == nil {
-					waitFocus(ctx, src, n.Key)
-				}
-			}
-		}
-		if err == nil {
-			err = in.typeText(op.Text) // focused or not: the text goes out once
-		}
-	case op.Op == "key":
-		err = in.keys(op.Keys)
-	case op.Op == "hover":
-		err = in.move(n.X, n.Y)
-	case op.Op == "scroll":
-		dir := op.Direction
-		if dir == "" {
-			dir = "down"
-		}
-		err = pressAt(ctx, in, n, func() error { return in.scroll(n.X, n.Y, dir, 3) })
-	}
-	if err != nil {
+	if err := send(n, press); err != nil {
 		return Diff{}, err
 	}
 

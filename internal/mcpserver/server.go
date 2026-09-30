@@ -18,6 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/devtools"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
@@ -36,7 +37,7 @@ Read a screen as text first: snapshot, then act by ref, and find (with timeout_m
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
 Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then snapshot / act / find; devtools_eval, devtools_console, devtools_trace and devtools_heap read page internals of any screen launched with DevTools. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
-The human's own windows: desktop_windows, desktop_focus, desktop_move, desktop_type, desktop_key. They are not silent (each key briefly takes the human's focus) and refuse while the session is locked; prefer an agent screen whenever the task allows it.`
+The human's desktop: pass screen "desktop" (plus window, an address from desktop_windows) to screenshot, snapshot, find, act, click, double_click, move, scroll, drag and app_launch; coordinates are global logical pixels. act tries AT-SPI first (no cursor, no focus change), then CDP, then the real pointer, which is put back after each action. Only desktop_workspace changes the human's view; a pointer action on a hidden window refuses with window_hidden. desktop_windows, desktop_focus, desktop_move, desktop_type and desktop_key act on single windows (each key briefly takes the human's focus). notify_list, notify_wait and notify_act read and act on the human's notifications of the last 48 hours. Every desktop tool refuses while the session is locked; prefer an agent screen whenever the task allows it.`
 
 // Server holds the per-session state.
 type Server struct {
@@ -195,12 +196,17 @@ func textResult(v any) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}
 }
 
-func imageResult(res *screen.ShotResult, rec *registry.Screen) *mcp.CallToolResult {
-	geom, _ := json.Marshal(map[string]any{
-		"screen": rec.Name, "width": res.Width, "height": res.Height, "scale": res.Scale,
+func imageResult(res *screen.ShotResult, name string) *mcp.CallToolResult {
+	g := map[string]any{
+		"screen": name, "width": res.Width, "height": res.Height, "scale": res.Scale,
 		"screen_width": res.ScreenW, "screen_height": res.ScreenH, "region": res.Region,
 		"note": "coordinates for click/move/drag are in screen pixels; divide image coordinates by scale",
-	})
+	}
+	if res.Origin != nil {
+		g["origin"], g["logical_per_pixel"] = res.Origin, res.LogicalPerPixel
+		g["note"] = "desktop coordinates are global logical pixels: x = origin[0] + (image_x/scale + region.x) * logical_per_pixel, same for y"
+	}
+	geom, _ := json.Marshal(g)
 	return &mcp.CallToolResult{Content: []mcp.Content{
 		&mcp.ImageContent{Data: res.Data, MIMEType: res.MIME},
 		&mcp.TextContent{Text: string(geom)},
@@ -220,7 +226,7 @@ func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, set
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec), nil
+	return imageResult(res, rec.Name), nil
 }
 
 // --- tool inputs ------------------------------------------------------------
@@ -251,6 +257,7 @@ type launchIn struct {
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
 	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
+	Workspace    int               `json:"workspace,omitempty" jsonschema:"desktop only: workspace to launch on, without switching to it (default: the active workspace)"`
 }
 
 type closeIn struct {
@@ -265,10 +272,12 @@ type shotIn struct {
 	Format   string       `json:"format,omitempty" jsonschema:"png (default) or jpeg"`
 	Cursor   *bool        `json:"cursor,omitempty" jsonschema:"draw the pointer (default true)"`
 	SettleMs int          `json:"settle_ms,omitempty" jsonschema:"wait this long before capturing, for a toast or an animation to settle (default 0)"`
+	Window   string       `json:"window,omitempty" jsonschema:"screen desktop only: capture this window (address from desktop_windows), on any workspace"`
 }
 
 type clickIn struct {
 	Screen          string   `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int      `json:"x" jsonschema:"screen pixel x"`
 	Y               int      `json:"y" jsonschema:"screen pixel y"`
 	Button          string   `json:"button,omitempty" jsonschema:"left (default), right or middle"`
@@ -280,12 +289,14 @@ type clickIn struct {
 
 type moveIn struct {
 	Screen string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	Window string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X      int    `json:"x" jsonschema:"screen pixel x"`
 	Y      int    `json:"y" jsonschema:"screen pixel y"`
 }
 
 type scrollIn struct {
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int    `json:"x" jsonschema:"screen pixel x"`
 	Y               int    `json:"y" jsonschema:"screen pixel y"`
 	Direction       string `json:"direction" jsonschema:"up, down, left or right"`
@@ -296,6 +307,7 @@ type scrollIn struct {
 
 type dragIn struct {
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X1              int    `json:"x1"`
 	Y1              int    `json:"y1"`
 	X2              int    `json:"x2"`
@@ -365,10 +377,19 @@ type handler[In any] func(in In) (*mcp.CallToolResult, error)
 
 // tool wraps a handler: serialised, errors become isError results.
 func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) {
+	unlocked(srv, name, desc, func(in In) (*mcp.CallToolResult, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return h(in)
+	})
+}
+
+// unlocked registers a handler that runs outside the server lock. Only a
+// handler that touches no Server state may use it, for example a long wait
+// on a file.
+func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			s.mu.Lock()
-			defer s.mu.Unlock()
 			res, err := h(in)
 			if err != nil {
 				return nil, nil, err
@@ -386,7 +407,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "app_launch", "Run a graphical application inside a screen. Returns its pid and, once it appears, its window.", s.appLaunch)
 	tool(s, srv, "app_close", "Ask a window of the screen to close gracefully. Window ids change when a window remaps, so take the id from windows rather than from an older reply.", s.appClose)
 	tool(s, srv, "windows", "List the windows of a screen with their ids, titles and app ids.", s.windows)
-	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry; coordinates for other tools are screen pixels.", s.screenshot)
+	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry; coordinates for other tools are screen pixels. With screen desktop: the human's output, or with window one of the human's windows on any workspace, without switching it; the geometry adds origin and logical_per_pixel, which map image pixels to the global logical coordinates of the desktop tools.", s.screenshot)
 	tool(s, srv, "click", "Click at screen coordinates (left by default; count=2 for a double click).", s.click)
 	tool(s, srv, "double_click", "Double-click at screen coordinates with the left button.", s.doubleClick)
 	tool(s, srv, "move", "Move the pointer to screen coordinates without clicking (hover).", s.move)
@@ -403,6 +424,9 @@ func (s *Server) register(srv *mcp.Server) {
 // --- handlers ---------------------------------------------------------------
 
 func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
+	if desktop.IsDesktop(in.Name) {
+		return nil, screen.Errf(screen.CodeInvalidName, "choose another name", "%q is reserved for the human's desktop", in.Name)
+	}
 	c, err := s.hypr()
 	if err != nil {
 		return nil, err
@@ -430,6 +454,8 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 
 func (s *Server) setup(in struct{}) (*mcp.CallToolResult, error) {
 	rep, err := setup.Run()
+	note, nerr := setup.Notifyd()
+	rep.Notifyd, err = note, errors.Join(err, nerr)
 	if err != nil {
 		rep.Manual = err.Error()
 		data, _ := json.MarshalIndent(rep, "", "  ")
@@ -483,6 +509,9 @@ func (s *Server) screenList(in listIn) (*mcp.CallToolResult, error) {
 func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	if len(in.Command) == 0 {
 		return nil, fmt.Errorf("command must not be empty")
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopLaunch(in)
 	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
@@ -550,6 +579,9 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) appClose(in closeIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "app_close has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	_, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -566,6 +598,9 @@ func (s *Server) appClose(in closeIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) mirror(in mirrorIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "mirror has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
 		return nil, err
@@ -593,6 +628,9 @@ func (s *Server) mirror(in mirrorIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) windows(in screenIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_windows"); err != nil {
+		return nil, err
+	}
 	_, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -608,26 +646,45 @@ func (s *Server) windows(in screenIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
-	rec, cl, err := s.resolve(in.Screen, true)
-	if err != nil {
+	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
 	cursor := true
 	if in.Cursor != nil {
 		cursor = *in.Cursor
 	}
-	if in.SettleMs > 0 {
-		time.Sleep(time.Duration(min(in.SettleMs, 10000)) * time.Millisecond)
+	o := screen.ShotOptions{Scale: in.Scale, Region: in.Region, Format: in.Format, Cursor: cursor,
+		MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopShot(in.Window, in.SettleMs, o)
 	}
-	res, err := screen.Shot(cl, screen.ShotOptions{Scale: in.Scale, Region: in.Region, Format: in.Format, Cursor: cursor,
-		MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec), nil
+	if in.SettleMs > 0 {
+		time.Sleep(time.Duration(min(in.SettleMs, 10000)) * time.Millisecond)
+	}
+	res, err := screen.Shot(cl, o)
+	if err != nil {
+		return nil, err
+	}
+	return imageResult(res, rec.Name), nil
 }
 
 func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if desktop.IsDesktop(in.Screen) {
+		b, err := screen.ParseButton(in.Button)
+		if err != nil {
+			return nil, err
+		}
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+			return screen.Click(p, in.X, in.Y, b, in.Count, in.Modifiers)
+		})
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -643,6 +700,14 @@ func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopPointer(in.Window, false, 0, func(p screen.PointerInput) error {
+			return screen.Click(p, in.X, in.Y, wl.ButtonLeft, 2, nil)
+		})
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -654,6 +719,12 @@ func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopHover(in.Window, in.X, in.Y)
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -665,6 +736,14 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+			return screen.ScrollAt(p, in.X, in.Y, in.Direction, in.Amount)
+		})
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -676,6 +755,14 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
+	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if desktop.IsDesktop(in.Screen) {
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+			return screen.Drag(p, in.X1, in.Y1, in.X2, in.Y2, time.Duration(in.DurationMs)*time.Millisecond)
+		})
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -687,6 +774,9 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_type"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -698,6 +788,9 @@ func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "use desktop_key"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err
@@ -709,6 +802,9 @@ func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) wait(in waitIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "wait has no desktop equivalent"); err != nil {
+		return nil, err
+	}
 	if in.Ms > 0 {
 		time.Sleep(time.Duration(in.Ms) * time.Millisecond)
 	}
@@ -749,6 +845,9 @@ func (s *Server) doWait(cl *wl.Client, stableMs int, title string, timeoutMs int
 }
 
 func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "call desktop_type and desktop_key one by one"); err != nil {
+		return nil, err
+	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
 		return nil, err

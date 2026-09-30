@@ -39,6 +39,11 @@ var (
 	ownsPort = screen.OwnsPort
 )
 
+// shotOf returns the capture function of the screen that cl is connected to.
+func shotOf(cl *wl.Client) func(screen.ShotOptions) (*screen.ShotResult, error) {
+	return func(o screen.ShotOptions) (*screen.ShotResult, error) { return screen.Shot(cl, o) }
+}
+
 // foreignPortHint answers a DevTools port that another program took over.
 const foreignPortHint = "the DevTools port no longer belongs to this screen; relaunch the app with debug=true"
 
@@ -65,7 +70,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		if !ocrOK() {
 			return nil, screen.Errf(screen.CodeNoSource, "run hyprcage setup", "no OCR data at %s", ocrData)
 		}
-		return newOCR(cl), nil
+		return newOCR(shotOf(cl)), nil
 	case "auto":
 		cdpNote := ""
 		if rec.DebugPort > 0 && !ownsPort(rec) {
@@ -87,7 +92,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 			}
 		}
 		if ocrOK() {
-			return newOCR(cl), nil
+			return newOCR(shotOf(cl)), nil
 		}
 		return nil, screen.Errf(screen.CodeNoSource, noSourceHint, "screen %s has no DevTools answer, no AT-SPI application and no OCR data%s", rec.Name, cdpNote)
 	}

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"golang.org/x/sync/errgroup"
 
@@ -452,31 +454,42 @@ func convert(target string, ax []axNode) *frame {
 	return f
 }
 
-func (s *cdpSource) Reveal(ctx context.Context, k string) (Node, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// node returns the session and the backend id of the CDP Key k.
+func (s *cdpSource) node(k string) (*cdpSession, int, error) {
 	t := target(k)
 	backend, err := strconv.Atoi(strings.TrimPrefix(k, "cdp:"+t+":"))
 	se := s.sessions[t]
 	if !strings.HasPrefix(k, "cdp:") || err != nil || se == nil {
-		return Node{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot", "no CDP target for %q", k)
+		return nil, 0, screen.Errf(screen.CodeStaleRef, "take a new snapshot", "no CDP target for %q", k)
 	}
-	fail := func(err error) (Node, error) {
-		if isProto(err) {
-			return Node{}, staleErr(k, err)
-		}
-		return Node{}, unreachable(err)
+	return se, backend, nil
+}
+
+// nodeErr maps an error reply about the node k to stale_ref.
+func nodeErr(k string, err error) error {
+	if isProto(err) {
+		return staleErr(k, err)
+	}
+	return unreachable(err)
+}
+
+func (s *cdpSource) Reveal(ctx context.Context, k string) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	se, backend, err := s.node(k)
+	if err != nil {
+		return Node{}, err
 	}
 	if err := s.call(ctx, se.id, "DOM.scrollIntoViewIfNeeded", map[string]any{"backendNodeId": backend}, nil); err != nil {
-		return fail(err)
+		return Node{}, nodeErr(k, err)
 	}
 	c, err := s.centre(ctx, se.id, backend)
 	if err != nil {
-		return fail(err)
+		return Node{}, nodeErr(k, err)
 	}
-	ox, oy, root, _, err := s.origin(ctx, t, 0)
+	ox, oy, root, _, err := s.origin(ctx, target(k), 0)
 	if err != nil {
-		return fail(err)
+		return Node{}, nodeErr(k, err)
 	}
 	n, ok := s.last[k]
 	if !ok {
@@ -575,6 +588,146 @@ func (s *cdpSource) covered(ctx context.Context, session string, backend int) (b
 		return false, nil // the check threw: do not block the act
 	}
 	return !res.Result.Value, nil
+}
+
+// Mouse sends CDP mouse events at the centre of the node k: a click with
+// count presses, a hover (op "hover") or a wheel turn (op "scroll").
+func (s *cdpSource) Mouse(ctx context.Context, k, op string, count int, direction string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	se, backend, err := s.node(k)
+	if err != nil {
+		return err
+	}
+	c, err := s.centre(ctx, se.id, backend)
+	if err != nil {
+		return nodeErr(k, err)
+	}
+	ox, oy, root, _, err := s.origin(ctx, target(k), 0)
+	if err != nil {
+		return nodeErr(k, err)
+	}
+	// The coordinates are CSS pixels of the top page's viewport.
+	ev := func(typ string, extra map[string]any) error {
+		p := map[string]any{"type": typ, "x": ox + c[0], "y": oy + c[1]}
+		maps.Copy(p, extra)
+		return unreachableIf(s.call(ctx, root.id, "Input.dispatchMouseEvent", p, nil))
+	}
+	if err := ev("mouseMoved", nil); err != nil || op == "hover" {
+		return err
+	}
+	if op == "scroll" {
+		d := map[string][2]int{"": {0, 300}, "down": {0, 300}, "up": {0, -300}, "right": {300, 0}, "left": {-300, 0}}
+		delta, ok := d[strings.ToLower(direction)]
+		if !ok {
+			return fmt.Errorf("unknown direction %q (up, down, left, right)", direction)
+		}
+		return ev("mouseWheel", map[string]any{"deltaX": delta[0], "deltaY": delta[1]})
+	}
+	for i := 1; i <= count; i++ {
+		for _, typ := range []string{"mousePressed", "mouseReleased"} {
+			if err := ev(typ, map[string]any{"button": "left", "clickCount": i}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// InsertText focuses the node k and inserts text as if typed.
+func (s *cdpSource) InsertText(ctx context.Context, k, text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	se, backend, err := s.node(k)
+	if err != nil {
+		return err
+	}
+	if err := s.call(ctx, se.id, "DOM.focus", map[string]any{"backendNodeId": backend}, nil); err != nil {
+		return nodeErr(k, err)
+	}
+	return unreachableIf(s.call(ctx, se.id, "Input.insertText", map[string]any{"text": text}, nil))
+}
+
+// cdpKeys maps a key name to its DOM key, Windows virtual key code and text.
+var cdpKeys = map[string]struct {
+	key  string
+	vk   int
+	text string
+}{
+	"return": {"Enter", 13, "\r"}, "enter": {"Enter", 13, "\r"}, "tab": {"Tab", 9, ""},
+	"escape": {"Escape", 27, ""}, "backspace": {"Backspace", 8, ""}, "delete": {"Delete", 46, ""},
+	"space": {" ", 32, " "}, "left": {"ArrowLeft", 37, ""}, "up": {"ArrowUp", 38, ""},
+	"right": {"ArrowRight", 39, ""}, "down": {"ArrowDown", 40, ""}, "home": {"Home", 36, ""},
+	"end": {"End", 35, ""}, "page_up": {"PageUp", 33, ""}, "page_down": {"PageDown", 34, ""},
+}
+
+// cdpMods are the modifier bits of Input.dispatchKeyEvent.
+var cdpMods = map[string]int{"alt": 1, "ctrl": 2, "super": 4, "shift": 8}
+
+// Keys presses combinations such as ctrl+a on the one page of the source.
+// Every combination is parsed first: an unknown key sends nothing and
+// answers unsupported, so that the caller can use another path.
+func (s *cdpSource) Keys(ctx context.Context, combos []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var page *cdpSession
+	for _, se := range s.sessions {
+		if se.typ == "page" {
+			if page != nil {
+				return screen.Errf(screen.CodeUnsupported, "", "several pages: CDP cannot tell which one has the focus")
+			}
+			page = se
+		}
+	}
+	if page == nil {
+		return screen.Errf(screen.CodeUnsupported, "", "no page")
+	}
+	var events []map[string]any
+	for _, combo := range combos {
+		parts := strings.Split(combo, "+")
+		mods := 0
+		for _, m := range parts[:len(parts)-1] {
+			bit, ok := cdpMods[strings.ToLower(m)]
+			if !ok {
+				return screen.Errf(screen.CodeUnsupported, "ctrl, shift, alt or super", "bad modifier %q in %q", m, combo)
+			}
+			mods |= bit
+		}
+		name := parts[len(parts)-1]
+		k, ok := cdpKeys[strings.ToLower(name)]
+		if r := []rune(name); len(r) == 1 && r[0] < 0x80 && (unicode.IsLetter(r[0]) || unicode.IsDigit(r[0])) {
+			k.key, k.vk, ok = name, int(unicode.ToUpper(r[0])), true
+			if mods&cdpMods["shift"] != 0 {
+				k.key = strings.ToUpper(name)
+			}
+			k.text = k.key
+		}
+		if !ok {
+			return screen.Errf(screen.CodeUnsupported, "", "no CDP key for %q", combo)
+		}
+		if mods&^cdpMods["shift"] != 0 {
+			k.text = "" // a shortcut, not text
+		}
+		down := map[string]any{"type": "rawKeyDown", "key": k.key, "windowsVirtualKeyCode": k.vk, "modifiers": mods}
+		if k.text != "" {
+			down["type"], down["text"] = "keyDown", k.text
+		}
+		events = append(events, down, map[string]any{"type": "keyUp", "key": k.key, "windowsVirtualKeyCode": k.vk, "modifiers": mods})
+	}
+	for _, ev := range events {
+		if err := s.call(ctx, page.id, "Input.dispatchKeyEvent", ev, nil); err != nil {
+			return unreachable(err)
+		}
+	}
+	return nil
+}
+
+// unreachableIf is unreachable for a non-nil err.
+func unreachableIf(err error) error {
+	if err != nil {
+		return unreachable(err)
+	}
+	return nil
 }
 
 func (s *cdpSource) Press(context.Context, string) error {

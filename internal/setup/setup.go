@@ -12,7 +12,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/hexadecimil/hyprcage/contrib"
+	"github.com/hexadecimil/hyprcage/internal/sysd"
 )
 
 // OCRData is the path of the English language data of tesseract.
@@ -43,6 +47,7 @@ type Report struct {
 	Installed []string `json:"installed"` // by this run
 	Method    string   `json:"method"`    // sudo, pkexec, or none
 	Manual    string   `json:"manual,omitempty"`
+	Notifyd   string   `json:"notifyd,omitempty"` // what happened to the notification daemon's unit
 }
 
 // Missing returns the packages whose binary is not in PATH, or whose file
@@ -179,4 +184,46 @@ func diff(all, still []string) []string {
 		}
 	}
 	return out
+}
+
+// NotifydUnit is the name of the notification daemon's user unit.
+const NotifydUnit = "hyprcage-notifyd.service"
+
+// Notifyd installs the notification daemon's user unit into
+// ~/.config/systemd/user and enables and starts it. Without a systemd user
+// manager it skips the unit. It returns what it did.
+func Notifyd() (string, error) {
+	if !sysd.Available() {
+		return "skipped " + NotifydUnit + ": no systemd user manager", nil
+	}
+	exe, err := os.Executable()
+	if err == nil {
+		exe, err = filepath.EvalSymlinks(exe)
+	}
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(dir, NotifydUnit), notifydUnit(exe), 0o644); err != nil {
+		return "", err
+	}
+	for _, argv := range [][]string{
+		{"systemctl", "--user", "daemon-reload"},
+		{"systemctl", "--user", "enable", "--now", NotifydUnit},
+	} {
+		if out, err := exec.Command(argv[0], argv[1:]...).CombinedOutput(); err != nil {
+			return "", fmt.Errorf("%s: %v: %s", strings.Join(argv, " "), err, strings.TrimSpace(string(out)))
+		}
+	}
+	return "enabled " + NotifydUnit, nil
+}
+
+// notifydUnit is the embedded unit with exe, quoted for systemd, as the
+// binary of ExecStart.
+func notifydUnit(exe string) []byte {
+	q := `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%").Replace(exe) + `"`
+	return bytes.Replace(contrib.NotifydUnit, []byte("%h/.local/bin/hyprcage"), []byte(q), 1)
 }

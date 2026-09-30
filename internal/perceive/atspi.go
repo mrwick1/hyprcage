@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/hexadecimil/hyprcage/internal/screen"
@@ -27,6 +28,7 @@ type tree interface {
 	Walk(ctx context.Context, pids []int) ([]accessible, error)
 	Scroll(ctx context.Context, bus, path string) error // Component.ScrollTo
 	DoAction(ctx context.Context, bus, path string, i int) error
+	InsertText(ctx context.Context, bus, path, text string) error // at the caret, or at the end
 }
 
 const atspiHint = "start the a11y bus (at-spi-bus-launcher) or use source=ocr"
@@ -59,7 +61,12 @@ type atspiSource struct {
 	mu     sync.Mutex
 	last   map[string]accessible // by Key, from the last Nodes
 	menu   map[string]bool       // the keys of the ActionOnly nodes of the last Nodes
-	sw, sh int                   // screen size, for the centring offset of a small window
+	// place returns where the top-level window top sits: AT-SPI extents
+	// are relative to it.
+	place func(top accessible) (int, int)
+	// only, when set, filters the walked objects: the desktop keeps the
+	// top-level object of one window (windowTree).
+	only func([]accessible) ([]accessible, error)
 }
 
 // NewATSPI connects to the a11y bus of the session. The source keeps only
@@ -71,18 +78,34 @@ func NewATSPI(ctx context.Context, screenName string, w, h int) (Source, error) 
 		return nil, screen.Errf(screen.CodeNoSource, atspiHint, "a11y bus: %v", err)
 	}
 	pids := func() []int { return screen.ScreenProcesses(screenName) }
-	s := &atspiSource{t: &dbusTree{conn: conn}, pids: pids, closer: conn.Close, last: map[string]accessible{}, sw: w, sh: h}
+	s := &atspiSource{t: &dbusTree{conn: conn}, pids: pids, closer: conn.Close, last: map[string]accessible{}, place: centred(w, h)}
 	return s, nil
 }
 
 // newATSPIWith builds the source on t, filtered by pids, for a w x h screen.
 func newATSPIWith(t tree, pids []int, w, h int) Source {
-	return &atspiSource{t: t, pids: func() []int { return pids }, last: map[string]accessible{}, sw: w, sh: h}
+	return &atspiSource{t: t, pids: func() []int { return pids }, last: map[string]accessible{}, place: centred(w, h)}
+}
+
+// centred returns where cage puts a top-level window on a sw x sh screen:
+// it centres a window smaller than the screen (a dialog).
+func centred(sw, sh int) func(accessible) (int, int) {
+	return func(top accessible) (int, int) {
+		w, h := top.Extents[2], top.Extents[3]
+		if w <= 0 || h <= 0 {
+			return 0, 0
+		}
+		return max(sw-w, 0) / 2, max(sh-h, 0) / 2
+	}
 }
 
 // HasApps reports whether any application on the bus belongs to the screen.
 func HasApps(ctx context.Context, screenName string) bool {
-	pids := screen.ScreenProcesses(screenName)
+	return PIDsHaveApps(ctx, screen.ScreenProcesses(screenName))
+}
+
+// PIDsHaveApps reports whether any application on the bus has a PID in pids.
+func PIDsHaveApps(ctx context.Context, pids []int) bool {
 	if len(pids) == 0 {
 		return false
 	}
@@ -127,6 +150,9 @@ func (s *atspiSource) walk(ctx context.Context) ([]accessible, error) {
 		seen[k] = true
 		out = append(out, o)
 	}
+	if s.only != nil {
+		return s.only(out)
+	}
 	return out, nil
 }
 
@@ -148,7 +174,7 @@ func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
 	for _, o := range objs {
 		s.last[atspiKey(o.Bus, o.Path)] = o
 	}
-	nodes := atspiNodes(objs, s.sw, s.sh)
+	nodes := atspiNodes(objs, s.place)
 	s.menu = map[string]bool{}
 	for _, n := range nodes {
 		if n.ActionOnly {
@@ -158,16 +184,16 @@ func (s *atspiSource) Nodes(ctx context.Context) ([]Node, error) {
 	return nodes, nil
 }
 
-// atspiNodes converts objs, which hold one entry per key, for a sw x sh
-// screen.
-func atspiNodes(objs []accessible, sw, sh int) []Node {
+// atspiNodes converts objs, which hold one entry per key. place gives the
+// position of each top-level window.
+func atspiNodes(objs []accessible, place func(top accessible) (int, int)) []Node {
 	role := make(map[string]string, len(objs))
 	parent := make(map[string]string, len(objs))
-	ext := make(map[string][4]int, len(objs))
+	byKey := make(map[string]accessible, len(objs))
 	for _, o := range objs {
 		k := atspiKey(o.Bus, o.Path)
 		role[k] = o.Role
-		ext[k] = o.Extents
+		byKey[k] = o
 		if o.Parent != "" {
 			parent[k] = atspiKey(o.Bus, o.Parent)
 		}
@@ -182,18 +208,13 @@ func atspiNodes(objs []accessible, sw, sh int) []Node {
 		}
 		return false
 	}
-	// offset returns where cage puts the top-level window of k: the child
-	// of the application object. AT-SPI WINDOW extents are relative to that
-	// window, and cage centres a window smaller than the screen (a dialog).
+	// offset returns the position of the top-level window of k: the child
+	// of the application object. AT-SPI WINDOW extents are relative to it.
 	offset := func(k string) (int, int) {
 		for i := 0; k != "" && i <= len(objs); i++ {
 			p := parent[k]
 			if role[p] == "application" {
-				w, h := ext[k][2], ext[k][3]
-				if w <= 0 || h <= 0 {
-					return 0, 0
-				}
-				return max(sw-w, 0) / 2, max(sh-h, 0) / 2
+				return place(byKey[k])
 			}
 			k = p
 		}
@@ -258,7 +279,8 @@ func actErr(key string, err error, unsupported string) error {
 	var de dbus.Error
 	if errors.As(err, &de) {
 		switch de.Name {
-		case "org.freedesktop.DBus.Error.UnknownMethod", "org.freedesktop.DBus.Error.UnknownInterface":
+		case "org.freedesktop.DBus.Error.UnknownMethod", "org.freedesktop.DBus.Error.UnknownInterface",
+			"org.freedesktop.DBus.Error.UnknownProperty", "org.freedesktop.DBus.Error.InvalidArgs":
 			return screen.Errf(screen.CodeUnsupported, unsupported, "%s: %v", key, err)
 		}
 		return screen.Errf(screen.CodeStaleRef, "take a new snapshot", "%s: %v", key, err)
@@ -285,7 +307,7 @@ func (s *atspiSource) Reveal(ctx context.Context, key string) (Node, error) {
 	if err != nil {
 		return Node{}, err
 	}
-	for i, n := range atspiNodes(objs, s.sw, s.sh) {
+	for i, n := range atspiNodes(objs, s.place) {
 		if n.Key == key {
 			s.last[key] = objs[i]
 			return n, nil
@@ -308,6 +330,20 @@ func (s *atspiSource) Press(ctx context.Context, key string) error {
 			hint = "use key to navigate the menu"
 		}
 		return actErr(key, err, hint)
+	}
+	return nil
+}
+
+// Insert inserts text into the node through EditableText, without focus or keys.
+func (s *atspiSource) Insert(ctx context.Context, key, text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	o, err := s.known(key)
+	if err != nil {
+		return err
+	}
+	if err := s.t.InsertText(ctx, o.Bus, o.Path, text); err != nil {
+		return actErr(key, err, "the element takes no text; click it and use key")
 	}
 	return nil
 }
@@ -484,10 +520,42 @@ func (d *dbusTree) DoAction(ctx context.Context, bus, path string, i int) error 
 	return d.ok(ctx, bus, path, "org.a11y.atspi.Action.DoAction", int32(i))
 }
 
+// InsertText inserts text at the caret. A caret of -1 (unknown) inserts at the end.
+func (d *dbusTree) InsertText(ctx context.Context, bus, path, text string) error {
+	args, err := insertArgs(text, func(prop string) (int32, error) {
+		var v dbus.Variant
+		if err := d.call(ctx, bus, path, "org.freedesktop.DBus.Properties.Get", &v, "org.a11y.atspi.Text", prop); err != nil {
+			return 0, err
+		}
+		n, ok := v.Value().(int32)
+		if !ok {
+			return 0, errRefused
+		}
+		return n, nil
+	})
+	if err != nil {
+		return err
+	}
+	return d.ok(ctx, bus, path, "org.a11y.atspi.EditableText.InsertText", args...)
+}
+
+// insertArgs returns the arguments of EditableText.InsertText: the caret,
+// else the end when the caret is unknown or unreadable, the text, and its
+// length in characters. get reads a Text property.
+func insertArgs(text string, get func(prop string) (int32, error)) ([]any, error) {
+	pos, err := get("CaretOffset")
+	if err != nil || pos < 0 {
+		if pos, err = get("CharacterCount"); err != nil {
+			return nil, err
+		}
+	}
+	return []any{pos, text, int32(utf8.RuneCountInString(text))}, nil
+}
+
 // ok calls a method that answers a boolean, and turns false into errRefused.
-func (d *dbusTree) ok(ctx context.Context, bus, path, method string, arg any) error {
+func (d *dbusTree) ok(ctx context.Context, bus, path, method string, args ...any) error {
 	var done bool
-	if err := d.call(ctx, bus, path, method, &done, arg); err != nil {
+	if err := d.call(ctx, bus, path, method, &done, args...); err != nil {
 		return err
 	}
 	if !done {
