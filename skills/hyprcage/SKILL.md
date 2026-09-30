@@ -66,13 +66,26 @@ installs nothing and asks them for a password for nothing.
 - **Record**: `record_start` on a screen, or `target: "desktop"` for the human's screen, then `record_stop`. The reply gives the MP4 path in `~/Videos/agent/`. A recording stops by itself after 30 minutes or when its screen closes. Tell the human when you record their desktop.
 - **Chrome by code**: `browser_open` on a screen, then `snapshot` / `act` / `find` to drive the page. For page internals use `devtools_eval` (run JavaScript, get JSON back), `devtools_console` (console calls, uncaught exceptions and failed requests since launch), `devtools_trace` (`start`, do the work, `stop`: a file for the DevTools Performance panel) and `devtools_heap` (a file for the Memory panel). They work on any screen launched with DevTools, Electron apps included. Each screen gets its own DevTools port, so several agent Chromes can run at once. `browser_running` means this screen already runs a DevTools app: reuse it or use another screen. With more than one tab open, pass part of the URL as `page`.
 - **Clipboard**: `clipboard_set`, then `key ctrl+v`, to paste long text into an app. `clipboard_get` reads what the app copied. It is the screen's clipboard, never the human's.
-- **The human's windows**: `desktop_windows` gives the addresses. `desktop_type` and `desktop_key` send keys without focusing the window, but each key briefly takes the human's keyboard focus. `desktop_focus` moves their focus for real. Use these only for the human's own windows. Your own apps go on a screen.
 - **Files**: no file tool is needed. Apps on a screen run as the human and see the same file system, so give them normal paths.
+
+## The human's desktop
+
+Use the human's desktop only when the job needs their own apps or their session. Your own apps still go on a screen.
+
+- **Target**: pass `screen: "desktop"` to `screenshot`, `snapshot`, `find`, `act`, `click`, `double_click`, `move`, `scroll`, `drag` and `app_launch`. Add `window` (an address from `desktop_windows`) to work on one window. Coordinates are global logical pixels.
+- **Read first**: `snapshot` and `find` work on any window, also on a hidden workspace. `screenshot` with `window` captures one window on any workspace. Without `window`, it captures the visible output.
+- **Act without the cursor**: `act` tries AT-SPI first (no cursor move, no focus change), then CDP, then the real pointer or keys. The first line of the reply is `path=atspi|cdp|pointer|shortcut`.
+- **The pointer**: `click`, `scroll`, `drag` and a pointer `act` move the human's real cursor and then put it back. Focus follows the click. On a window that is not on a visible workspace, they refuse with `window_hidden`.
+- **Workspaces**: no tool changes the human's view, except `desktop_workspace`. Call it only when a pointer action needs a hidden window.
+- **Launch**: `app_launch` with `screen: "desktop"` opens the app on the given `workspace` (default: the current one) without a view change. The reply gives the window address.
+- **Keys**: `desktop_type` and `desktop_key` send keys to a window without focusing it. Each key briefly takes the human's keyboard focus. `desktop_focus` moves their focus for real, and `desktop_move` moves a window to a workspace.
+- **Notifications**: `notify_list` shows the notifications of the last 48 hours. `notify_wait` waits for a new one. `notify_act` closes one, or invokes an action of the latest one only. `notifyd_down` means the daemon does not run: tell the human.
+- Every desktop tool refuses with `session_locked` while the screen is locked.
 
 ## Never
 
 - `app &` from a shell, `open_application` from computer-use, or any launch outside `app_launch`: it lands on the human's screen.
-- Raw `hyprctl dispatch` calls (`focus*`, `workspace`, `movecursor` and the like): never use them. The `desktop_*` tools are the only way to act on the human's windows, and only when the task needs it.
+- Raw `hyprctl dispatch` calls (`focus*`, `workspace`, `movecursor` and the like): never use them. The `desktop_*` tools and `screen: "desktop"` are the only way to act on the human's desktop, and only when the task needs it.
 - Destroying a screen you did not create (`not_owner`).
 - Keeping every screenshot in context: each one costs ~1 300 tokens.
 - Taking a screenshot to read text or to find a button: `snapshot` and `find` give it to you as text.
@@ -83,5 +96,5 @@ installs nothing and asks them for a password for nothing.
 Everything exists as `hyprcage <command>` for a terminal: `create`, `launch`,
 `shot`, `click`, `type`, `key`, `destroy`, `mirror`, `list`, `gc`, `doctor`,
 `record`, `clip`, `desktop`, `browser`, `show`, `snapshot`, `act`, `find`.
-The CLI stores the refs of each screen between two commands, so `hyprcage act`
+The desktop target and the `notify_*` tools exist only over MCP. The CLI stores the refs of each screen between two commands, so `hyprcage act`
 uses the refs of the last `hyprcage snapshot` or `hyprcage find`.
