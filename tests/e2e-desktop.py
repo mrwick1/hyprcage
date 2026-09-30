@@ -215,6 +215,33 @@ def child():
         print(f"{status} [{name}] {reason}", flush=True)
 
     try:
+        # at-spi-bus-launcher puts its socket at $XDG_RUNTIME_DIR/at-spi/bus.
+        # D-Bus activation would inherit the human's runtime dir and replace
+        # the human's a11y socket, so the script starts the launcher itself
+        # with a private one. The registry needs systemd activation, which the
+        # isolated bus does not have, so the script starts it too.
+        # Arch installs both in /usr/lib, openSUSE in /usr/libexec/at-spi2.
+        libexec = next(d for d in ("/usr/lib", "/usr/libexec/at-spi2") if os.path.exists(f"{d}/at-spi-bus-launcher"))
+        a11y_rt = f"{tmp}/a11y-runtime"
+        os.mkdir(a11y_rt, 0o700)
+        procs.append(subprocess.Popen([f"{libexec}/at-spi-bus-launcher"], env=dict(env, XDG_RUNTIME_DIR=a11y_rt),
+                                      stdout=subprocess.DEVNULL, stderr=open(f"{tmp}/a11y-launcher.log", "w")))
+        # NameHasOwner, not GetAddress: a call to an unowned name activates it.
+        for _ in range(50):
+            r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.freedesktop.DBus",
+                                "/org/freedesktop/DBus", "org.freedesktop.DBus.NameHasOwner",
+                                "string:org.a11y.Bus"], capture_output=True, text=True)
+            if "boolean true" in r.stdout:
+                break
+            time.sleep(0.2)
+        else:
+            raise SystemExit("at-spi-bus-launcher did not take org.a11y.Bus")
+        r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus",
+                            "org.a11y.Bus.GetAddress"], capture_output=True, text=True, check=True)
+        if a11y_rt not in r.stdout:
+            raise SystemExit(f"the isolated a11y bus is not under {a11y_rt}: {r.stdout.strip()}")
+        procs.append(subprocess.Popen([f"{libexec}/at-spi2-registryd"], env=env, stdout=subprocess.DEVNULL,
+                                      stderr=open(f"{tmp}/registryd.log", "w")))
         procs.append(subprocess.Popen(["swaync"], env=env, stdout=subprocess.DEVNULL, stderr=open(f"{tmp}/swaync.log", "w")))
         for _ in range(50):
             r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.freedesktop.DBus",
@@ -226,13 +253,6 @@ def child():
         else:
             raise SystemExit("swaync did not take org.freedesktop.Notifications")
         procs.append(subprocess.Popen([HC, "notifyd"], env=env, stdout=subprocess.DEVNULL, stderr=open(f"{tmp}/notifyd.log", "w")))
-        # at-spi-bus-launcher starts the a11y bus of the isolated session on
-        # the first GetAddress. Its registry needs systemd activation, which
-        # the isolated bus does not have, so the script starts it itself.
-        subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus",
-                        "org.a11y.Bus.GetAddress"], capture_output=True, check=True)
-        procs.append(subprocess.Popen(["/usr/lib/at-spi2-registryd"], env=env, stdout=subprocess.DEVNULL,
-                                      stderr=open(f"{tmp}/registryd.log", "w")))
         # The nested instance starts on workspace 2 (its headless output), and
         # the steps expect workspace 1 as the visible one.
         nested("dispatch", "workspace", "1")
