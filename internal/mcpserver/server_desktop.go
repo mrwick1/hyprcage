@@ -65,6 +65,46 @@ func (s *Server) desktopShot(window string, settleMs int, o screen.ShotOptions) 
 	return imageResult(res, desktop.Name), nil
 }
 
+// desktopPointer runs pointer input on the desktop and restores the cursor.
+func (s *Server) desktopPointer(window string, shotAfter bool, settleMs int, fn func(screen.PointerInput) error) (*mcp.CallToolResult, error) {
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	conn, err := desktop.Open(d.H)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.CL.Close()
+	if err := (desktop.Pointer{C: conn, D: d.D}).Do(window, fn); err != nil {
+		return nil, err
+	}
+	if !shotAfter {
+		return textResult(map[string]string{"status": "ok"}), nil
+	}
+	if settleMs <= 0 {
+		settleMs = 150
+	}
+	return s.desktopShot("", settleMs, screen.ShotOptions{Cursor: true, MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+}
+
+// desktopHover moves the desktop cursor and leaves it there.
+func (s *Server) desktopHover(window string, x, y int) (*mcp.CallToolResult, error) {
+	d, err := s.desktop()
+	if err != nil {
+		return nil, err
+	}
+	conn, err := desktop.Open(d.H)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.CL.Close()
+	if err := (desktop.Pointer{C: conn, D: d.D}).Hover(window, x, y); err != nil {
+		return nil, err
+	}
+	return textResult(map[string]string{"status": "ok"}), nil
+}
+
 // refuseDesktop refuses screen "desktop" in a tool made for agent screens.
 func refuseDesktop(name, hint string) error {
 	if desktop.IsDesktop(name) {

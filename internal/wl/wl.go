@@ -360,15 +360,21 @@ func (c *Client) pointerErr() error {
 
 // Move warps the virtual pointer to absolute screen coordinates.
 func (c *Client) Move(x, y int) error {
+	w, h, err := c.OutputSize()
+	if err != nil {
+		return err
+	}
+	return c.MoveIn(x, y, w, h)
+}
+
+// MoveIn warps the virtual pointer to (x, y) in an extent of w by h.
+// Hyprland maps the extent over its whole layout.
+func (c *Client) MoveIn(x, y, w, h int) error {
 	if err := c.ensureInput(); err != nil {
 		return err
 	}
 	if c.pointer == 0 {
 		return c.pointerErr()
-	}
-	w, h, err := c.OutputSize()
-	if err != nil {
-		return err
 	}
 	x = clamp(x, 0, w-1)
 	y = clamp(y, 0, h-1)
