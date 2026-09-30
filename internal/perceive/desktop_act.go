@@ -77,8 +77,10 @@ func desktopSend(ctx context.Context, input func(addr string) inputter, wins []h
 	if press { // no usable coordinates: DoAction or nothing
 		return "atspi", src.Press(ctx, n.Key)
 	}
-	// A textbox's action activates it (Enter): a click on it goes the pointer way.
-	if op.Op == "click" && src.Name() == "atspi" && n.Role != "textbox" {
+	// A textbox's action activates it (Enter): a click on it goes the pointer
+	// way. So does a menu title of a menu bar: its Press succeeds, but the
+	// menu does not open on Wayland.
+	if op.Op == "click" && src.Name() == "atspi" && n.Role != "textbox" && !menuTitle(src, n.Key) {
 		if err := src.Press(ctx, n.Key); !unsupported(err) {
 			return "atspi", err
 		}
@@ -152,6 +154,18 @@ func windowOf(wins []hypr.Client, n Node, op string) (string, error) {
 	}
 	return "", screen.Errf(screen.CodeUnsupported, "snapshot with window, then act on its refs",
 		"no single desktop window for %s on %s %q", op, n.Role, n.Name)
+}
+
+// menuTitle reports whether key is a menu of a menu bar in src's last read.
+func menuTitle(src Source, key string) bool {
+	a, ok := src.(*atspiSource)
+	if !ok {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	o := a.last[key]
+	return o.Role == "menu" && a.last[atspiKey(o.Bus, o.Parent)].Role == "menu bar"
 }
 
 // unsupported reports whether err means that the path cannot do the op.

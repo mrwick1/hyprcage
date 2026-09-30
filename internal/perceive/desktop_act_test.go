@@ -50,6 +50,26 @@ func TestDesktopActClickPrefersPress(t *testing.T) {
 	}
 }
 
+// A menu title of a menu bar opens only by the pointer; an item of the open
+// popup still takes DoAction.
+func TestDesktopActMenuTitleUsesPointer(t *testing.T) {
+	bar := obj("/bar", "menu bar", "", [4]int{0, 0, 400, 20}, "enabled")
+	help := obj("/help", "menu", "Help", [4]int{100, 0, 40, 20}, "enabled")
+	help.Parent = "/bar"
+	about := obj("/about", "menu item", "About", [4]int{100, 20, 80, 20}, "enabled")
+	about.Parent = "/help"
+	f := &fakeTree{objs: []accessible{bar, help, about}}
+	src := newDesktopATSPIWith(f, oneWindow, false)
+	out, in, _ := desktopRun(t, src, "Help", ActOp{Op: "click"})
+	if len(f.actions) != 0 || len(in.calls) == 0 || !strings.HasPrefix(out, "path=pointer\n") {
+		t.Fatalf("Help: DoAction %v, pointer %v, out %q; want the pointer", f.actions, in.calls, out)
+	}
+	out, in, _ = desktopRun(t, src, "About", ActOp{Op: "click"})
+	if !slices.Equal(f.actions, []string{":1.5/about"}) || len(in.calls) != 0 || !strings.HasPrefix(out, "path=atspi\n") {
+		t.Fatalf("About: DoAction %v, pointer %v, out %q; want DoAction", f.actions, in.calls, out)
+	}
+}
+
 func TestDesktopActTypeInserts(t *testing.T) {
 	f := &fakeTree{objs: []accessible{obj("/e", "entry", "Location", [4]int{10, 10, 200, 20}, "enabled", "editable")}}
 	out, in, _ := desktopRun(t, newDesktopATSPIWith(f, oneWindow, false), "Location", ActOp{Op: "type", Text: "/tmp"})
