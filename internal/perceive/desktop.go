@@ -144,9 +144,15 @@ func newDesktopATSPIWith(t tree, wins []hypr.Client, named bool) Source {
 	return s
 }
 
-// windowTree keeps the application objects and the subtree of the top-level
-// object of w: the child of the application whose name is w's title. When
-// no title matches, a single top-level stays and several are refused.
+// windowRoles are the top-level roles that are Hyprland windows of their
+// own. Other top-levels (a GTK popup menu has role "window") have no
+// Hyprland window, so they stay with every window of their app.
+var windowRoles = map[string]bool{"frame": true, "dialog": true, "alert": true, "file chooser": true}
+
+// windowTree keeps the application objects, the popups, and the subtree of
+// the top-level object of w: the child of the application whose name is w's
+// title. When no title matches, a single top-level stays and several are
+// refused.
 func windowTree(objs []accessible, w hypr.Client) ([]accessible, error) {
 	role := make(map[string]string, len(objs))
 	for _, o := range objs {
@@ -154,7 +160,7 @@ func windowTree(objs []accessible, w hypr.Client) ([]accessible, error) {
 	}
 	tops, match := 0, ""
 	for _, o := range objs {
-		if o.Parent != "" && role[atspiKey(o.Bus, o.Parent)] == "application" {
+		if o.Parent != "" && role[atspiKey(o.Bus, o.Parent)] == "application" && windowRoles[o.Role] {
 			tops++
 			if match == "" && o.Name == w.Title {
 				match = atspiKey(o.Bus, o.Path)
@@ -171,7 +177,8 @@ func windowTree(objs []accessible, w hypr.Client) ([]accessible, error) {
 	out := make([]accessible, 0, len(objs))
 	for _, o := range objs {
 		k := atspiKey(o.Bus, o.Path)
-		if k == match || (o.Parent != "" && keep[atspiKey(o.Bus, o.Parent)]) {
+		popup := role[atspiKey(o.Bus, o.Parent)] == "application" && !windowRoles[o.Role]
+		if k == match || popup || (o.Parent != "" && keep[atspiKey(o.Bus, o.Parent)]) {
 			keep[k] = true
 			out = append(out, o)
 		} else if o.Role == "application" {

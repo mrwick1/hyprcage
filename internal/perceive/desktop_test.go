@@ -42,7 +42,11 @@ func TestATSPIDesktopKeepsNamedWindow(t *testing.T) {
 	b.Parent = "/app"
 	inB := obj("/b1", "push button", "InB", [4]int{0, 0, 10, 10})
 	inB.Parent = "/b"
-	f := &fakeTree{objs: []accessible{app, a, inA, b, inB}}
+	pop := obj("/p", "window", "", [4]int{0, 0, 50, 80})
+	pop.Parent = "/app"
+	item := obj("/p1", "menu item", "Open", [4]int{0, 0, 40, 10})
+	item.Parent = "/p"
+	f := &fakeTree{objs: []accessible{app, a, inA, b, inB, pop, item}}
 	win := hypr.Client{Address: "0xa", PID: 1, Title: "A"}
 	nodes, err := newDesktopATSPIWith(f, []hypr.Client{win}, true).Nodes(context.Background())
 	if err != nil {
@@ -53,8 +57,10 @@ func TestATSPIDesktopKeepsNamedWindow(t *testing.T) {
 			t.Fatalf("node %q of window B in %+v", n.Name, nodes)
 		}
 	}
-	if !slices.ContainsFunc(nodes, func(n Node) bool { return n.Name == "InA" }) {
-		t.Fatalf("no InA in %+v", nodes)
+	for _, want := range []string{"InA", "Open"} {
+		if !slices.ContainsFunc(nodes, func(n Node) bool { return n.Name == want }) {
+			t.Fatalf("no %s in %+v (a popup menu stays with its app's window)", want, nodes)
+		}
 	}
 	win.Title = "C"
 	_, err = newDesktopATSPIWith(f, []hypr.Client{win}, true).Nodes(context.Background())
