@@ -48,7 +48,7 @@ installs nothing and asks them for a password for nothing.
 - Refs are `e<n>` for CDP and AT-SPI, `o<n>` for OCR. A ref keeps naming the same element across snapshots of the same screen.
 - `act` and `find` use the source of your last `snapshot`. They read the interactive elements again and keep only those as current refs. A ref from a `full` snapshot that points to a non-interactive element can therefore go stale after `act` or `find`.
 - `act` with op `key` sends the keys to the focused element. The ref must be valid, but the keys do not go to that element. Click the element first when it does not have the focus.
-- `mode` is `interactive` by default: controls, landmarks and headings. Pass `full` for every element. `max_nodes` caps the list at 300 by default and sets `truncated=true` when it cuts.
+- `mode` is `interactive` by default: controls, landmarks and headings. Pass `full` for every element. `interactive` leaves out the page text: paragraphs, alerts and status lines. Use `full` to read them. `max_nodes` caps the list at 300 by default and sets `truncated=true` when it cuts.
 - `root` with a ref reads only that subtree. `source` forces `cdp`, `atspi` or `ocr`.
 - `(action)` in place of `(<x>,<y>)` means the coordinates are not reliable. Items in an open GTK menu show it. `act` with `click` uses the element's accessibility action instead of the pointer. Other ops fail with `unsupported_input`: use `click`, or `key` to navigate the menu.
 - OCR reads text only: every element has the role `text`. Clicks on OCR refs hit the centre of the text.
@@ -67,6 +67,18 @@ installs nothing and asks them for a password for nothing.
 - **Chrome by code**: `browser_open` on a screen, then `snapshot` / `act` / `find` to drive the page. For page internals use `devtools_eval` (run JavaScript, get JSON back), `devtools_console` (console calls, uncaught exceptions and failed requests since launch), `devtools_trace` (`start`, do the work, `stop`: a file for the DevTools Performance panel) and `devtools_heap` (a file for the Memory panel). `devtools_emulate` makes the pages pretend to be a device: viewport, pixel ratio, `mobile`, `touch`, `user_agent`, `network` (offline, slow-3g, fast-3g, slow-4g, fast-4g), `cpu` slowdown and `color_scheme`. For a phone, pass width 390, height 844, scale 3, mobile, touch and a phone user agent, then reload. Each call replaces the whole emulation, and a call with no fields resets it. New tabs inherit it. They work on any screen launched with DevTools, Electron apps included. Each screen gets its own DevTools port, so several agent Chromes can run at once. `browser_running` means this screen already runs a DevTools app: reuse it or use another screen. With more than one tab open, pass part of the URL as `page`.
 - **Clipboard**: `clipboard_set`, then `key ctrl+v`, to paste long text into an app. `clipboard_get` reads what the app copied. It is the screen's clipboard, never the human's.
 - **Files**: no file tool is needed. Apps on a screen run as the human and see the same file system, so give them normal paths.
+
+## Check a run end to end
+
+After every action, read the result. A click that returns no error does not prove that the page did the right thing.
+
+1. Take a `snapshot` with `mode: full`. In `interactive` mode, a loading page and an empty page both looked like a ready page, because the status text is missing.
+2. Use the `act` diff only as a hint. It lists controls, so it misses an error banner on screen.
+3. Read `devtools_console` after each step. A page with failing trackers returned about 1,000 entries, and 994 were one repeated line. Collapse the repeats before you read.
+4. Read `notify_list` or `notify_wait` when the app under test sends desktop notifications. They read the human's tray, so filter with `app` or `match`.
+5. Name the page state before you act: ready, loading, error page, login wall, captcha, empty, or a validation message. Stop and report on an error page or a captcha.
+
+Where the kit is installed, `~/coding/personal/kit/bin/hyprcage-jev` covers steps 3 to 5 and plans form fills (`state`, `verify`, `check`, `fill`, `console`, `notify`, `find`). It sends the text to an outside model. Use it on your own test pages, not on client data or on a real tray.
 
 ## The human's desktop
 
