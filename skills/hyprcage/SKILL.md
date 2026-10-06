@@ -80,6 +80,16 @@ After every action, read the result. A click that returns no error does not prov
 
 Where the kit is installed, `~/coding/personal/kit/bin/hyprcage-jev` covers steps 3 to 5 and plans form fills (`state`, `verify`, `check`, `fill`, `console`, `notify`, `find`). It sends the text to an outside model. Use it on your own test pages, not on client data or on a real tray.
 
+## Review a whole app
+
+To map an app and find what is broken, run `~/coding/personal/kit/bin/hyprcage-map URL` where the kit is installed. Do not click through the pages by hand.
+
+- It creates its own screen, crawls the app, writes `MAP.md` and `map.json`, and closes the screen. Add `--login URL --profile FILE` for an app behind a login, or `--port N` for a Chrome that you logged in to yourself.
+- It opens addresses only. It never clicks a button or submits a form, except the login form. A link that logs out, deletes or changes data is not opened, and the map lists it.
+- `MAP.md` starts with the findings: HTTP errors, console defects, broken links, and a page that stays loading. It then lists the pages by shape, the links it did not open, and the risky buttons it found and never clicked.
+- Read the findings first. Open a page with `browser_open` only to look closer at a finding.
+- The page text and the link text go to an outside model. Use it on your own test apps, not on client data.
+
 ## The human's desktop
 
 Use the human's desktop only when the job needs their own apps or their session. Your own apps still go on a screen.
