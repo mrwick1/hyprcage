@@ -67,8 +67,13 @@ func quality(encoder string) []string {
 // written again, so the video keeps real time. When idle is above zero, a
 // pause in which less than threshold percent of the pixels change stays in
 // the video for idle at most, and the rest of it is cut. It returns the
-// number of frames written. A frame is always written whole.
-func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.Duration, threshold float64, first *image.RGBA) (int, error) {
+// number of frames written. A frame is always written whole. draw, when
+// set, paints over each capture before it is written, and reports pointer
+// input, which ends a pause even before the pixels change much.
+func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.Duration, threshold float64, draw func(*image.RGBA) bool, first *image.RGBA) (int, error) {
+	if draw != nil {
+		draw(first)
+	}
 	begin := time.Now()
 	start := begin // the clock of the video; a cut moves it forward
 	period := time.Second / time.Duration(fps)
@@ -97,7 +102,8 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.
 			return written, fmt.Errorf("record: the screen changed size to %v", next.Bounds().Size())
 		}
 		now := time.Now()
-		if idle <= 0 || screen.ChangedPercent(img, next) > threshold {
+		input := draw != nil && draw(next)
+		if idle <= 0 || input || screen.ChangedPercent(img, next) > threshold {
 			changed = now
 		} else if now.Sub(changed) > idle {
 			start = start.Add(now.Sub(last))

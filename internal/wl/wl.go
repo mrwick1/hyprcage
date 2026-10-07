@@ -145,6 +145,17 @@ type Client struct {
 	pointer  uint32
 	keyboard uint32
 
+	// Glide, when set and above zero, makes MoveIn glide the pointer from
+	// where it was to its target over that long instead of jumping. It is
+	// for recordings, where a jump reads as a teleport.
+	Glide func() time.Duration
+	// Input hears of each glide ("move", at its target) and each button
+	// press ("click", at the pointer).
+	Input  func(kind string, x, y int)
+	at     image.Point // where MoveIn last put the pointer
+	placed bool        // at is known
+	held   int         // buttons pressed and not released: a drag moves in its own steps
+
 	modeW, modeH int
 	outScale     int
 
@@ -378,9 +389,41 @@ func (c *Client) MoveIn(x, y, w, h int) error {
 	}
 	x = clamp(x, 0, w-1)
 	y = clamp(y, 0, h-1)
+	if c.Glide != nil && c.placed && c.held == 0 {
+		if d := c.Glide(); d > 0 {
+			if c.Input != nil {
+				c.Input("move", x, y)
+			}
+			if err := c.glide(image.Pt(x, y), w, h, d); err != nil {
+				return err
+			}
+		}
+	}
 	c.send(c.pointer, reqZwlrVirtualPointerV1MotionAbsolute, c.now(), uint32(x), uint32(y), uint32(w), uint32(h))
 	c.send(c.pointer, reqZwlrVirtualPointerV1Frame)
+	c.at, c.placed = image.Pt(x, y), true
 	return c.Roundtrip()
+}
+
+// glide moves the pointer along an eased path towards to, one motion per
+// frame of 16 ms, and stops one step short: MoveIn sends the last one.
+func (c *Client) glide(to image.Point, w, h int, d time.Duration) error {
+	const frame = 16 * time.Millisecond
+	from := c.at
+	steps := int(d / frame)
+	for i := 1; i < steps; i++ {
+		t := float64(i) / float64(steps)
+		e := t * t * (3 - 2*t) // smoothstep: slow start, slow stop
+		x := from.X + int(float64(to.X-from.X)*e)
+		y := from.Y + int(float64(to.Y-from.Y)*e)
+		c.send(c.pointer, reqZwlrVirtualPointerV1MotionAbsolute, c.now(), uint32(x), uint32(y), uint32(w), uint32(h))
+		c.send(c.pointer, reqZwlrVirtualPointerV1Frame)
+		if err := c.Roundtrip(); err != nil {
+			return err
+		}
+		time.Sleep(frame)
+	}
+	return nil
 }
 
 // PressButton presses or releases a pointer button at the current position.
@@ -408,7 +451,19 @@ func (c *Client) PressButton(b Button, pressed bool) error {
 	}
 	c.send(c.pointer, reqZwlrVirtualPointerV1Button, c.now(), code, state)
 	c.send(c.pointer, reqZwlrVirtualPointerV1Frame)
-	return c.Roundtrip()
+	if err := c.Roundtrip(); err != nil {
+		return err
+	}
+	switch {
+	case pressed:
+		c.held++
+		if c.Input != nil {
+			c.Input("click", c.at.X, c.at.Y)
+		}
+	case c.held > 0:
+		c.held--
+	}
+	return nil
 }
 
 // Scroll emits steps wheel clicks on an axis; positive is down or right.

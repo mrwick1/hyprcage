@@ -75,7 +75,7 @@ func StopSession(sessionID string) (bool, error) {
 // StatePath is the state file of the recorder of target. It lives in a
 // rec/ subdirectory, so that registry.List never reads it as a screen.
 func StatePath(target string) string {
-	return filepath.Join(registry.Dir(), "rec", target+".json")
+	return filepath.Join(screen.RecordDir(), target+".json")
 }
 
 func save(s State) error {
@@ -245,7 +245,10 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 		return err
 	}
 	defer os.Remove(StatePath(target))
-	_, loopErr := Loop(ctx, cl, stdin, cfg.RecordFPS, cfg.RecordMax, cfg.RecordIdle, cfg.StableThreshold, first)
+	ck := &clicks{path: screen.InputPath(target)}
+	_ = os.Remove(ck.path) // the input of an earlier recording
+	defer os.Remove(ck.path)
+	_, loopErr := Loop(ctx, cl, stdin, cfg.RecordFPS, cfg.RecordMax, cfg.RecordIdle, cfg.StableThreshold, ck.draw, first)
 	_ = stdin.Close()
 	ffErr := ff.Wait()
 	return errors.Join(ignoreClosedPipe(loopErr), ffErr)
