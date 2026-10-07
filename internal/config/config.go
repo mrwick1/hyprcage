@@ -53,6 +53,7 @@ type Config struct {
 	RecordDir      string        // where recordings go; ~ is the home directory
 	RecordMax      time.Duration // a recording stops by itself after this long
 	RecordFPS      int           // frames per second of a recording
+	RecordCrop     string        // viewport: only the page of a screen's browser; none: the whole screen
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
 
 	Path   string // the config file looked at
@@ -87,9 +88,10 @@ func Default() Config {
 		ShotMaxBytes:    1 << 20,
 		StableThreshold: 0.02,
 
-		RecordDir: "~/Videos/agent",
-		RecordMax: 30 * time.Minute,
-		RecordFPS: 30,
+		RecordDir:  "~/Videos/agent",
+		RecordMax:  30 * time.Minute,
+		RecordFPS:  30,
+		RecordCrop: "viewport",
 	}
 }
 
@@ -172,9 +174,10 @@ type file struct {
 		RenderDevice string `toml:"render_device"`
 	} `toml:"cage"`
 	Record struct {
-		Dir string `toml:"dir"`
-		Max string `toml:"max"`
-		FPS *int   `toml:"fps"`
+		Dir  string `toml:"dir"`
+		Max  string `toml:"max"`
+		FPS  *int   `toml:"fps"`
+		Crop string `toml:"crop"`
 	} `toml:"record"`
 	Browser struct {
 		Command *string `toml:"command"`
@@ -244,6 +247,9 @@ func Apply(cfg *Config, text string) error {
 		cfg.RecordMax = d
 	}
 	setInt(&cfg.RecordFPS, f.Record.FPS)
+	if f.Record.Crop != "" {
+		cfg.RecordCrop = strings.ToLower(strings.TrimSpace(f.Record.Crop))
+	}
 	if f.Browser.Command != nil {
 		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
 	}
@@ -287,6 +293,11 @@ func (c Config) Validate() error {
 	case "auto", "gles", "pixman":
 	default:
 		return fmt.Errorf("cage.renderer: %q is not auto, gles or pixman", c.Renderer)
+	}
+	switch c.RecordCrop {
+	case "viewport", "none":
+	default:
+		return fmt.Errorf("record.crop: %q is not viewport or none", c.RecordCrop)
 	}
 	switch c.MirrorGroup {
 	case "session", "pack", "screen":

@@ -37,15 +37,34 @@ func TestEncoder(t *testing.T) {
 }
 
 func TestFFmpegArgs(t *testing.T) {
-	a := strings.Join(FFmpegArgs(1280, 800, 10, "libopenh264", "/tmp/o.mp4"), " ")
+	a := strings.Join(FFmpegArgs(1280, 800, 10, image.Rectangle{}, "libopenh264", "/tmp/o.mp4"), " ")
 	for _, want := range []string{"-f rawvideo", "-pix_fmt rgba", "-s 1280x800", "-framerate 10", "-i -", "-c:v libopenh264", "-pix_fmt yuv420p", "/tmp/o.mp4"} {
 		if !strings.Contains(a, want) {
 			t.Errorf("argv lacks %q: %s", want, a)
 		}
 	}
-	x := strings.Join(FFmpegArgs(1920, 1080, 30, "libx264", "/tmp/o.mp4"), " ")
+	x := strings.Join(FFmpegArgs(1920, 1080, 30, image.Rectangle{}, "libx264", "/tmp/o.mp4"), " ")
 	if !strings.Contains(x, "-c:v libx264 -crf 18 -preset medium -tune stillimage -pix_fmt yuv420p /tmp/o.mp4") {
 		t.Errorf("libx264 argv lacks the quality options: %s", x)
+	}
+}
+
+func TestFFmpegArgsCrop(t *testing.T) {
+	a := strings.Join(FFmpegArgs(1920, 1080, 30, image.Rect(0, 87, 1920, 1080), "libx264", "/tmp/o.mp4"), " ")
+	if !strings.Contains(a, "-vf crop=1920:993:0:87,scale=") {
+		t.Errorf("argv lacks the crop: %s", a)
+	}
+	// A crop past the frame is clipped to it.
+	a = strings.Join(FFmpegArgs(1280, 800, 30, image.Rect(-5, 80, 1300, 900), "libx264", "/tmp/o.mp4"), " ")
+	if !strings.Contains(a, "-vf crop=1280:720:0:80,scale=") {
+		t.Errorf("argv lacks the clipped crop: %s", a)
+	}
+	r, err := ParseRect(FormatRect(image.Rect(3, 87, 1923, 1080)))
+	if err != nil || r != image.Rect(3, 87, 1923, 1080) {
+		t.Errorf("ParseRect(FormatRect) = %v, %v", r, err)
+	}
+	if _, err := ParseRect("1,2,3"); err == nil {
+		t.Error("ParseRect accepted 1,2,3")
 	}
 }
 

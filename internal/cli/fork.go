@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"image"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,10 +40,11 @@ func recordTarget(name string) (string, bool, error) {
 func runRecord(e *Env) int {
 	fs := e.flags("record")
 	asJSON := fs.Bool("json", false, "JSON output")
+	cropArg := fs.String("crop", "", "x,y,w,h part of the screen to record; empty records it whole")
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
-	usage := "usage: hyprcage record start|stop [screen|desktop] [--json] | record status [--json]"
+	usage := "usage: hyprcage record start|stop [screen|desktop] [--crop x,y,w,h] [--json] | record status [--json]"
 	if fs.NArg() < 1 || fs.NArg() > 2 {
 		return e.errorf(usage)
 	}
@@ -74,7 +76,13 @@ func runRecord(e *Env) int {
 		if err != nil {
 			return e.fail(screen.Errf(screen.CodeCapture, "", "%v", err))
 		}
-		s, err = record.Start(exe, target, isScreen, session.Current().Owner(), cfg)
+		var crop image.Rectangle
+		if *cropArg != "" {
+			if crop, err = record.ParseRect(*cropArg); err != nil {
+				return e.errorf("%v", err)
+			}
+		}
+		s, err = record.Start(exe, target, isScreen, session.Current().Owner(), cfg, crop)
 		if err != nil {
 			return e.fail(err)
 		}
@@ -101,10 +109,17 @@ func runRecord(e *Env) int {
 
 // runRecordChild is `hyprcage _record <target> <out>`.
 func runRecordChild(e *Env) int {
-	if len(e.Args) != 2 {
-		return e.errorf("usage: hyprcage _record <target> <out>")
+	if len(e.Args) != 2 && len(e.Args) != 3 {
+		return e.errorf("usage: hyprcage _record <target> <out> [x,y,w,h]")
 	}
 	target, out := e.Args[0], e.Args[1]
+	var crop image.Rectangle
+	if len(e.Args) == 3 {
+		var err error
+		if crop, err = record.ParseRect(e.Args[2]); err != nil {
+			return e.fail(err)
+		}
+	}
 	cfg := config.Fallback()
 	var display string
 	if target == record.Desktop {
@@ -135,7 +150,7 @@ func runRecordChild(e *Env) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := record.RunChild(ctx, target, display, out, cfg.RecordFPS, cfg.RecordMax); err != nil {
+	if err := record.RunChild(ctx, target, display, out, crop, cfg.RecordFPS, cfg.RecordMax); err != nil {
 		return e.fail(err)
 	}
 	return ExitOK

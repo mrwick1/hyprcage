@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"strings"
@@ -343,6 +344,42 @@ func (s *Session) Eval(ctx context.Context, page, expression string, timeout tim
 	}
 	// undefined, or a value JSON cannot carry: NaN, Infinity, a bigint.
 	return json.Marshal(r.Result.String())
+}
+
+// Viewport is the rectangle of the screen that shows the page, below the
+// tabs and the address bar. Every tab of the window shares it. Screens run
+// at scale 1, so CSS pixels are screen pixels.
+func (s *Session) Viewport(ctx context.Context) (image.Rectangle, error) {
+	s.mu.Lock()
+	var sid string
+	for id := range s.pages {
+		sid = id
+		break
+	}
+	emulated := s.emu.Width != 0 || s.emu.Height != 0
+	s.mu.Unlock()
+	if sid == "" {
+		return image.Rectangle{}, screen.Errf(screen.CodeCDP, hint, "the browser has no page open")
+	}
+	if emulated {
+		// innerHeight then follows the emulated device and outerHeight the
+		// real window, so the toolbar height cannot be read.
+		return image.Rectangle{}, screen.Errf(screen.CodeUnsupported, "pass crop none, or record before devtools_emulate sets a size",
+			"the viewport cannot be measured while devtools_emulate sets a width or height")
+	}
+	raw, err := s.c.Call(ctx, sid, "Runtime.evaluate", map[string]any{
+		"expression":    "[screenX, screenY + outerHeight - innerHeight, innerWidth, innerHeight]",
+		"returnByValue": true,
+	})
+	r, err := evalResult(raw, err)
+	if err != nil {
+		return image.Rectangle{}, err
+	}
+	var v [4]int
+	if err := json.Unmarshal(r.Result.Value, &v); err != nil {
+		return image.Rectangle{}, screen.Errf(screen.CodeCDP, "", "viewport: %v", err)
+	}
+	return image.Rect(v[0], v[1], v[0]+v[2], v[1]+v[3]), nil
 }
 
 // Emulate makes every page, open now or later, pretend to be the device e
