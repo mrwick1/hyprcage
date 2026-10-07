@@ -54,6 +54,7 @@ type Config struct {
 	RecordMax      time.Duration // a recording stops by itself after this long
 	RecordFPS      int           // frames per second of a recording
 	RecordCrop     string        // viewport: only the page of a screen's browser; none: the whole screen
+	RecordIdle     time.Duration // an unchanged screen stays in a recording this long at most; 0 keeps real time
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
 
 	Path   string // the config file looked at
@@ -92,6 +93,7 @@ func Default() Config {
 		RecordMax:  30 * time.Minute,
 		RecordFPS:  30,
 		RecordCrop: "viewport",
+		RecordIdle: time.Second,
 	}
 }
 
@@ -178,6 +180,7 @@ type file struct {
 		Max  string `toml:"max"`
 		FPS  *int   `toml:"fps"`
 		Crop string `toml:"crop"`
+		Idle string `toml:"idle"`
 	} `toml:"record"`
 	Browser struct {
 		Command *string `toml:"command"`
@@ -247,6 +250,13 @@ func Apply(cfg *Config, text string) error {
 		cfg.RecordMax = d
 	}
 	setInt(&cfg.RecordFPS, f.Record.FPS)
+	if f.Record.Idle != "" {
+		d, err := time.ParseDuration(f.Record.Idle)
+		if err != nil {
+			return fmt.Errorf("record.idle: %w", err)
+		}
+		cfg.RecordIdle = d
+	}
 	if f.Record.Crop != "" {
 		cfg.RecordCrop = strings.ToLower(strings.TrimSpace(f.Record.Crop))
 	}
@@ -286,6 +296,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("lifecycle.safety_timer: %s is below 1m", c.SafetyTimer)
 	case c.RecordFPS < 1 || c.RecordFPS > 60:
 		return fmt.Errorf("record.fps: %d is not between 1 and 60", c.RecordFPS)
+	case c.RecordIdle < 0:
+		return fmt.Errorf("record.idle: %s is negative (0s keeps real time)", c.RecordIdle)
 	case c.RecordMax < time.Second:
 		return fmt.Errorf("record.max: %s is below 1s", c.RecordMax)
 	}

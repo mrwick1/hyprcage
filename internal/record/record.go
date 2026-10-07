@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 // Capturer grabs one frame. *wl.Client satisfies it.
@@ -62,12 +64,16 @@ func quality(encoder string) []string {
 
 // Loop writes first, then one capture per frame period, to w until ctx
 // ends or max elapses. When a capture comes late, the previous image is
-// written again, so the video keeps real time. It returns the number of
-// frames written. A frame is always written whole.
-func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max time.Duration, first *image.RGBA) (int, error) {
-	start := time.Now()
+// written again, so the video keeps real time. When idle is above zero, a
+// pause in which less than threshold percent of the pixels change stays in
+// the video for idle at most, and the rest of it is cut. It returns the
+// number of frames written. A frame is always written whole.
+func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.Duration, threshold float64, first *image.RGBA) (int, error) {
+	begin := time.Now()
+	start := begin // the clock of the video; a cut moves it forward
 	period := time.Second / time.Duration(fps)
 	img, written := first, 0
+	changed, last := begin, begin // the last change, the last capture
 	for {
 		due := int(time.Since(start)/period) + 1
 		for ; written < due; written++ {
@@ -75,7 +81,7 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max time.Durati
 				return written, err
 			}
 		}
-		if time.Since(start) >= max {
+		if time.Since(begin) >= max {
 			return written, nil
 		}
 		select {
@@ -90,7 +96,13 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max time.Durati
 		if next.Bounds() != first.Bounds() {
 			return written, fmt.Errorf("record: the screen changed size to %v", next.Bounds().Size())
 		}
-		img = next
+		now := time.Now()
+		if idle <= 0 || screen.ChangedPercent(img, next) > threshold {
+			changed = now
+		} else if now.Sub(changed) > idle {
+			start = start.Add(now.Sub(last))
+		}
+		img, last = next, now
 	}
 }
 

@@ -19,7 +19,7 @@ type recordIn struct {
 
 type recordStartIn struct {
 	Target string `json:"target,omitempty" jsonschema:"a screen name, or \"desktop\" for the human's own screen; optional when the session owns exactly one screen"`
-	Crop string `json:"crop,omitempty" jsonschema:"viewport records only the page of the screen's browser, without tabs and address bar; none records the whole screen; default: record.crop in the config (viewport)"`
+	Crop   string `json:"crop,omitempty" jsonschema:"viewport records only the page of the screen's browser, without tabs and address bar; none records the whole screen; default: record.crop in the config (viewport)"`
 }
 
 // registerFork adds the tools of the mrwick1 fork.

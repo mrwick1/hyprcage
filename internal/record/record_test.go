@@ -68,10 +68,23 @@ func TestFFmpegArgsCrop(t *testing.T) {
 	}
 }
 
+func TestLoopCutsIdle(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 2))
+	var buf bytes.Buffer
+	n, err := Loop(context.Background(), &fakeCap{img: img}, &buf, 50, time.Second, 100*time.Millisecond, 0.02, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An unchanged screen keeps 100 ms (5 frames) of the 1 s pause.
+	if n < 4 || n > 9 {
+		t.Errorf("%d frames for a still 1 s at 50 fps with idle 100 ms, want about 6", n)
+	}
+}
+
 func TestLoopKeepsRealTime(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 2))
 	var buf bytes.Buffer
-	n, err := Loop(context.Background(), &fakeCap{img: img}, &buf, 20, 250*time.Millisecond, img)
+	n, err := Loop(context.Background(), &fakeCap{img: img}, &buf, 20, 250*time.Millisecond, 0, 0, img)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +101,7 @@ func TestLoopStopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
 	start := time.Now()
-	if _, err := Loop(ctx, &fakeCap{img: img}, &bytes.Buffer{}, 10, time.Hour, img); err != nil {
+	if _, err := Loop(ctx, &fakeCap{img: img}, &bytes.Buffer{}, 10, time.Hour, 0, 0, img); err != nil {
 		t.Fatal(err)
 	}
 	if time.Since(start) > time.Second {
@@ -99,7 +112,7 @@ func TestLoopStopsOnCancel(t *testing.T) {
 func TestLoopRejectsSizeChange(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	var buf bytes.Buffer
-	n, err := Loop(context.Background(), &fakeCap{img: img, grow: 2}, &buf, 50, time.Second, img)
+	n, err := Loop(context.Background(), &fakeCap{img: img, grow: 2}, &buf, 50, time.Second, 0, 0, img)
 	if err == nil || !strings.Contains(err.Error(), "changed size") {
 		t.Fatalf("want a size error, got %v", err)
 	}
