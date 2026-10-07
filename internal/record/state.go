@@ -203,7 +203,7 @@ func Stop(target string) (State, error) {
 
 // RunChild is the body of `hyprcage _record`: capture display, pipe the
 // frames to ffmpeg, stop on ctx, max or a capture error.
-func RunChild(ctx context.Context, target, display, out string, crop image.Rectangle, fps int, max time.Duration) error {
+func RunChild(ctx context.Context, target, display, out string, crop image.Rectangle, cfg config.Config) error {
 	_ = os.MkdirAll(screen.LogDir(), 0o700)
 	cl, err := wl.ConnectCapture(display)
 	if err != nil {
@@ -219,7 +219,7 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 	}
 	encs, _ := exec.Command("ffmpeg", "-hide_banner", "-encoders").Output()
 	b := first.Bounds()
-	argv := FFmpegArgs(b.Dx(), b.Dy(), fps, crop, Encoder(string(encs)), out)
+	argv := FFmpegArgs(b.Dx(), b.Dy(), cfg.RecordFPS, crop, Encoder(string(encs)), out)
 	ff := exec.Command(argv[0], argv[1:]...)
 	// ffmpeg must not carry HYPRCAGE_SCREEN: destroy signals the recorder,
 	// which closes ffmpeg's input so that the file is finalised.
@@ -245,7 +245,7 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 		return err
 	}
 	defer os.Remove(StatePath(target))
-	_, loopErr := Loop(ctx, cl, stdin, fps, max, first)
+	_, loopErr := Loop(ctx, cl, stdin, cfg.RecordFPS, cfg.RecordMax, cfg.RecordIdle, cfg.StableThreshold, first)
 	_ = stdin.Close()
 	ffErr := ff.Wait()
 	return errors.Join(ignoreClosedPipe(loopErr), ffErr)

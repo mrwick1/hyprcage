@@ -145,7 +145,7 @@ func TestRecordAndBrowserKeys(t *testing.T) {
 	if err != nil || cfg.RecordDir != "/tmp/rec" || cfg.RecordMax != 5*time.Minute || cfg.RecordFPS != 5 || cfg.BrowserCommand != "chromium" {
 		t.Fatalf("overrides: %v %+v", err, cfg)
 	}
-	for _, bad := range []string{"[record]\nfps = 0", "[record]\ncrop = \"tabs\"", "[record]\nfps = 61", "[record]\nmax = \"0s\"", "[browser]\nport = \"x\""} {
+	for _, bad := range []string{"[record]\nfps = 0", "[record]\ncrop = \"tabs\"", "[record]\nidle = \"-1s\"", "[record]\nfps = 61", "[record]\nmax = \"0s\"", "[browser]\nport = \"x\""} {
 		c := Default()
 		if Apply(&c, bad) == nil {
 			t.Errorf("%q: want an error", bad)

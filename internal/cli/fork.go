@@ -150,7 +150,7 @@ func runRecordChild(e *Env) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := record.RunChild(ctx, target, display, out, crop, cfg.RecordFPS, cfg.RecordMax); err != nil {
+	if err := record.RunChild(ctx, target, display, out, crop, cfg); err != nil {
 		return e.fail(err)
 	}
 	return ExitOK

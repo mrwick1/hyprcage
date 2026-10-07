@@ -162,10 +162,10 @@ func resizeBox(src *image.RGBA, dw, dh int) *image.RGBA {
 	return dst
 }
 
-// changedPercent is the share (in percent) of pixels whose colour moved by
+// ChangedPercent is the share (in percent) of pixels whose colour moved by
 // more than a small tolerance between two equally sized images. A global
 // mean would miss one new line in a terminal; counting pixels does not.
-func changedPercent(a, b *image.RGBA) float64 {
+func ChangedPercent(a, b *image.RGBA) float64 {
 	if len(a.Pix) != len(b.Pix) || len(a.Pix) == 0 {
 		return 100
 	}
@@ -201,7 +201,7 @@ func WaitStable(cl *wl.Client, stable, timeout time.Duration, threshold float64)
 		}
 		small := resizeBox(img, max(1, img.Bounds().Dx()/8), max(1, img.Bounds().Dy()/8))
 		now := time.Now()
-		if prev != nil && changedPercent(prev, small) <= threshold {
+		if prev != nil && ChangedPercent(prev, small) <= threshold {
 			if quietSince.IsZero() {
 				quietSince = now
 			}
