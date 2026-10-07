@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"os"
 	"os/exec"
@@ -122,8 +123,9 @@ func List() ([]State, error) {
 
 // Start runs `exe _record target out` detached and waits for its state
 // file. A screen's recorder carries HYPRCAGE_SCREEN, so destroying the
-// screen sends it SIGTERM and the file is finalised.
-func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.Config) (State, error) {
+// screen sends it SIGTERM and the file is finalised. An empty crop records
+// the whole frame.
+func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.Config, crop image.Rectangle) (State, error) {
 	if s, err := Load(target); err == nil {
 		return s, screen.Errf(screen.CodeRecording, "record_stop first", "%s is already recording to %s", target, s.Path)
 	}
@@ -135,7 +137,11 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 		return State{}, screen.Errf(screen.CodeCapture, "check record.dir", "%v", err)
 	}
 	out := filepath.Join(dir, fmt.Sprintf("%s-%s.mp4", target, time.Now().Format("20060102-150405")))
-	cmd := exec.Command(exe, "_record", target, out)
+	args := []string{"_record", target, out}
+	if !crop.Empty() {
+		args = append(args, FormatRect(crop))
+	}
+	cmd := exec.Command(exe, args...)
 	ownerJSON, _ := json.Marshal(owner)
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "HYPRCAGE_SCREEN=") && !strings.HasPrefix(kv, ownerEnv+"=") {
@@ -197,7 +203,7 @@ func Stop(target string) (State, error) {
 
 // RunChild is the body of `hyprcage _record`: capture display, pipe the
 // frames to ffmpeg, stop on ctx, max or a capture error.
-func RunChild(ctx context.Context, target, display, out string, fps int, max time.Duration) error {
+func RunChild(ctx context.Context, target, display, out string, crop image.Rectangle, fps int, max time.Duration) error {
 	_ = os.MkdirAll(screen.LogDir(), 0o700)
 	cl, err := wl.ConnectCapture(display)
 	if err != nil {
@@ -213,7 +219,7 @@ func RunChild(ctx context.Context, target, display, out string, fps int, max tim
 	}
 	encs, _ := exec.Command("ffmpeg", "-hide_banner", "-encoders").Output()
 	b := first.Bounds()
-	argv := FFmpegArgs(b.Dx(), b.Dy(), fps, Encoder(string(encs)), out)
+	argv := FFmpegArgs(b.Dx(), b.Dy(), fps, crop, Encoder(string(encs)), out)
 	ff := exec.Command(argv[0], argv[1:]...)
 	// ffmpeg must not carry HYPRCAGE_SCREEN: destroy signals the recorder,
 	// which closes ffmpeg's input so that the file is finalised.

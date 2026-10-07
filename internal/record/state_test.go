@@ -2,6 +2,7 @@ package record
 
 import (
 	"errors"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,7 +55,7 @@ func TestStartFailureLeavesLog(t *testing.T) {
 	}
 	cfg := config.Fallback()
 	cfg.RecordDir = dir
-	_, err := Start(exe, "hc-t", true, registry.Owner{}, cfg)
+	_, err := Start(exe, "hc-t", true, registry.Owner{}, cfg, image.Rectangle{})
 	var se *screen.Error
 	if !errors.As(err, &se) || se.Code != screen.CodeCapture {
 		t.Fatalf("want capture_failed, got %v", err)
@@ -98,7 +99,7 @@ func TestStartPassesOwnerAndStripsScreen(t *testing.T) {
 	}
 	cfg := config.Fallback()
 	cfg.RecordDir = filepath.Join(dir, "rec")
-	_, _ = Start(exe, Desktop, false, registry.Owner{SessionID: "s1", PID: 42}, cfg)
+	_, _ = Start(exe, Desktop, false, registry.Owner{SessionID: "s1", PID: 42}, cfg, image.Rectangle{})
 	data, _ := os.ReadFile(envOut)
 	if strings.Contains(string(data), "HYPRCAGE_SCREEN=") {
 		t.Error("the desktop recorder inherits HYPRCAGE_SCREEN")

@@ -32,12 +32,17 @@ func Encoder(encodersOutput string) string {
 }
 
 // FFmpegArgs is the ffmpeg command that reads raw w x h RGBA frames on
-// stdin and writes out. The scale filter rounds the size down to even
-// numbers, which yuv420p needs.
-func FFmpegArgs(w, h, fps int, encoder, out string) []string {
+// stdin and writes out. A non-empty crop keeps only that part of the frame.
+// The scale filter rounds the size down to even numbers, which yuv420p
+// needs.
+func FFmpegArgs(w, h, fps int, crop image.Rectangle, encoder, out string) []string {
+	vf := "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+	if crop = crop.Intersect(image.Rect(0, 0, w, h)); !crop.Empty() {
+		vf = fmt.Sprintf("crop=%d:%d:%d:%d,%s", crop.Dx(), crop.Dy(), crop.Min.X, crop.Min.Y, vf)
+	}
 	args := []string{"ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
 		"-f", "rawvideo", "-pix_fmt", "rgba", "-s", fmt.Sprintf("%dx%d", w, h), "-framerate", strconv.Itoa(fps), "-i", "-",
-		"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", encoder}
+		"-vf", vf, "-c:v", encoder}
 	args = append(args, quality(encoder)...)
 	return append(args, "-pix_fmt", "yuv420p", out)
 }
@@ -87,6 +92,19 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max time.Durati
 		}
 		img = next
 	}
+}
+
+// FormatRect and ParseRect carry a crop to the recorder process as x,y,w,h.
+func FormatRect(r image.Rectangle) string {
+	return fmt.Sprintf("%d,%d,%d,%d", r.Min.X, r.Min.Y, r.Dx(), r.Dy())
+}
+
+func ParseRect(s string) (image.Rectangle, error) {
+	var x, y, w, h int
+	if _, err := fmt.Sscanf(s, "%d,%d,%d,%d", &x, &y, &w, &h); err != nil {
+		return image.Rectangle{}, fmt.Errorf("crop %q is not x,y,w,h: %w", s, err)
+	}
+	return image.Rect(x, y, x+w, y+h), nil
 }
 
 func writeFrame(w io.Writer, img *image.RGBA) error {
