@@ -249,15 +249,17 @@ No polkit agent runs on this machine. A polkit prompt would have no window. `sys
   - a check that `hyprctl clients -j` shows no new window on the human's desktop during both runs.
 - The E2E never triggers a polkit prompt on the human's desktop. The prompt tests use a fake window source and a nested Hyprland, as sub-project B does.
 
-## Open questions
+## Decisions
 
-1. Area 1: does the human accept option A (no session bus services for caged applications) if C does not work, or must notifications from a screen keep working? This decides between A and B (and the `xdg-dbus-proxy` package).
-2. Area 2: does `monitor = true` (the human hears a screen) have a use, or does the option go?
-3. Area 2: for a recording with audio, is real time (no idle cut) acceptable?
-4. Area 3: install a polkit agent (`hyprpolkitagent`) so that a prompt shows at all? Today a prompt has no window. This changes the human's session, so hyprcage does not do it alone.
-5. Area 3: which prompts must wake the human through Telegram (the phone) and not only the desktop notification?
-6. Tool count: 39 today, plus `file_dialog`, `audio_level`, `audio_wait`, `system_prompts` and `system_prompt_wait` makes 44. Is that acceptable, or do `audio_wait` and `system_prompt_wait` fold into `wait`?
-7. Security: recordings are world-readable (mode 644). With audio they can hold speech. Set mode 0600 for new recordings?
+Arjun decided these points on 2026-10-11.
+
+1. Area 1: option A is acceptable. Caged applications can lose the session bus services, including notifications and the secret service, when the cage must use a private bus.
+2. Area 2: keep `monitor = true`. The human can listen to a screen.
+3. Area 2: a recording with audio keeps real time and has no idle cut.
+4. Area 3: install `hyprpolkitagent`, so that a polkit prompt shows on the human's desktop.
+5. Area 3: every polkit and keyring prompt also goes to Telegram, through `tg-notify`.
+6. Tool count: fold `audio_wait` and `system_prompt_wait` into the existing `wait` tool. The count goes from 39 to 42 (`file_dialog`, `audio_level`, `system_prompts`).
+7. Security: new recordings get mode 0600.
 
 ## Build flow
 
