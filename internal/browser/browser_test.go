@@ -151,17 +151,27 @@ func TestProfilesDirHonoursXDG(t *testing.T) {
 
 func TestOpenProfileModeAndInUse(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	p, err := openProfile("demo")
+	p, un, err := openProfile("demo")
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A second open while the first holds the lock is refused: the race guard.
+	if _, _, err := openProfile("demo"); err == nil {
+		t.Error("concurrent open allowed")
+	}
+	if RemoveProfile("demo") == nil || !ProfileInUse(p) {
+		t.Error("locked profile not seen as in use")
+	}
+	un()
 	if fi, _ := os.Stat(p); fi.Mode().Perm() != 0o700 {
 		t.Errorf("mode %v", fi.Mode().Perm())
 	}
 	// A lock that names a dead pid is stale.
 	os.Symlink("host-999999999", p+"/SingletonLock")
-	if _, err := openProfile("demo"); err != nil {
+	if _, un2, err := openProfile("demo"); err != nil {
 		t.Errorf("stale lock refused: %v", err)
+	} else {
+		un2()
 	}
 	// A live process that runs with this user-data-dir holds the profile.
 	cmd := exec.Command("sh", "-c", "sleep 30; true", "--user-data-dir="+p)
@@ -177,7 +187,7 @@ func TestOpenProfileModeAndInUse(t *testing.T) {
 	}
 	os.Remove(p + "/SingletonLock")
 	os.Symlink(fmt.Sprintf("host-%d", cmd.Process.Pid), p+"/SingletonLock")
-	_, err = openProfile("demo")
+	_, _, err = openProfile("demo")
 	var se *screen.Error
 	if !errors.As(err, &se) || se.Code != screen.CodeBrowserBusy {
 		t.Fatalf("in-use not refused: %v", err)
@@ -200,10 +210,11 @@ func TestOpenProfileModeAndInUse(t *testing.T) {
 
 func TestOpenProfileKeepsSessionCookies(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	p, err := openProfile("keep")
+	p, un, err := openProfile("keep")
 	if err != nil {
 		t.Fatal(err)
 	}
+	un()
 	file := p + "/Default/Preferences"
 	got := func() map[string]any {
 		var m map[string]any
@@ -218,12 +229,41 @@ func TestOpenProfileKeepsSessionCookies(t *testing.T) {
 	}
 	// Existing preferences stay.
 	os.WriteFile(file, []byte(`{"session":{"restore_on_startup":5,"x":1},"a":2}`), 0o600)
-	if _, err := openProfile("keep"); err != nil {
+	_, un2, err := openProfile("keep")
+	if err != nil {
 		t.Fatal(err)
 	}
+	un2()
 	m := got()
 	s := m["session"].(map[string]any)
 	if s["restore_on_startup"] != float64(1) || s["x"] != float64(1) || m["a"] != float64(2) {
 		t.Errorf("merge lost data: %v", m)
+	}
+}
+
+func TestChromeHoldsExactArgv(t *testing.T) {
+	root := t.TempDir()
+	a, a2 := root+"/hc-test", root+"/hc-test2"
+	os.MkdirAll(a, 0o700)
+	cmd := exec.Command("sh", "-c", "sleep 30; true", "--user-data-dir="+a2)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Process.Kill()
+	for i := 0; i < 100; i++ {
+		if b, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", cmd.Process.Pid)); strings.Contains(string(b), "--user-data-dir=") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	os.Symlink(fmt.Sprintf("host-%d", cmd.Process.Pid), a+"/SingletonLock")
+	if chromeHolds(a) {
+		t.Error("hc-test matched the Chrome of hc-test2")
+	}
+	os.Remove(a + "/SingletonLock")
+	os.MkdirAll(a2, 0o700)
+	os.Symlink(fmt.Sprintf("host-%d", cmd.Process.Pid), a2+"/SingletonLock")
+	if !chromeHolds(a2) {
+		t.Error("exact match missed")
 	}
 }

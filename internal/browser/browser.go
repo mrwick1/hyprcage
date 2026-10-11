@@ -159,7 +159,10 @@ func Open(c *screen.Ctx, rec *registry.Screen, url, profileNamed string) (Info, 
 	}
 	var profile string
 	if profileNamed != "" {
-		profile, err = openProfile(profileNamed)
+		var unlock func()
+		if profile, unlock, err = openProfile(profileNamed); err == nil {
+			defer unlock() // Chrome's own SingletonLock holds the profile after Open
+		}
 	} else {
 		// screen.Destroy removes the profile by its prefix.
 		profile, err = os.MkdirTemp("", screen.ProfilePrefix(rec.Name))

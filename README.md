@@ -122,6 +122,8 @@ The CLI twin is `hyprcage browser --profile <name> [screen] [url]`.
 `hyprcage profile list` shows the saved profiles and which are in use.
 `hyprcage profile rm <name>` deletes one, and refuses while a screen uses it.
 
+Any agent session on this machine can open any named profile. Profiles are shared by design, because one user runs them all.
+
 A saved profile holds live session cookies. Never commit it, never put it in
 a recording directory, and never back it up off this machine.
 

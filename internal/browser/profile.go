@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -41,12 +42,39 @@ func ProfilePath(name string) (string, error) {
 	return filepath.Join(dir, name), nil
 }
 
-// ProfileInUse reports whether a running Chrome holds the profile at path.
-// Chrome keeps SingletonLock in the profile, a symlink to "host-pid". A
+// lockProfile takes an exclusive flock on a file inside the profile, so two
+// browser_open calls cannot both pass the in-use check before either Chrome
+// has made its SingletonLock. It fails at once when another process holds it.
+func lockProfile(path string) (unlock func(), err error) {
+	f, err := os.OpenFile(filepath.Join(path, ".hyprcage.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return func() { f.Close() }, nil // closing the file releases the lock
+}
+
+// ProfileInUse reports whether a running Chrome holds the profile at path,
+// or another process is opening or removing it.
+func ProfileInUse(path string) bool {
+	unlock, err := lockProfile(path)
+	if err != nil {
+		return true
+	}
+	defer unlock()
+	return chromeHolds(path)
+}
+
+// chromeHolds reports whether a running Chrome has path as its user data
+// dir. Chrome keeps SingletonLock in the profile, a symlink to "host-pid". A
 // second Chrome on the same user-data-dir does not start: it hands its
 // arguments to the first one and exits, so the second DevTools port never
-// opens. A lock left by a dead Chrome does not count.
-func ProfileInUse(path string) bool {
+// opens. A lock left by a dead Chrome does not count. The argv element must
+// match exactly, so profile "a" does not match profile "a2".
+func chromeHolds(path string) bool {
 	link, err := os.Readlink(filepath.Join(path, "SingletonLock"))
 	if err != nil {
 		return false
@@ -56,30 +84,44 @@ func ProfileInUse(path string) bool {
 		return false
 	}
 	argv, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cmdline")
-	return err == nil && strings.Contains(string(argv), "--user-data-dir="+path)
+	if err != nil {
+		return false
+	}
+	for _, a := range strings.Split(string(argv), "\x00") {
+		if a == "--user-data-dir="+path {
+			return true
+		}
+	}
+	return false
 }
 
 // openProfile creates the profile directory when it is missing (mode 0700)
-// and refuses one that a running Chrome holds.
-func openProfile(name string) (string, error) {
-	path, err := ProfilePath(name)
-	if err != nil {
-		return "", err
+// and refuses one that a running Chrome holds. The caller keeps the profile
+// locked until Chrome has started, then calls unlock.
+func openProfile(name string) (path string, unlock func(), err error) {
+	if path, err = ProfilePath(name); err != nil {
+		return "", nil, err
 	}
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return "", err
+	if err = os.MkdirAll(path, 0o700); err != nil {
+		return "", nil, err
 	}
-	if err := os.Chmod(path, 0o700); err != nil {
-		return "", err
+	if err = os.Chmod(path, 0o700); err != nil {
+		return "", nil, err
 	}
-	if err := keepSession(path); err != nil {
-		return "", err
+	busy := screen.Errf(screen.CodeBrowserBusy, "use another profile name, or close the screen that holds it",
+		"profile %q is in use", name)
+	if unlock, err = lockProfile(path); err != nil {
+		return "", nil, busy
 	}
-	if ProfileInUse(path) {
-		return "", screen.Errf(screen.CodeBrowserBusy, "use another profile name, or close the screen that holds it",
-			"profile %q is in use by a running Chrome", name)
+	if chromeHolds(path) {
+		unlock()
+		return "", nil, busy
 	}
-	return path, nil
+	if err = keepSession(path); err != nil {
+		unlock()
+		return "", nil, err
+	}
+	return path, unlock, nil
 }
 
 // keepSession sets Chrome's "continue where you left off" startup option
@@ -152,8 +194,12 @@ func RemoveProfile(name string) error {
 	if _, err := os.Stat(path); err != nil {
 		return screen.Errf(screen.CodeNotFound, "run: hyprcage profile list", "no profile %q", name)
 	}
-	if ProfileInUse(path) {
-		return screen.Errf(screen.CodeBrowserBusy, "destroy the screen that holds it first", "profile %q is in use by a running Chrome", name)
+	unlock, err := lockProfile(path)
+	if err == nil {
+		defer unlock()
+	}
+	if err != nil || chromeHolds(path) {
+		return screen.Errf(screen.CodeBrowserBusy, "destroy the screen that holds it first", "profile %q is in use", name)
 	}
 	return os.RemoveAll(path)
 }
