@@ -425,19 +425,35 @@ func (s *Session) Console(clear bool) ([]Msg, int) {
 	return out, dropped
 }
 
-// Navigate loads url in the only page. It enables the console and network
-// domains first, so the load is buffered whatever the attach goroutine has
-// done so far.
+// Navigate loads url in a fresh tab and closes the other tabs, which are
+// about:blank or whatever a restored profile reopened. The fresh tab is the
+// only page afterwards, so later calls need no page argument. It enables the
+// console and network domains first, so the load is buffered whatever the
+// attach goroutine has done so far.
 func (s *Session) Navigate(ctx context.Context, url string) error {
+	raw, err := s.c.Call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank"})
+	if err != nil {
+		return screen.Errf(screen.CodeCDP, "", "%v", err)
+	}
+	var created struct {
+		TargetID string `json:"targetId"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil || created.TargetID == "" {
+		return screen.Errf(screen.CodeCDP, "", "Target.createTarget returned no target")
+	}
 	var sid string
-	var err error
+	var old []string
 	for end := time.Now().Add(3 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-		if sid, err = s.page(""); err == nil || time.Now().After(end) {
+		sid, old = s.split(created.TargetID)
+		if sid != "" {
 			break
 		}
+		if time.Now().After(end) {
+			return screen.Errf(screen.CodeCDP, hint, "the new tab did not attach")
+		}
 	}
-	if err != nil {
-		return err
+	for _, id := range old {
+		s.c.Call(ctx, "", "Target.closeTarget", map[string]any{"targetId": id})
 	}
 	for _, m := range []string{"Runtime.enable", "Log.enable", "Network.enable"} {
 		if _, err := s.c.Call(ctx, sid, m, nil); err != nil {
@@ -450,6 +466,23 @@ func (s *Session) Navigate(ctx context.Context, url string) error {
 		return screen.Errf(screen.CodeCDP, "", "%v", err)
 	}
 	return nil
+}
+
+// split returns the session of the page with target id, or "" while it has
+// not attached, and the target ids of every other page.
+func (s *Session) split(id string) (string, []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var sid string
+	var others []string
+	for k, t := range s.pages {
+		if t.id == id {
+			sid = k
+		} else {
+			others = append(others, t.id)
+		}
+	}
+	return sid, others
 }
 
 // page returns the session of the page whose URL contains match, or the

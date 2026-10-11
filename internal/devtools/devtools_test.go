@@ -188,16 +188,28 @@ func TestNetworkEnabledOnAttachAndDropsOldestPastTheCap(t *testing.T) {
 
 func TestNavigateEnablesDomainsBeforeLoading(t *testing.T) {
 	s, f := newFake()
+	// A restored profile leaves tabs besides the initial about:blank.
 	attach(s, "S1", "T1", "about:blank")
+	attach(s, "S2", "T2", "https://old.test/")
+	f.reply = func(method string, _ any) (any, error) {
+		if method == "Target.createTarget" {
+			attach(s, "S3", "T3", "about:blank")
+			return map[string]any{"targetId": "T3"}, nil
+		}
+		return nil, nil
+	}
 	if err := s.Navigate(context.Background(), "https://a.test/"); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	calls := strings.Join(f.calls, "\n")
-	n, p := strings.Index(calls, "S1 Network.enable"), strings.Index(calls, "S1 Page.navigate")
+	n, p := strings.Index(calls, "S3 Network.enable"), strings.Index(calls, "S3 Page.navigate")
 	if p < 0 || n < 0 || n > p {
-		t.Fatalf("Network.enable must come before Page.navigate:\n%s", calls)
+		t.Fatalf("Network.enable must come before Page.navigate on the new tab:\n%s", calls)
+	}
+	if strings.Count(calls, " Target.closeTarget") != 2 {
+		t.Fatalf("the two older tabs must close:\n%s", calls)
 	}
 }
 
