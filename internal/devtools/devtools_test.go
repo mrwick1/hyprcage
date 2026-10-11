@@ -106,6 +106,115 @@ func TestConsoleDropsOldestPastTheCap(t *testing.T) {
 	}
 }
 
+func TestNetworkTracksSuccessFailureAndErrors(t *testing.T) {
+	s, _ := newFake()
+	attach(s, "S1", "T1", "https://a.test/")
+	send := func(id, url string, t0 float64) {
+		ev(s, "S1", "Network.requestWillBeSent", `{"requestId":"`+id+`","type":"XHR","timestamp":`+ftoa(t0)+`,"request":{"url":"`+url+`","method":"GET","headers":{"Authorization":"secret"}}}`)
+	}
+	send("1", "https://a.test/ok", 10)
+	ev(s, "S1", "Network.responseReceived", `{"requestId":"1","type":"XHR","response":{"status":200}}`)
+	ev(s, "S1", "Network.loadingFinished", `{"requestId":"1","timestamp":10.25}`)
+	send("2", "https://a.test/api", 11)
+	ev(s, "S1", "Network.responseReceived", `{"requestId":"2","type":"XHR","response":{"status":500}}`)
+	ev(s, "S1", "Network.loadingFinished", `{"requestId":"2","timestamp":11.5}`)
+	send("3", "https://down.test/x", 12)
+	ev(s, "S1", "Network.loadingFailed", `{"requestId":"3","timestamp":12.1,"errorText":"net::ERR_NAME_NOT_RESOLVED"}`)
+	ev(s, "S1", "Network.loadingFinished", `{"requestId":"9","timestamp":13}`) // unknown id: ignored
+
+	got, dropped := s.Network(true, "", false)
+	if dropped != 0 || len(got) != 2 {
+		t.Fatalf("failed only: %+v dropped %d", got, dropped)
+	}
+	if g := got[0]; g.Status != 500 || g.URL != "https://a.test/api" || g.Method != "GET" || g.Type != "XHR" || g.Duration != 0.5 || g.Page != "https://a.test/" {
+		t.Errorf("500: %+v", g)
+	}
+	if g := got[1]; g.Error != "net::ERR_NAME_NOT_RESOLVED" || g.Status != 0 {
+		t.Errorf("failed: %+v", g)
+	}
+	if all, _ := s.Network(false, "", false); len(all) != 3 || all[0].Status != 200 || all[0].Duration != 0.25 {
+		t.Errorf("all: %+v", all)
+	}
+	if hit, _ := s.Network(false, "down.test", false); len(hit) != 1 {
+		t.Errorf("url_contains: %+v", hit)
+	}
+	if got, _ := s.Network(false, "", true); len(got) != 3 {
+		t.Fatalf("clear read: %d", len(got))
+	}
+	if got, _ := s.Network(false, "", false); len(got) != 0 {
+		t.Fatalf("after clear: %+v", got)
+	}
+}
+
+func TestNetworkRedirectKeepsEachHop(t *testing.T) {
+	s, _ := newFake()
+	attach(s, "S1", "T1", "https://a.test/")
+	ev(s, "S1", "Network.requestWillBeSent", `{"requestId":"1","timestamp":1,"request":{"url":"https://a.test/old","method":"GET"}}`)
+	ev(s, "S1", "Network.requestWillBeSent", `{"requestId":"1","timestamp":2,"request":{"url":"https://a.test/new","method":"GET"},"redirectResponse":{"status":301}}`)
+	ev(s, "S1", "Network.responseReceived", `{"requestId":"1","response":{"status":404}}`)
+	all, _ := s.Network(false, "", false)
+	if len(all) != 2 || all[0].Status != 301 || all[1].Status != 404 {
+		t.Fatalf("hops: %+v", all)
+	}
+}
+
+func TestNetworkEnabledOnAttachAndDropsOldestPastTheCap(t *testing.T) {
+	s, f := newFake()
+	attach(s, "S1", "T1", "https://a.test/")
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		f.mu.Lock()
+		calls := strings.Join(f.calls, "\n")
+		f.mu.Unlock()
+		if strings.Contains(calls, "S1 Network.enable") {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	f.mu.Lock()
+	if !strings.Contains(strings.Join(f.calls, "\n"), "S1 Network.enable") {
+		t.Error("Network.enable not sent on attach")
+	}
+	f.mu.Unlock()
+	for i := 0; i < MaxNetwork+5; i++ {
+		ev(s, "S1", "Network.requestWillBeSent", `{"requestId":"`+itoa(i)+`","timestamp":1,"request":{"url":"https://a.test/`+itoa(i)+`","method":"GET"}}`)
+	}
+	got, dropped := s.Network(false, "", false)
+	if len(got) != MaxNetwork || dropped != 5 || got[0].URL != "https://a.test/5" {
+		t.Fatalf("len %d dropped %d", len(got), dropped)
+	}
+	ev(s, "S1", "Network.responseReceived", `{"requestId":"0","response":{"status":500}}`) // dropped request: ignored
+}
+
+func TestNavigateEnablesDomainsBeforeLoading(t *testing.T) {
+	s, f := newFake()
+	// A restored profile leaves tabs besides the initial about:blank.
+	attach(s, "S1", "T1", "about:blank")
+	attach(s, "S2", "T2", "https://old.test/")
+	f.reply = func(method string, _ any) (any, error) {
+		if method == "Target.createTarget" {
+			attach(s, "S3", "T3", "about:blank")
+			return map[string]any{"targetId": "T3"}, nil
+		}
+		return nil, nil
+	}
+	if err := s.Navigate(context.Background(), "https://a.test/"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	calls := strings.Join(f.calls, "\n")
+	n, p := strings.Index(calls, "S3 Network.enable"), strings.Index(calls, "S3 Page.navigate")
+	if p < 0 || n < 0 || n > p {
+		t.Fatalf("Network.enable must come before Page.navigate on the new tab:\n%s", calls)
+	}
+	if strings.Count(calls, " Target.closeTarget") != 2 {
+		t.Fatalf("the two older tabs must close:\n%s", calls)
+	}
+}
+
+func ftoa(f float64) string { b, _ := json.Marshal(f); return string(b) }
+
 func itoa(i int) string { b, _ := json.Marshal(i); return string(b) }
 
 func TestPageSelection(t *testing.T) {

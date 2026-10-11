@@ -145,7 +145,14 @@ func TestRecordAndBrowserKeys(t *testing.T) {
 	if err != nil || cfg.RecordDir != "/tmp/rec" || cfg.RecordMax != 5*time.Minute || cfg.RecordFPS != 5 || cfg.BrowserCommand != "chromium" {
 		t.Fatalf("overrides: %v %+v", err, cfg)
 	}
-	for _, bad := range []string{"[record]\nfps = 0", "[record]\ncrop = \"tabs\"", "[record]\nidle = \"-1s\"", "[record]\nfps = 61", "[record]\nmax = \"0s\"", "[browser]\nport = \"x\""} {
+	if d := Default(); d.Lighthouse != "13.5.0" {
+		t.Errorf("lighthouse default %q", d.Lighthouse)
+	}
+	lc := Default()
+	if err := Apply(&lc, "[browser]\nlighthouse = \"13.6.1\"\n"); err != nil || lc.Lighthouse != "13.6.1" {
+		t.Errorf("lighthouse override: %v %q", err, lc.Lighthouse)
+	}
+	for _, bad := range []string{"[record]\nfps = 0", "[record]\ncrop = \"tabs\"", "[record]\nidle = \"-1s\"", "[record]\nfps = 61", "[record]\nmax = \"0s\"", "[browser]\nport = \"x\"", "[browser]\nlighthouse = \"\"", "[browser]\nlighthouse = \"--yes x\"", "[browser]\nlighthouse = \"1@2\""} {
 		c := Default()
 		if Apply(&c, bad) == nil {
 			t.Errorf("%q: want an error", bad)

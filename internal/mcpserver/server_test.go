@@ -2,7 +2,9 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/notifyd"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/hyprcage/internal/screen"
 )
 
 func connect(t *testing.T) *mcp.ClientSession { return connectCfg(t, config.Default()) }
@@ -54,7 +57,7 @@ func TestToolsRegistered(t *testing.T) {
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set",
-		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap", "devtools_emulate",
+		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate",
 		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
@@ -128,7 +131,7 @@ func TestPerceiveToolsListed(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = true
 	}
-	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_trace", "devtools_heap", "devtools_emulate"} {
+	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate"} {
 		if !got[name] {
 			t.Errorf("tool %s missing", name)
 		}
@@ -335,6 +338,42 @@ func TestNotifydDown(t *testing.T) {
 		}
 		if !res.IsError || !strings.Contains(text(res), "notifyd_down") {
 			t.Errorf("%s: isError=%v text=%q", c.tool, res.IsError, text(res))
+		}
+	}
+}
+
+func TestShotResultPath(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	res := &screen.ShotResult{Data: []byte("png-bytes"), MIME: "image/png", Width: 4, Height: 3, Scale: 1}
+
+	inline, err := shotResult(res, "hc1", "")
+	if err != nil || len(inline.Content) != 2 {
+		t.Fatalf("no path: err=%v content=%d, want the image plus geometry", err, len(inline.Content))
+	}
+
+	explicit := filepath.Join(t.TempDir(), "a", "b", "x.png")
+	for _, path := range []string{explicit, "auto"} {
+		out, err := shotResult(res, "hc1", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Content) != 1 {
+			t.Fatalf("path %q: %d content items, want text only", path, len(out.Content))
+		}
+		var got struct{ Path string }
+		if err := json.Unmarshal([]byte(text(out)), &got); err != nil {
+			t.Fatal(err)
+		}
+		if path == "auto" {
+			if want := filepath.Join(cache, "hyprcage", "shots", "hc1-"); !strings.HasPrefix(got.Path, want) || !strings.HasSuffix(got.Path, ".png") {
+				t.Errorf("auto path %q, want prefix %q and .png", got.Path, want)
+			}
+		} else if got.Path != explicit {
+			t.Errorf("path %q, want %q", got.Path, explicit)
+		}
+		if b, err := os.ReadFile(got.Path); err != nil || string(b) != "png-bytes" {
+			t.Errorf("file %q: %q, %v", got.Path, b, err)
 		}
 	}
 }

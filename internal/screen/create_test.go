@@ -35,3 +35,19 @@ func TestRemoveProfiles(t *testing.T) {
 		}
 	}
 }
+
+// A saved profile lives outside the temp directory, so removeProfiles never
+// reaches it, even when its name looks like a temp profile.
+func TestRemoveProfilesKeepsNamedProfile(t *testing.T) {
+	tmp, data := t.TempDir(), t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	t.Setenv("XDG_DATA_HOME", data)
+	named := filepath.Join(data, "hyprcage", "profiles", "hc-chrome-hc-a-123")
+	if err := os.MkdirAll(named, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	removeProfiles("hc-a")
+	if _, err := os.Stat(named); err != nil {
+		t.Errorf("named profile is gone: %v", err)
+	}
+}

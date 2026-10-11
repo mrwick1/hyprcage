@@ -85,6 +85,10 @@ The agent gets `screen_create`, `app_launch`, `screenshot`, `click`, `type`,
 Its skill tells it to use a screen for anything it launches for itself, one
 application per screen, and to close it when done.
 
+`screenshot` returns the image inline. With `path`, it writes the image to that
+file and returns the path as text, so the image stays out of the agent's
+context. `path: "auto"` writes `<cache dir>/hyprcage/shots/<screen>-<time>.png`.
+
 The agent reads a screen as text before it looks at an image. `snapshot`
 lists the elements of the screen, one per line, with a ref, a role, a name
 and screen coordinates. `act` clicks, types, presses keys, hovers or scrolls
@@ -96,6 +100,12 @@ snapshot names the source. For CDP, launch a Chromium or Electron app with
 for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `hyprcage setup`.
 `hyprcage doctor` checks both.
 
+The `devtools_audit` tool runs Lighthouse against the Chrome that `browser_open`
+started. It needs Node.js: it runs `npx -y lighthouse@13.5.0` and installs nothing else.
+The `[browser] lighthouse = "13.5.0"` key in the config file sets the version.
+It returns the 0-100 score of each category, the 10 worst audits and the path of
+the full JSON report.
+
 A screen normally opens a mirror window on one of your spare workspaces, 6
 to 9 by default. Switch to it with your usual workspace binding to watch the
 agent live. Nothing you do there reaches the agent: the mirror shows the
@@ -104,6 +114,28 @@ screen and relays nothing back, so clicking or typing in it does nothing.
 tool has a command-line twin: `hyprcage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
+
+### Saved browser profiles
+
+`browser_open` starts Chrome on a throwaway profile that `screen_destroy`
+deletes. Pass `profile: "<name>"` to keep the profile instead. The name
+matches `^[a-z0-9-]{1,40}$`. The profile lives in
+`~/.local/share/hyprcage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
+with mode 700. `screen_destroy` and `hyprcage gc` never delete it. A later
+`browser_open` with the same name starts with the same cookies, logins and
+local storage, and session cookies too: hyprcage sets Chrome's "continue where you left off" option in a saved profile, because Chrome drops session cookies at exit otherwise. One screen at a time can use a profile: a second
+`browser_open` on a profile in use fails with `browser_running`, because a
+second Chrome on the same user data directory would hand its work to the
+first one and exit.
+
+The CLI twin is `hyprcage browser --profile <name> [screen] [url]`.
+`hyprcage profile list` shows the saved profiles and which are in use.
+`hyprcage profile rm <name>` deletes one, and refuses while a screen uses it.
+
+Any agent session on this machine can open any named profile. Profiles are shared by design, because one user runs them all.
+
+A saved profile holds live session cookies. Never commit it, never put it in
+a recording directory, and never back it up off this machine.
 
 ## Configuration
 

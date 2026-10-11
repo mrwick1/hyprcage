@@ -1,8 +1,16 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,8 +23,9 @@ import (
 )
 
 type browserIn struct {
-	Screen string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
-	URL    string `json:"url,omitempty" jsonschema:"page to open"`
+	Screen  string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	URL     string `json:"url,omitempty" jsonschema:"page to open"`
+	Profile string `json:"profile,omitempty" jsonschema:"keep the browser profile (cookies, logins) under this name, 1-40 of a-z 0-9 -, so a later browser_open with the same name starts logged in; default is a throwaway profile"`
 }
 
 type evalIn struct {
@@ -29,6 +38,13 @@ type evalIn struct {
 type consoleIn struct {
 	Screen string `json:"screen,omitempty"`
 	Clear  bool   `json:"clear,omitempty" jsonschema:"empty the buffer after reading it"`
+}
+
+type networkIn struct {
+	Screen      string `json:"screen,omitempty"`
+	FailedOnly  *bool  `json:"failed_only,omitempty" jsonschema:"only requests with status 400 or higher or a network error, default true"`
+	URLContains string `json:"url_contains,omitempty" jsonschema:"only requests whose URL contains this text"`
+	Clear       bool   `json:"clear,omitempty" jsonschema:"empty the buffer after reading it"`
 }
 
 type traceIn struct {
@@ -50,6 +66,15 @@ type emulateIn struct {
 	Color     string  `json:"color_scheme,omitempty" jsonschema:"prefers-color-scheme: dark or light"`
 }
 
+type auditIn struct {
+	Screen     string   `json:"screen,omitempty"`
+	URL        string   `json:"url,omitempty" jsonschema:"page to audit; default the page the screen shows now"`
+	Categories []string `json:"categories,omitempty" jsonschema:"performance, accessibility, best-practices, seo; default all four"`
+	FormFactor string   `json:"form_factor,omitempty" jsonschema:"mobile (default) or desktop"`
+	Path       string   `json:"path,omitempty" jsonschema:"where to write the full JSON report, default ~/.cache/hyprcage/devtools/"`
+	TimeoutS   int      `json:"timeout_s,omitempty" jsonschema:"default 120"`
+}
+
 type heapIn struct {
 	Screen string `json:"screen,omitempty"`
 	Page   string `json:"page,omitempty" jsonschema:"part of the page URL, when more than one page is open"`
@@ -58,11 +83,13 @@ type heapIn struct {
 
 // registerBrowser adds browser_open and the devtools_* tools.
 func (s *Server) registerBrowser(srv *mcp.Server) {
-	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen, with a throwaway profile and DevTools on a free 127.0.0.1 port of its own. Drive it with snapshot, act and find; read its internals with the devtools_* tools. It closes with its screen.", s.browserOpen)
+	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen, with a throwaway profile (or a saved one when profile is set) and DevTools on a free 127.0.0.1 port of its own. Drive it with snapshot, act and find; read its internals with the devtools_* tools. It closes with its screen; a saved profile stays and only one screen can use it at a time.", s.browserOpen)
 	tool(s, srv, "devtools_eval", "Run JavaScript in a page of a screen opened with browser_open or app_launch debug=true, and return the value as JSON.", s.devtoolsEval)
 	tool(s, srv, "devtools_console", "Read the console of a screen opened with browser_open or app_launch debug=true: console calls, uncaught exceptions and browser errors such as failed requests, oldest first.", s.devtoolsConsole)
+	tool(s, srv, "devtools_network", "Read the network requests of a screen opened with browser_open or app_launch debug=true since launch: method, URL, status, error, type and duration, oldest first. Failed requests only by default: status 400 or higher, or a network error such as CORS or DNS. Bodies and headers are not kept.", s.devtoolsNetwork)
 	tool(s, srv, "devtools_trace", "Record a performance trace of a screen's browser: action start, do the work, then action stop. Stop writes a file that the DevTools Performance panel loads.", s.devtoolsTrace)
 	tool(s, srv, "devtools_heap", "Take a heap snapshot of a page and write it to a file that the DevTools Memory panel loads. Compare two snapshots there to find a leak.", s.devtoolsHeap)
+	tool(s, srv, "devtools_audit", "Run a Lighthouse audit against the page of a screen opened with browser_open. Needs npx on the machine; it fetches Lighthouse on the first run and installs nothing else. Returns the 0-100 score of each category, the 10 worst audits and the path of the full JSON report. Takes about 10 to 60 seconds. Lighthouse reloads the page in a temporary tab.", s.devtoolsAudit)
 	tool(s, srv, "devtools_emulate", "Make every page of a screen's browser, and each page it opens later, pretend to be a device: viewport, pixel ratio, mobile, touch, user agent, network and CPU throttling, color scheme. Each call replaces the whole emulation; a call with no fields returns to the plain desktop browser. Reload the page after changing user_agent or mobile.", s.devtoolsEmulate)
 }
 
@@ -86,21 +113,52 @@ func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	info, err := browser.Open(s.ctx, rec, in.URL)
+	// Chrome starts on about:blank, so the session attaches before the page
+	// loads and sees its console messages and requests.
+	start := in.URL
+	if start != "" {
+		if err := browser.CheckURL(start); err != nil {
+			return nil, err
+		}
+		start = "about:blank"
+	}
+	info, err := browser.Open(s.ctx, rec, start, in.Profile)
 	if err != nil {
 		return nil, err
 	}
-	s.startDevtools(rec)
-	return textResult(info), nil
+	d := s.startDevtools(rec)
+	if in.URL == "" || in.URL == start {
+		return textResult(info), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	var navErr error
+	if d != nil {
+		navErr = d.Navigate(ctx, in.URL)
+	} else {
+		navErr = fmt.Errorf("DevTools did not attach")
+	}
+	if navErr == nil {
+		return textResult(info), nil
+	}
+	// Fall back to the plain HTTP endpoint: the page opens in a new tab, but
+	// the session misses what it loaded before attaching.
+	if err := browser.NewTab(info.BrowserURL, in.URL); err != nil {
+		return nil, fmt.Errorf("open %s: %v (DevTools navigate: %v)", in.URL, err, navErr)
+	}
+	return textResult(map[string]any{"screen": info.Screen, "pid": info.PID, "port": info.Port, "browser_url": info.BrowserURL,
+		"ws_endpoint": info.WS, "profile": info.Profile,
+		"warning": fmt.Sprintf("DevTools could not navigate (%v): the page opened in a new tab, and the console and network miss its first load", navErr)}), nil
 }
 
 // startDevtools connects at launch, so the console holds the page's
 // messages from the start. A failure here is retried by the first
 // devtools_* call.
-func (s *Server) startDevtools(rec *registry.Screen) {
+func (s *Server) startDevtools(rec *registry.Screen) *devtools.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	s.devtoolsFor(ctx, rec)
+	d, _ := s.devtoolsFor(ctx, rec)
+	return d
 }
 
 // devtoolsFor returns the screen's DevTools session, connecting when there
@@ -192,6 +250,43 @@ func (s *Server) devtoolsConsole(in consoleIn) (*mcp.CallToolResult, error) {
 	return plain(b.String()), nil
 }
 
+func (s *Server) devtoolsNetwork(in networkIn) (*mcp.CallToolResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	_, d, err := s.devtoolsScreen(ctx, in.Screen)
+	if err != nil {
+		return nil, err
+	}
+	failedOnly := in.FailedOnly == nil || *in.FailedOnly
+	reqs, dropped := d.Network(failedOnly, in.URLContains, in.Clear)
+	var b strings.Builder
+	if dropped > 0 {
+		fmt.Fprintf(&b, "(%d older requests dropped)\n", dropped)
+	}
+	for _, r := range reqs {
+		status := "pending"
+		switch {
+		case r.Error != "":
+			status = r.Error
+		case r.Status != 0:
+			status = fmt.Sprint(r.Status)
+		}
+		fmt.Fprintf(&b, "[%s] %s %s", status, r.Method, r.URL)
+		if r.Type != "" {
+			fmt.Fprintf(&b, "  (%s", r.Type)
+			if r.Duration > 0 {
+				fmt.Fprintf(&b, ", %dms", int(r.Duration*1000))
+			}
+			b.WriteByte(')')
+		}
+		b.WriteByte('\n')
+	}
+	if len(reqs) == 0 {
+		b.WriteString("no matching requests\n")
+	}
+	return plain(b.String()), nil
+}
+
 func (s *Server) devtoolsTrace(in traceIn) (*mcp.CallToolResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -236,4 +331,83 @@ func (s *Server) devtoolsHeap(in heapIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return textResult(map[string]any{"path": path, "bytes": n}), nil
+}
+
+var auditCategories = []string{"performance", "accessibility", "best-practices", "seo"}
+
+const auditHint = "install Node.js (npx), then run: npx -y lighthouse --version"
+
+func (s *Server) devtoolsAudit(in auditIn) (*mcp.CallToolResult, error) {
+	cats := in.Categories
+	if len(cats) == 0 {
+		cats = auditCategories
+	}
+	for _, c := range cats {
+		if !slices.Contains(auditCategories, c) {
+			return nil, fmt.Errorf("category %q is not one of %s", c, strings.Join(auditCategories, ", "))
+		}
+	}
+	form := in.FormFactor
+	if form == "" {
+		form = "mobile"
+	}
+	if form != "mobile" && form != "desktop" {
+		return nil, fmt.Errorf("form_factor must be mobile or desktop, got %q", form)
+	}
+	timeout := 120 * time.Second
+	if in.TimeoutS > 0 {
+		timeout = time.Duration(in.TimeoutS) * time.Second
+	}
+	npx, err := exec.LookPath("npx")
+	if err != nil {
+		return nil, screen.Errf(screen.CodeCDP, auditHint, "npx not found")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+perceiveTimeout)
+	defer cancel()
+	rec, d, err := s.devtoolsScreen(ctx, in.Screen)
+	if err != nil {
+		return nil, err
+	}
+	url := in.URL
+	if url == "" {
+		raw, err := d.Eval(ctx, "", "location.href", 5*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &url); err != nil || url == "" {
+			return nil, fmt.Errorf("cannot read the page URL; pass url")
+		}
+	}
+	path := in.Path
+	if path == "" {
+		path = devtools.DefaultPath(rec.Name, "json")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	args := []string{"-y", "lighthouse@" + s.cfg.Lighthouse, url, "--port", strconv.Itoa(rec.DebugPort), "--output", "json", "--output-path", path,
+		"--quiet", "--only-categories=" + strings.Join(cats, ","), "--form-factor=" + form}
+	if form == "desktop" {
+		args = append(args, "--screenEmulation.disabled")
+	}
+	runCtx, stop := context.WithTimeout(ctx, timeout)
+	defer stop()
+	cmd := exec.CommandContext(runCtx, npx, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			err = fmt.Errorf("timed out after %s", timeout)
+		}
+		return nil, screen.Errf(screen.CodeCDP, auditHint, "lighthouse failed: %v\n%s", err, devtools.TailLines(stderr.String(), 15))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	sum, err := devtools.SummarizeLighthouse(raw, cats, 10)
+	if err != nil {
+		return nil, err
+	}
+	return textResult(map[string]any{"screen": rec.Name, "form_factor": form, "report": path, "summary": sum}), nil
 }

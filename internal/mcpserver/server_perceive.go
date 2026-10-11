@@ -253,7 +253,7 @@ func (s *Server) desktopAct(ctx context.Context, in actIn, op perceive.ActOp) (*
 	}
 	res := plain(out)
 	if in.ScreenshotAfter {
-		shot, err := s.desktopShot(in.Window, 150, screen.ShotOptions{MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+		shot, err := s.desktopShot(in.Window, 150, "", screen.ShotOptions{MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
 		if err != nil {
 			return nil, err
 		}

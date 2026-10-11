@@ -2,6 +2,7 @@ package screen
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hexadecimil/hyprcage/internal/cdp"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/session"
 )
@@ -125,7 +127,10 @@ func OwnsPort(rec *registry.Screen) bool {
 }
 
 // killDebug stops the process recorded as the owner of the DevTools port
-// when it is still the same process: SIGTERM, up to 2 s, then SIGKILL.
+// when it is still the same process. It asks the browser to close through
+// DevTools first: Chrome then flushes its cookies to the profile before it
+// exits, and a SIGTERM stops it before that flush. After up to 5 s it falls
+// back to SIGTERM, up to 2 s, then SIGKILL.
 // Chromium leaves the screen's cgroup and environment, so
 // killScreenProcesses misses it.
 func killDebug(rec *registry.Screen) {
@@ -136,6 +141,13 @@ func killDebug(rec *registry.Screen) {
 	if rec.DebugPID <= 0 || rec.DebugPIDStart == 0 || !alive() {
 		return
 	}
+	if closeBrowser(rec.DebugPort) {
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+			if !alive() || zombie(rec.DebugPID) {
+				return
+			}
+		}
+	}
 	_ = syscall.Kill(rec.DebugPID, syscall.SIGTERM)
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		if !alive() || zombie(rec.DebugPID) {
@@ -143,6 +155,23 @@ func killDebug(rec *registry.Screen) {
 		}
 	}
 	_ = syscall.Kill(rec.DebugPID, syscall.SIGKILL)
+}
+
+// closeBrowser sends Browser.close to the DevTools port and reports whether
+// the browser accepted it.
+func closeBrowser(port int) bool {
+	if port == 0 {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	c, err := cdp.Dial(ctx, port, nil)
+	if err != nil {
+		return false
+	}
+	defer c.Close()
+	_, err = c.Call(ctx, "", "Browser.close", nil)
+	return err == nil
 }
 
 // zombie reports whether pid has exited and waits for its parent to reap it.

@@ -25,6 +25,9 @@ const hint = "open the page with browser_open, or launch the app with debug=true
 // MaxConsole caps the console buffer. The oldest messages go first.
 const MaxConsole = 1000
 
+// MaxNetwork caps the request buffer. The oldest requests go first.
+const MaxNetwork = 1000
+
 // traceCategories are the categories the DevTools Performance panel
 // records, so the file opens there with a full timeline.
 var traceCategories = []string{
@@ -48,6 +51,23 @@ type Msg struct {
 	Page   string `json:"page,omitempty"`   // url of the page that logged it
 }
 
+// Req is one network request. It holds no headers and no bodies.
+type Req struct {
+	Method   string  `json:"method"`
+	URL      string  `json:"url"`
+	Status   int     `json:"status,omitempty"`   // 0 until a response arrives
+	Error    string  `json:"error,omitempty"`    // loadingFailed text, such as net::ERR_NAME_NOT_RESOLVED
+	Type     string  `json:"type,omitempty"`     // resource type: Document, XHR, Fetch, Script
+	Duration float64 `json:"duration,omitempty"` // seconds, once the request ends
+	Page     string  `json:"page,omitempty"`     // url of the page that made it
+
+	start float64
+	key   string
+}
+
+// Failed reports whether the request got an error status or never completed.
+func (r Req) Failed() bool { return r.Error != "" || r.Status >= 400 }
+
 type target struct{ id, url string }
 
 // Session holds one connection to a screen's browser. It attaches to every
@@ -60,6 +80,9 @@ type Session struct {
 	pages   map[string]target // by session id
 	console []Msg
 	dropped int
+	reqs    []*Req          // oldest first
+	reqByID map[string]*Req // by session id and request id
+	reqDrop int
 	heap    *os.File // sink of the heap snapshot being taken
 	heapErr error
 	traced  chan string // the trace stream handle, once Tracing.end completes
@@ -160,6 +183,7 @@ func (s *Session) event(ev cdp.Event) {
 			ctx := context.Background()
 			s.c.Call(ctx, p.SessionID, "Runtime.enable", nil)
 			s.c.Call(ctx, p.SessionID, "Log.enable", nil)
+			s.c.Call(ctx, p.SessionID, "Network.enable", nil)
 			// A popup waits for the debugger despite waitForDebuggerOnStart
 			// false, and holds its opener's renderer until released.
 			s.c.Call(ctx, p.SessionID, "Runtime.runIfWaitingForDebugger", nil)
@@ -236,6 +260,73 @@ func (s *Session) event(ev cdp.Event) {
 			}
 			s.add(ev.SessionID, Msg{Level: e.Level, Text: e.Text, Source: src})
 		}
+	case "Network.requestWillBeSent":
+		var p struct {
+			ID       string  `json:"requestId"`
+			Type     string  `json:"type"`
+			Time     float64 `json:"timestamp"`
+			Request  struct{ URL, Method string }
+			Redirect *struct {
+				Status int `json:"status"`
+			} `json:"redirectResponse"`
+		}
+		if json.Unmarshal(ev.Params, &p) == nil {
+			s.mu.Lock()
+			key := ev.SessionID + " " + p.ID
+			if old := s.reqByID[key]; old != nil && p.Redirect != nil { // a redirect hop reuses the request id
+				old.Status, old.Duration = p.Redirect.Status, p.Time-old.start
+			}
+			s.track(key, &Req{Method: p.Request.Method, URL: p.Request.URL, Type: p.Type, Page: s.pages[ev.SessionID].url, start: p.Time})
+			s.mu.Unlock()
+		}
+	case "Network.responseReceived":
+		var p struct {
+			ID       string `json:"requestId"`
+			Type     string `json:"type"`
+			Response struct {
+				Status int `json:"status"`
+			} `json:"response"`
+		}
+		if json.Unmarshal(ev.Params, &p) == nil {
+			s.update(ev.SessionID, p.ID, func(r *Req) {
+				r.Status = p.Response.Status
+				if r.Type == "" {
+					r.Type = p.Type
+				}
+			})
+		}
+	case "Network.loadingFailed":
+		var p struct {
+			ID       string  `json:"requestId"`
+			Type     string  `json:"type"`
+			Time     float64 `json:"timestamp"`
+			Error    string  `json:"errorText"`
+			Canceled bool    `json:"canceled"`
+			Blocked  string  `json:"blockedReason"`
+		}
+		if json.Unmarshal(ev.Params, &p) == nil {
+			s.update(ev.SessionID, p.ID, func(r *Req) {
+				r.Error = p.Error
+				if p.Blocked != "" {
+					r.Error += " (blocked: " + p.Blocked + ")"
+				}
+				if r.Error == "" {
+					r.Error = "failed"
+				}
+				if r.Type == "" {
+					r.Type = p.Type
+				}
+				r.Duration = p.Time - r.start
+			})
+		}
+	case "Network.loadingFinished":
+		var p struct {
+			ID   string  `json:"requestId"`
+			Time float64 `json:"timestamp"`
+		}
+		if json.Unmarshal(ev.Params, &p) == nil {
+			s.update(ev.SessionID, p.ID, func(r *Req) { r.Duration = p.Time - r.start })
+		}
 	case "HeapProfiler.addHeapSnapshotChunk":
 		var p struct {
 			Chunk string `json:"chunk"`
@@ -274,6 +365,54 @@ func (s *Session) add(sessionID string, m Msg) {
 	s.console = append(s.console, m)
 }
 
+// track adds r to the request buffer under key. The caller holds s.mu.
+func (s *Session) track(key string, r *Req) {
+	if s.reqByID == nil {
+		s.reqByID = map[string]*Req{}
+	}
+	if len(s.reqs) >= MaxNetwork {
+		if old := s.reqs[0]; s.reqByID[old.key] == old {
+			delete(s.reqByID, old.key)
+		}
+		s.reqs = s.reqs[1:]
+		s.reqDrop++
+	}
+	r.key = key
+	s.reqs = append(s.reqs, r)
+	s.reqByID[key] = r
+}
+
+// update applies fn to the request a later event belongs to. An event for a
+// request that started before the session attached, or that the cap dropped,
+// is ignored.
+func (s *Session) update(sessionID, id string, fn func(*Req)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r := s.reqByID[sessionID+" "+id]; r != nil {
+		fn(r)
+	}
+}
+
+// Network returns the buffered requests, oldest first, and how many were
+// dropped for the cap. failedOnly keeps the requests with a status of 400 or
+// higher or a loadingFailed event. contains keeps the requests whose URL
+// contains it. clear empties the buffer afterwards.
+func (s *Session) Network(failedOnly bool, contains string, clear bool) ([]Req, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Req
+	for _, r := range s.reqs {
+		if (!failedOnly || r.Failed()) && strings.Contains(r.URL, contains) {
+			out = append(out, *r)
+		}
+	}
+	dropped := s.reqDrop
+	if clear {
+		s.reqs, s.reqByID, s.reqDrop = nil, nil, 0
+	}
+	return out, dropped
+}
+
 // Console returns the buffered messages and how many were dropped for the
 // cap. clear empties the buffer afterwards.
 func (s *Session) Console(clear bool) ([]Msg, int) {
@@ -284,6 +423,66 @@ func (s *Session) Console(clear bool) ([]Msg, int) {
 		s.console, s.dropped = nil, 0
 	}
 	return out, dropped
+}
+
+// Navigate loads url in a fresh tab and closes the other tabs, which are
+// about:blank or whatever a restored profile reopened. The fresh tab is the
+// only page afterwards, so later calls need no page argument. It enables the
+// console and network domains first, so the load is buffered whatever the
+// attach goroutine has done so far.
+func (s *Session) Navigate(ctx context.Context, url string) error {
+	raw, err := s.c.Call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank"})
+	if err != nil {
+		return screen.Errf(screen.CodeCDP, "", "%v", err)
+	}
+	var created struct {
+		TargetID string `json:"targetId"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil || created.TargetID == "" {
+		return screen.Errf(screen.CodeCDP, "", "Target.createTarget returned no target")
+	}
+	var sid string
+	var old []string
+	for end := time.Now().Add(3 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		sid, old = s.split(created.TargetID)
+		if sid != "" {
+			break
+		}
+		if time.Now().After(end) {
+			return screen.Errf(screen.CodeCDP, hint, "the new tab did not attach")
+		}
+	}
+	for _, id := range old {
+		s.c.Call(ctx, "", "Target.closeTarget", map[string]any{"targetId": id})
+	}
+	for _, m := range []string{"Runtime.enable", "Log.enable", "Network.enable"} {
+		if _, err := s.c.Call(ctx, sid, m, nil); err != nil {
+			return screen.Errf(screen.CodeCDP, "", "%v", err)
+		}
+	}
+	// A load error such as a refused connection is not an error here: the
+	// page shows it, and the network buffer records it.
+	if _, err := s.c.Call(ctx, sid, "Page.navigate", map[string]any{"url": url}); err != nil {
+		return screen.Errf(screen.CodeCDP, "", "%v", err)
+	}
+	return nil
+}
+
+// split returns the session of the page with target id, or "" while it has
+// not attached, and the target ids of every other page.
+func (s *Session) split(id string) (string, []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var sid string
+	var others []string
+	for k, t := range s.pages {
+		if t.id == id {
+			sid = k
+		} else {
+			others = append(others, t.id)
+		}
+	}
+	return sid, others
 }
 
 // page returns the session of the page whose URL contains match, or the

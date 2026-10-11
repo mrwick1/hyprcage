@@ -70,6 +70,7 @@ func init() {
 		{"show", "switch to the workspace of a screen's mirror", runShow, false},
 		{"desktop", "act on the human's own windows (not silent)", runDesktop, false},
 		{"browser", "open the agent's Chrome with DevTools on a screen", runBrowser, false},
+		{"profile", "list or remove the saved browser profiles (list, rm <name>)", runProfile, false},
 		{"notifyd", "keep 48 hours of desktop notifications (run by a user unit)", runNotifyd, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
