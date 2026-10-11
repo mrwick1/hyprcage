@@ -105,6 +105,26 @@ tool has a command-line twin: `hyprcage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
 
+### Saved browser profiles
+
+`browser_open` starts Chrome on a throwaway profile that `screen_destroy`
+deletes. Pass `profile: "<name>"` to keep the profile instead. The name
+matches `^[a-z0-9-]{1,40}$`. The profile lives in
+`~/.local/share/hyprcage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
+with mode 700. `screen_destroy` and `hyprcage gc` never delete it. A later
+`browser_open` with the same name starts with the same cookies, logins and
+local storage. One screen at a time can use a profile: a second
+`browser_open` on a profile in use fails with `browser_running`, because a
+second Chrome on the same user data directory would hand its work to the
+first one and exit.
+
+The CLI twin is `hyprcage browser --profile <name> [screen] [url]`.
+`hyprcage profile list` shows the saved profiles and which are in use.
+`hyprcage profile rm <name>` deletes one, and refuses while a screen uses it.
+
+A saved profile holds live session cookies. Never commit it, never put it in
+a recording directory, and never back it up off this machine.
+
 ## Configuration
 
 A screen is a virtual monitor of `width` × `height` pixels. Screenshots have
