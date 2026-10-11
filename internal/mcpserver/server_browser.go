@@ -15,8 +15,9 @@ import (
 )
 
 type browserIn struct {
-	Screen string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
-	URL    string `json:"url,omitempty" jsonschema:"page to open"`
+	Screen  string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
+	URL     string `json:"url,omitempty" jsonschema:"page to open"`
+	Profile string `json:"profile,omitempty" jsonschema:"keep the browser profile (cookies, logins) under this name, 1-40 of a-z 0-9 -, so a later browser_open with the same name starts logged in; default is a throwaway profile"`
 }
 
 type evalIn struct {
@@ -65,7 +66,7 @@ type heapIn struct {
 
 // registerBrowser adds browser_open and the devtools_* tools.
 func (s *Server) registerBrowser(srv *mcp.Server) {
-	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen, with a throwaway profile and DevTools on a free 127.0.0.1 port of its own. Drive it with snapshot, act and find; read its internals with the devtools_* tools. It closes with its screen.", s.browserOpen)
+	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen, with a throwaway profile (or a saved one when profile is set) and DevTools on a free 127.0.0.1 port of its own. Drive it with snapshot, act and find; read its internals with the devtools_* tools. It closes with its screen; a saved profile stays and only one screen can use it at a time.", s.browserOpen)
 	tool(s, srv, "devtools_eval", "Run JavaScript in a page of a screen opened with browser_open or app_launch debug=true, and return the value as JSON.", s.devtoolsEval)
 	tool(s, srv, "devtools_console", "Read the console of a screen opened with browser_open or app_launch debug=true: console calls, uncaught exceptions and browser errors such as failed requests, oldest first.", s.devtoolsConsole)
 	tool(s, srv, "devtools_network", "Read the network requests of a screen opened with browser_open or app_launch debug=true since launch: method, URL, status, error, type and duration, oldest first. Failed requests only by default: status 400 or higher, or a network error such as CORS or DNS. Bodies and headers are not kept.", s.devtoolsNetwork)
@@ -103,7 +104,7 @@ func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
 		}
 		start = "about:blank"
 	}
-	info, err := browser.Open(s.ctx, rec, start)
+	info, err := browser.Open(s.ctx, rec, start, in.Profile)
 	if err != nil {
 		return nil, err
 	}

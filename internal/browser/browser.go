@@ -156,7 +156,10 @@ func NewTab(baseURL, page string) error {
 // Open starts the agent Chrome on rec, with DevTools on a free port of its
 // own. A fixed port would reach whatever Chrome already holds it, the
 // human's logged-in one for instance. A screen runs one DevTools app.
-func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
+// With a profile name, the Chrome profile is kept in ProfilesDir and
+// survives the screen; without one, it is a temp directory that
+// screen.Destroy deletes.
+func Open(c *screen.Ctx, rec *registry.Screen, url, profileNamed string) (Info, error) {
 	if err := CheckURL(url); err != nil {
 		return Info{}, err
 	}
@@ -172,14 +175,27 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	// screen.Destroy removes the profile by its prefix.
-	profile, err := os.MkdirTemp("", screen.ProfilePrefix(rec.Name))
+	var profile string
+	if profileNamed != "" {
+		var unlock func()
+		if profile, unlock, err = openProfile(profileNamed); err == nil {
+			defer unlock() // Chrome's own SingletonLock holds the profile after Open
+		}
+	} else {
+		// screen.Destroy removes the profile by its prefix.
+		profile, err = os.MkdirTemp("", screen.ProfilePrefix(rec.Name))
+	}
 	if err != nil {
 		return Info{}, err
 	}
+	discard := func() { // a saved profile stays
+		if profileNamed == "" {
+			os.RemoveAll(profile)
+		}
+	}
 	pid, _, err := screen.Launch(c, rec, Args(bin, port, profile, url), "", nil)
 	if err != nil {
-		os.RemoveAll(profile)
+		discard()
 		return Info{}, err
 	}
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -199,7 +215,7 @@ func Open(c *screen.Ctx, rec *registry.Screen, url string) (Info, error) {
 		_ = syscall.Kill(-pid, syscall.SIGTERM)
 		_ = syscall.Kill(pid, syscall.SIGTERM)
 		gone(port, 5*time.Second) // Chrome writes to its profile until it exits
-		os.RemoveAll(profile)
+		discard()
 		return Info{}, err
 	}
 	return Info{Screen: rec.Name, PID: pid, Port: port, BrowserURL: base, WS: ws, Profile: profile}, nil
