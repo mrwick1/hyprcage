@@ -94,21 +94,52 @@ func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	info, err := browser.Open(s.ctx, rec, in.URL)
+	// Chrome starts on about:blank, so the session attaches before the page
+	// loads and sees its console messages and requests.
+	start := in.URL
+	if start != "" {
+		if err := browser.CheckURL(start); err != nil {
+			return nil, err
+		}
+		start = "about:blank"
+	}
+	info, err := browser.Open(s.ctx, rec, start)
 	if err != nil {
 		return nil, err
 	}
-	s.startDevtools(rec)
-	return textResult(info), nil
+	d := s.startDevtools(rec)
+	if in.URL == "" || in.URL == start {
+		return textResult(info), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	var navErr error
+	if d != nil {
+		navErr = d.Navigate(ctx, in.URL)
+	} else {
+		navErr = fmt.Errorf("DevTools did not attach")
+	}
+	if navErr == nil {
+		return textResult(info), nil
+	}
+	// Fall back to the plain HTTP endpoint: the page opens in a new tab, but
+	// the session misses what it loaded before attaching.
+	if err := browser.NewTab(info.BrowserURL, in.URL); err != nil {
+		return nil, fmt.Errorf("open %s: %v (DevTools navigate: %v)", in.URL, err, navErr)
+	}
+	return textResult(map[string]any{"screen": info.Screen, "pid": info.PID, "port": info.Port, "browser_url": info.BrowserURL,
+		"ws_endpoint": info.WS, "profile": info.Profile,
+		"warning": fmt.Sprintf("DevTools could not navigate (%v): the page opened in a new tab, and the console and network miss its first load", navErr)}), nil
 }
 
 // startDevtools connects at launch, so the console holds the page's
 // messages from the start. A failure here is retried by the first
 // devtools_* call.
-func (s *Server) startDevtools(rec *registry.Screen) {
+func (s *Server) startDevtools(rec *registry.Screen) *devtools.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	s.devtoolsFor(ctx, rec)
+	d, _ := s.devtoolsFor(ctx, rec)
+	return d
 }
 
 // devtoolsFor returns the screen's DevTools session, connecting when there

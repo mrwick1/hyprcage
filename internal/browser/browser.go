@@ -135,6 +135,24 @@ func gone(port int, timeout time.Duration) {
 	time.Sleep(500 * time.Millisecond)
 }
 
+// NewTab opens url in a new tab through the HTTP endpoint at baseURL, with
+// no DevTools session.
+func NewTab(baseURL, page string) error {
+	req, err := http.NewRequest(http.MethodPut, baseURL+"/json/new?"+url.QueryEscape(page), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("new tab: %s", resp.Status)
+	}
+	return nil
+}
+
 // Open starts the agent Chrome on rec, with DevTools on a free port of its
 // own. A fixed port would reach whatever Chrome already holds it, the
 // human's logged-in one for instance. A screen runs one DevTools app.

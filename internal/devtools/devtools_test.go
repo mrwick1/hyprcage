@@ -186,6 +186,21 @@ func TestNetworkEnabledOnAttachAndDropsOldestPastTheCap(t *testing.T) {
 	ev(s, "S1", "Network.responseReceived", `{"requestId":"0","response":{"status":500}}`) // dropped request: ignored
 }
 
+func TestNavigateEnablesDomainsBeforeLoading(t *testing.T) {
+	s, f := newFake()
+	attach(s, "S1", "T1", "about:blank")
+	if err := s.Navigate(context.Background(), "https://a.test/"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	calls := strings.Join(f.calls, "\n")
+	n, p := strings.Index(calls, "S1 Network.enable"), strings.Index(calls, "S1 Page.navigate")
+	if p < 0 || n < 0 || n > p {
+		t.Fatalf("Network.enable must come before Page.navigate:\n%s", calls)
+	}
+}
+
 func ftoa(f float64) string { b, _ := json.Marshal(f); return string(b) }
 
 func itoa(i int) string { b, _ := json.Marshal(i); return string(b) }

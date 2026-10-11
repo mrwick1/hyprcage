@@ -425,6 +425,33 @@ func (s *Session) Console(clear bool) ([]Msg, int) {
 	return out, dropped
 }
 
+// Navigate loads url in the only page. It enables the console and network
+// domains first, so the load is buffered whatever the attach goroutine has
+// done so far.
+func (s *Session) Navigate(ctx context.Context, url string) error {
+	var sid string
+	var err error
+	for end := time.Now().Add(3 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		if sid, err = s.page(""); err == nil || time.Now().After(end) {
+			break
+		}
+	}
+	if err != nil {
+		return err
+	}
+	for _, m := range []string{"Runtime.enable", "Log.enable", "Network.enable"} {
+		if _, err := s.c.Call(ctx, sid, m, nil); err != nil {
+			return screen.Errf(screen.CodeCDP, "", "%v", err)
+		}
+	}
+	// A load error such as a refused connection is not an error here: the
+	// page shows it, and the network buffer records it.
+	if _, err := s.c.Call(ctx, sid, "Page.navigate", map[string]any{"url": url}); err != nil {
+		return screen.Errf(screen.CodeCDP, "", "%v", err)
+	}
+	return nil
+}
+
 // page returns the session of the page whose URL contains match, or the
 // only page when match is empty.
 func (s *Session) page(match string) (string, error) {
