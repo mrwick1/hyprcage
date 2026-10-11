@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -194,5 +195,35 @@ func TestOpenProfileModeAndInUse(t *testing.T) {
 	}
 	if ps, _ := ListProfiles(); len(ps) != 0 {
 		t.Errorf("list: %v", ps)
+	}
+}
+
+func TestOpenProfileKeepsSessionCookies(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	p, err := openProfile("keep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := p + "/Default/Preferences"
+	got := func() map[string]any {
+		var m map[string]any
+		b, _ := os.ReadFile(file)
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	if got()["session"].(map[string]any)["restore_on_startup"] != float64(1) {
+		t.Error("restore_on_startup not set on a new profile")
+	}
+	// Existing preferences stay.
+	os.WriteFile(file, []byte(`{"session":{"restore_on_startup":5,"x":1},"a":2}`), 0o600)
+	if _, err := openProfile("keep"); err != nil {
+		t.Fatal(err)
+	}
+	m := got()
+	s := m["session"].(map[string]any)
+	if s["restore_on_startup"] != float64(1) || s["x"] != float64(1) || m["a"] != float64(2) {
+		t.Errorf("merge lost data: %v", m)
 	}
 }

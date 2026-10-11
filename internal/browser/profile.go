@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -71,11 +72,45 @@ func openProfile(name string) (string, error) {
 	if err := os.Chmod(path, 0o700); err != nil {
 		return "", err
 	}
+	if err := keepSession(path); err != nil {
+		return "", err
+	}
 	if ProfileInUse(path) {
 		return "", screen.Errf(screen.CodeBrowserBusy, "use another profile name, or close the screen that holds it",
 			"profile %q is in use by a running Chrome", name)
 	}
 	return path, nil
+}
+
+// keepSession sets Chrome's "continue where you left off" startup option
+// (session.restore_on_startup = 1) in the profile. Chrome drops session
+// cookies, those with no expiry, at exit unless it restores the session at
+// the next start, and many sites log in with a session cookie.
+func keepSession(path string) error {
+	file := filepath.Join(path, "Default", "Preferences")
+	prefs := map[string]any{}
+	if b, err := os.ReadFile(file); err == nil {
+		if json.Unmarshal(b, &prefs) != nil {
+			return nil // Chrome owns a file we cannot read; leave it
+		}
+	}
+	sess, _ := prefs["session"].(map[string]any)
+	if sess == nil {
+		sess = map[string]any{}
+	}
+	if v, _ := sess["restore_on_startup"].(float64); v == 1 {
+		return nil
+	}
+	sess["restore_on_startup"] = 1
+	prefs["session"] = sess
+	b, err := json.Marshal(prefs)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(file, b, 0o600)
 }
 
 // ProfileInfo describes one saved profile.

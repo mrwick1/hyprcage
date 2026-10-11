@@ -113,7 +113,7 @@ matches `^[a-z0-9-]{1,40}$`. The profile lives in
 `~/.local/share/hyprcage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
 with mode 700. `screen_destroy` and `hyprcage gc` never delete it. A later
 `browser_open` with the same name starts with the same cookies, logins and
-local storage. One screen at a time can use a profile: a second
+local storage, and session cookies too: hyprcage sets Chrome's "continue where you left off" option in a saved profile, because Chrome drops session cookies at exit otherwise. One screen at a time can use a profile: a second
 `browser_open` on a profile in use fails with `browser_running`, because a
 second Chrome on the same user data directory would hand its work to the
 first one and exit.
