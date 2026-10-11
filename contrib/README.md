@@ -33,8 +33,8 @@ These files are optional. Each machine links them in from its own configuration.
 
 Nothing to register. `browser_open` starts Chrome on a screen with DevTools on a
 free 127.0.0.1 port of its own. `snapshot`, `act` and `find` drive the page. The
-`devtools_eval`, `devtools_console`, `devtools_trace` and `devtools_heap` tools
-read its internals. They also work on any app launched with `debug=true`.
+`devtools_eval`, `devtools_console`, `devtools_network`, `devtools_trace` and
+`devtools_heap` tools read its internals. They also work on any app launched with `debug=true`.
 
 Every devtools tool checks that the port is still held by the process that opened
 it, so the tools never reach the human's own Chrome.

@@ -31,6 +31,13 @@ type consoleIn struct {
 	Clear  bool   `json:"clear,omitempty" jsonschema:"empty the buffer after reading it"`
 }
 
+type networkIn struct {
+	Screen      string `json:"screen,omitempty"`
+	FailedOnly  *bool  `json:"failed_only,omitempty" jsonschema:"only requests with status 400 or higher or a network error, default true"`
+	URLContains string `json:"url_contains,omitempty" jsonschema:"only requests whose URL contains this text"`
+	Clear       bool   `json:"clear,omitempty" jsonschema:"empty the buffer after reading it"`
+}
+
 type traceIn struct {
 	Screen string `json:"screen,omitempty"`
 	Action string `json:"action" jsonschema:"start or stop"`
@@ -61,6 +68,7 @@ func (s *Server) registerBrowser(srv *mcp.Server) {
 	tool(s, srv, "browser_open", "Open the agent's Chrome on a screen, with a throwaway profile and DevTools on a free 127.0.0.1 port of its own. Drive it with snapshot, act and find; read its internals with the devtools_* tools. It closes with its screen.", s.browserOpen)
 	tool(s, srv, "devtools_eval", "Run JavaScript in a page of a screen opened with browser_open or app_launch debug=true, and return the value as JSON.", s.devtoolsEval)
 	tool(s, srv, "devtools_console", "Read the console of a screen opened with browser_open or app_launch debug=true: console calls, uncaught exceptions and browser errors such as failed requests, oldest first.", s.devtoolsConsole)
+	tool(s, srv, "devtools_network", "Read the network requests of a screen opened with browser_open or app_launch debug=true since launch: method, URL, status, error, type and duration, oldest first. Failed requests only by default: status 400 or higher, or a network error such as CORS or DNS. Bodies and headers are not kept.", s.devtoolsNetwork)
 	tool(s, srv, "devtools_trace", "Record a performance trace of a screen's browser: action start, do the work, then action stop. Stop writes a file that the DevTools Performance panel loads.", s.devtoolsTrace)
 	tool(s, srv, "devtools_heap", "Take a heap snapshot of a page and write it to a file that the DevTools Memory panel loads. Compare two snapshots there to find a leak.", s.devtoolsHeap)
 	tool(s, srv, "devtools_emulate", "Make every page of a screen's browser, and each page it opens later, pretend to be a device: viewport, pixel ratio, mobile, touch, user agent, network and CPU throttling, color scheme. Each call replaces the whole emulation; a call with no fields returns to the plain desktop browser. Reload the page after changing user_agent or mobile.", s.devtoolsEmulate)
@@ -86,21 +94,52 @@ func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	info, err := browser.Open(s.ctx, rec, in.URL)
+	// Chrome starts on about:blank, so the session attaches before the page
+	// loads and sees its console messages and requests.
+	start := in.URL
+	if start != "" {
+		if err := browser.CheckURL(start); err != nil {
+			return nil, err
+		}
+		start = "about:blank"
+	}
+	info, err := browser.Open(s.ctx, rec, start)
 	if err != nil {
 		return nil, err
 	}
-	s.startDevtools(rec)
-	return textResult(info), nil
+	d := s.startDevtools(rec)
+	if in.URL == "" || in.URL == start {
+		return textResult(info), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	var navErr error
+	if d != nil {
+		navErr = d.Navigate(ctx, in.URL)
+	} else {
+		navErr = fmt.Errorf("DevTools did not attach")
+	}
+	if navErr == nil {
+		return textResult(info), nil
+	}
+	// Fall back to the plain HTTP endpoint: the page opens in a new tab, but
+	// the session misses what it loaded before attaching.
+	if err := browser.NewTab(info.BrowserURL, in.URL); err != nil {
+		return nil, fmt.Errorf("open %s: %v (DevTools navigate: %v)", in.URL, err, navErr)
+	}
+	return textResult(map[string]any{"screen": info.Screen, "pid": info.PID, "port": info.Port, "browser_url": info.BrowserURL,
+		"ws_endpoint": info.WS, "profile": info.Profile,
+		"warning": fmt.Sprintf("DevTools could not navigate (%v): the page opened in a new tab, and the console and network miss its first load", navErr)}), nil
 }
 
 // startDevtools connects at launch, so the console holds the page's
 // messages from the start. A failure here is retried by the first
 // devtools_* call.
-func (s *Server) startDevtools(rec *registry.Screen) {
+func (s *Server) startDevtools(rec *registry.Screen) *devtools.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	s.devtoolsFor(ctx, rec)
+	d, _ := s.devtoolsFor(ctx, rec)
+	return d
 }
 
 // devtoolsFor returns the screen's DevTools session, connecting when there
@@ -188,6 +227,43 @@ func (s *Server) devtoolsConsole(in consoleIn) (*mcp.CallToolResult, error) {
 	}
 	if len(msgs) == 0 {
 		b.WriteString("no console messages\n")
+	}
+	return plain(b.String()), nil
+}
+
+func (s *Server) devtoolsNetwork(in networkIn) (*mcp.CallToolResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	defer cancel()
+	_, d, err := s.devtoolsScreen(ctx, in.Screen)
+	if err != nil {
+		return nil, err
+	}
+	failedOnly := in.FailedOnly == nil || *in.FailedOnly
+	reqs, dropped := d.Network(failedOnly, in.URLContains, in.Clear)
+	var b strings.Builder
+	if dropped > 0 {
+		fmt.Fprintf(&b, "(%d older requests dropped)\n", dropped)
+	}
+	for _, r := range reqs {
+		status := "pending"
+		switch {
+		case r.Error != "":
+			status = r.Error
+		case r.Status != 0:
+			status = fmt.Sprint(r.Status)
+		}
+		fmt.Fprintf(&b, "[%s] %s %s", status, r.Method, r.URL)
+		if r.Type != "" {
+			fmt.Fprintf(&b, "  (%s", r.Type)
+			if r.Duration > 0 {
+				fmt.Fprintf(&b, ", %dms", int(r.Duration*1000))
+			}
+			b.WriteByte(')')
+		}
+		b.WriteByte('\n')
+	}
+	if len(reqs) == 0 {
+		b.WriteString("no matching requests\n")
 	}
 	return plain(b.String()), nil
 }
