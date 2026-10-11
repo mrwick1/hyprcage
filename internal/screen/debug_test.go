@@ -104,7 +104,8 @@ func TestPrepareDebugRefusesLivePort(t *testing.T) {
 		t.Fatalf("err = %v, want code %s", err, CodeLimit)
 	}
 	// Another process now answers on the port: it is replaced, not refused.
-	rec.DebugPID++
+	// A changed start time marks it; pid+1 is often a thread of this test.
+	rec.DebugPIDStart++
 	if _, port, err := PrepareDebug(rec, []string{"code"}); err != nil || port == rec.DebugPort {
 		t.Fatalf("foreign owner: port %d, err %v", port, err)
 	}
