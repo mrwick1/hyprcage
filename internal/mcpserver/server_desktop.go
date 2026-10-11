@@ -45,7 +45,7 @@ func (s *Server) desktop() (desktop.Desktop, error) {
 }
 
 // desktopShot captures the desktop output, or one window on any workspace.
-func (s *Server) desktopShot(window string, settleMs int, o screen.ShotOptions) (*mcp.CallToolResult, error) {
+func (s *Server) desktopShot(window string, settleMs int, path string, o screen.ShotOptions) (*mcp.CallToolResult, error) {
 	d, err := s.desktop()
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (s *Server) desktopShot(window string, settleMs int, o screen.ShotOptions) 
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, desktop.Name), nil
+	return shotResult(res, desktop.Name, path)
 }
 
 // desktopPointer runs pointer input on the desktop and restores the cursor.
@@ -85,7 +85,7 @@ func (s *Server) desktopPointer(window string, shotAfter bool, settleMs int, fn 
 	if settleMs <= 0 {
 		settleMs = 150
 	}
-	return s.desktopShot("", settleMs, screen.ShotOptions{Cursor: true, MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+	return s.desktopShot("", settleMs, "", screen.ShotOptions{Cursor: true, MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
 }
 
 // desktopHover moves the desktop cursor and leaves it there.

@@ -85,6 +85,10 @@ The agent gets `screen_create`, `app_launch`, `screenshot`, `click`, `type`,
 Its skill tells it to use a screen for anything it launches for itself, one
 application per screen, and to close it when done.
 
+`screenshot` returns the image inline. With `path`, it writes the image to that
+file and returns the path as text, so the image stays out of the agent's
+context. `path: "auto"` writes `<cache dir>/hyprcage/shots/<screen>-<time>.png`.
+
 The agent reads a screen as text before it looks at an image. `snapshot`
 lists the elements of the screen, one per line, with a ref, a role, a name
 and screen coordinates. `act` clicks, types, presses keys, hovers or scrolls
