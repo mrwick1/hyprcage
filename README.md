@@ -97,7 +97,8 @@ for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `hyprcage setup`.
 `hyprcage doctor` checks both.
 
 The `devtools_audit` tool runs Lighthouse against the Chrome that `browser_open`
-started. It needs Node.js: it runs `npx -y lighthouse` and installs nothing else.
+started. It needs Node.js: it runs `npx -y lighthouse@13.5.0` and installs nothing else.
+The `[browser] lighthouse = "13.5.0"` key in the config file sets the version.
 It returns the 0-100 score of each category, the 10 worst audits and the path of
 the full JSON report.
 

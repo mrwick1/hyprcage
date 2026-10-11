@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 )
+
+var lighthouseVersion = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]*$`)
 
 // Config is the effective configuration.
 type Config struct {
@@ -56,6 +59,7 @@ type Config struct {
 	RecordCrop     string        // viewport: only the page of a screen's browser; none: the whole screen
 	RecordIdle     time.Duration // an unchanged screen stays in a recording this long at most; 0 keeps real time
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
+	Lighthouse     string        // Lighthouse version that devtools_audit runs through npx
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -94,6 +98,7 @@ func Default() Config {
 		RecordFPS:  30,
 		RecordCrop: "viewport",
 		RecordIdle: time.Second,
+		Lighthouse: "13.5.0",
 	}
 }
 
@@ -183,8 +188,9 @@ type file struct {
 		Idle string `toml:"idle"`
 	} `toml:"record"`
 	Browser struct {
-		Command *string `toml:"command"`
-		Port    *int    `toml:"port"` // ignored: each screen picks a free port; kept so older files load
+		Command    *string `toml:"command"`
+		Lighthouse *string `toml:"lighthouse"`
+		Port       *int    `toml:"port"` // ignored: each screen picks a free port; kept so older files load
 	} `toml:"browser"`
 }
 
@@ -263,6 +269,9 @@ func Apply(cfg *Config, text string) error {
 	if f.Browser.Command != nil {
 		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
 	}
+	if f.Browser.Lighthouse != nil {
+		cfg.Lighthouse = strings.TrimSpace(*f.Browser.Lighthouse)
+	}
 	return cfg.Validate()
 }
 
@@ -310,6 +319,9 @@ func (c Config) Validate() error {
 	case "viewport", "none":
 	default:
 		return fmt.Errorf("record.crop: %q is not viewport or none", c.RecordCrop)
+	}
+	if !lighthouseVersion.MatchString(c.Lighthouse) {
+		return fmt.Errorf("browser.lighthouse: %q is not a version such as 13.5.0", c.Lighthouse)
 	}
 	switch c.MirrorGroup {
 	case "session", "pack", "screen":

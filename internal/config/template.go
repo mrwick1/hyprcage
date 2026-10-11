@@ -51,6 +51,7 @@ idle = "1s"           # a pause with an unchanged screen stays this long at most
 
 [browser]
 command = ""          # Chrome binary for browser_open, empty to look one up on PATH
+lighthouse = "13.5.0" # Lighthouse version that devtools_audit runs through npx; npx fetches it once
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and

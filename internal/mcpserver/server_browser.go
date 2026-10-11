@@ -308,7 +308,7 @@ func (s *Server) devtoolsAudit(in auditIn) (*mcp.CallToolResult, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	args := []string{"-y", "lighthouse", url, "--port", strconv.Itoa(rec.DebugPort), "--output", "json", "--output-path", path,
+	args := []string{"-y", "lighthouse@" + s.cfg.Lighthouse, url, "--port", strconv.Itoa(rec.DebugPort), "--output", "json", "--output-path", path,
 		"--quiet", "--only-categories=" + strings.Join(cats, ","), "--form-factor=" + form}
 	if form == "desktop" {
 		args = append(args, "--screenEmulation.disabled")
