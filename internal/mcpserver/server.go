@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -213,6 +215,35 @@ func imageResult(res *screen.ShotResult, name string) *mcp.CallToolResult {
 	}}
 }
 
+// shotResult returns the capture inline, or writes it to path ("auto" picks
+// one in the cache dir) and returns the path as text.
+func shotResult(res *screen.ShotResult, name, path string) (*mcp.CallToolResult, error) {
+	if path == "" {
+		return imageResult(res, name), nil
+	}
+	if path == "auto" {
+		ext := "png"
+		if res.MIME == "image/jpeg" {
+			ext = "jpg"
+		}
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
+		path = filepath.Join(dir, "hyprcage", "shots", fmt.Sprintf("%s-%s.%s", name, time.Now().Format("20060102-150405"), ext))
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, res.Data, 0o600); err != nil {
+		return nil, err
+	}
+	return textResult(map[string]any{
+		"path": path, "bytes": len(res.Data), "mime": res.MIME, "screen": name,
+		"width": res.Width, "height": res.Height, "scale": res.Scale,
+	}), nil
+}
+
 // afterAction optionally appends a screenshot to an action's result.
 func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, settleMs int) (*mcp.CallToolResult, error) {
 	if !want {
@@ -273,6 +304,7 @@ type shotIn struct {
 	Cursor   *bool        `json:"cursor,omitempty" jsonschema:"draw the pointer (default true)"`
 	SettleMs int          `json:"settle_ms,omitempty" jsonschema:"wait this long before capturing, for a toast or an animation to settle (default 0)"`
 	Window   string       `json:"window,omitempty" jsonschema:"screen desktop only: capture this window (address from desktop_windows), on any workspace"`
+	Path     string       `json:"path,omitempty" jsonschema:"write the image to this file and return the path as text, with no inline image; auto picks <cache dir>/hyprcage/shots/<screen>-<time>.png"`
 }
 
 type clickIn struct {
@@ -407,7 +439,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "app_launch", "Run a graphical application inside a screen. Returns its pid and, once it appears, its window.", s.appLaunch)
 	tool(s, srv, "app_close", "Ask a window of the screen to close gracefully. Window ids change when a window remaps, so take the id from windows rather than from an older reply.", s.appClose)
 	tool(s, srv, "windows", "List the windows of a screen with their ids, titles and app ids.", s.windows)
-	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry; coordinates for other tools are screen pixels. With screen desktop: the human's output, or with window one of the human's windows on any workspace, without switching it; the geometry adds origin and logical_per_pixel, which map image pixels to the global logical coordinates of the desktop tools.", s.screenshot)
+	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry, or with path writes the image to that file and returns the path as text (path auto picks one in the cache dir), which keeps the image out of your context; coordinates for other tools are screen pixels. With screen desktop: the human's output, or with window one of the human's windows on any workspace, without switching it; the geometry adds origin and logical_per_pixel, which map image pixels to the global logical coordinates of the desktop tools.", s.screenshot)
 	tool(s, srv, "click", "Click at screen coordinates (left by default; count=2 for a double click).", s.click)
 	tool(s, srv, "double_click", "Double-click at screen coordinates with the left button.", s.doubleClick)
 	tool(s, srv, "move", "Move the pointer to screen coordinates without clicking (hover).", s.move)
@@ -655,8 +687,11 @@ func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
 	}
 	o := screen.ShotOptions{Scale: in.Scale, Region: in.Region, Format: in.Format, Cursor: cursor,
 		MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes}
+	if in.Path != "" {
+		o.MaxBytes = math.MaxInt32 // a file has no inline size budget, so png never falls back to jpeg
+	}
 	if desktop.IsDesktop(in.Screen) {
-		return s.desktopShot(in.Window, in.SettleMs, o)
+		return s.desktopShot(in.Window, in.SettleMs, in.Path, o)
 	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
@@ -669,7 +704,7 @@ func (s *Server) screenshot(in shotIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec.Name), nil
+	return shotResult(res, rec.Name, in.Path)
 }
 
 func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {

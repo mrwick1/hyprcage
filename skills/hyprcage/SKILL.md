@@ -38,7 +38,7 @@ installs nothing and asks them for a password for nothing.
 3. `snapshot` **first**, not `screenshot`. It lists the elements of the screen as text, one per line, with a ref, a role, a name and screen coordinates. It costs a fraction of the tokens of an image.
 4. `act` on a ref: `click`, `double_click`, `type` (with `text`), `key` (with `keys`), `hover` or `scroll`. The reply lists what changed on the screen, so you often need no new snapshot.
 5. `find` (a regular expression on the name or value, with `timeout_ms`) to wait for an element. Use it instead of `wait` plus a screenshot.
-6. `screenshot` only when the snapshot does not explain the screen: a canvas, an image, a layout question. Then `click` / `type` / `key` / `scroll` / `drag` take **screen pixel coordinates**. Use `wait` (stability or title) instead of sleeping. Ask for `screenshot_after` only when you need to see the result; `settle_ms` on `screenshot` waits for a toast or an animation first.
+6. `screenshot` only when the snapshot does not explain the screen: a canvas, an image, a layout question. Then `click` / `type` / `key` / `scroll` / `drag` take **screen pixel coordinates**. Use `wait` (stability or title) instead of sleeping. Ask for `screenshot_after` only when you need to see the result; `settle_ms` on `screenshot` waits for a toast or an animation first. Pass `path` (or `path: "auto"` for `<cache dir>/hyprcage/shots/<screen>-<time>.png`) to write the image to a file and get only the path back. Use it to hand evidence to another agent without the image entering your context.
 7. `screen_destroy` **as soon as you are done**, before handing back to the human. If you keep a screen open between steps, say so.
 
 ## Reading the screen as text
