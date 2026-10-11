@@ -1,8 +1,16 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,6 +58,15 @@ type emulateIn struct {
 	Color     string  `json:"color_scheme,omitempty" jsonschema:"prefers-color-scheme: dark or light"`
 }
 
+type auditIn struct {
+	Screen     string   `json:"screen,omitempty"`
+	URL        string   `json:"url,omitempty" jsonschema:"page to audit; default the page the screen shows now"`
+	Categories []string `json:"categories,omitempty" jsonschema:"performance, accessibility, best-practices, seo; default all four"`
+	FormFactor string   `json:"form_factor,omitempty" jsonschema:"mobile (default) or desktop"`
+	Path       string   `json:"path,omitempty" jsonschema:"where to write the full JSON report, default ~/.cache/hyprcage/devtools/"`
+	TimeoutS   int      `json:"timeout_s,omitempty" jsonschema:"default 120"`
+}
+
 type heapIn struct {
 	Screen string `json:"screen,omitempty"`
 	Page   string `json:"page,omitempty" jsonschema:"part of the page URL, when more than one page is open"`
@@ -63,6 +80,7 @@ func (s *Server) registerBrowser(srv *mcp.Server) {
 	tool(s, srv, "devtools_console", "Read the console of a screen opened with browser_open or app_launch debug=true: console calls, uncaught exceptions and browser errors such as failed requests, oldest first.", s.devtoolsConsole)
 	tool(s, srv, "devtools_trace", "Record a performance trace of a screen's browser: action start, do the work, then action stop. Stop writes a file that the DevTools Performance panel loads.", s.devtoolsTrace)
 	tool(s, srv, "devtools_heap", "Take a heap snapshot of a page and write it to a file that the DevTools Memory panel loads. Compare two snapshots there to find a leak.", s.devtoolsHeap)
+	tool(s, srv, "devtools_audit", "Run a Lighthouse audit against the page of a screen opened with browser_open. Needs npx on the machine; it fetches Lighthouse on the first run and installs nothing else. Returns the 0-100 score of each category, the 10 worst audits and the path of the full JSON report. Takes about 10 to 60 seconds. Lighthouse reloads the page in a temporary tab.", s.devtoolsAudit)
 	tool(s, srv, "devtools_emulate", "Make every page of a screen's browser, and each page it opens later, pretend to be a device: viewport, pixel ratio, mobile, touch, user agent, network and CPU throttling, color scheme. Each call replaces the whole emulation; a call with no fields returns to the plain desktop browser. Reload the page after changing user_agent or mobile.", s.devtoolsEmulate)
 }
 
@@ -236,4 +254,83 @@ func (s *Server) devtoolsHeap(in heapIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return textResult(map[string]any{"path": path, "bytes": n}), nil
+}
+
+var auditCategories = []string{"performance", "accessibility", "best-practices", "seo"}
+
+const auditHint = "install Node.js (npx), then run: npx -y lighthouse --version"
+
+func (s *Server) devtoolsAudit(in auditIn) (*mcp.CallToolResult, error) {
+	cats := in.Categories
+	if len(cats) == 0 {
+		cats = auditCategories
+	}
+	for _, c := range cats {
+		if !slices.Contains(auditCategories, c) {
+			return nil, fmt.Errorf("category %q is not one of %s", c, strings.Join(auditCategories, ", "))
+		}
+	}
+	form := in.FormFactor
+	if form == "" {
+		form = "mobile"
+	}
+	if form != "mobile" && form != "desktop" {
+		return nil, fmt.Errorf("form_factor must be mobile or desktop, got %q", form)
+	}
+	timeout := 120 * time.Second
+	if in.TimeoutS > 0 {
+		timeout = time.Duration(in.TimeoutS) * time.Second
+	}
+	npx, err := exec.LookPath("npx")
+	if err != nil {
+		return nil, screen.Errf(screen.CodeCDP, auditHint, "npx not found")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+perceiveTimeout)
+	defer cancel()
+	rec, d, err := s.devtoolsScreen(ctx, in.Screen)
+	if err != nil {
+		return nil, err
+	}
+	url := in.URL
+	if url == "" {
+		raw, err := d.Eval(ctx, "", "location.href", 5*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &url); err != nil || url == "" {
+			return nil, fmt.Errorf("cannot read the page URL; pass url")
+		}
+	}
+	path := in.Path
+	if path == "" {
+		path = devtools.DefaultPath(rec.Name, "json")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	args := []string{"-y", "lighthouse", url, "--port", strconv.Itoa(rec.DebugPort), "--output", "json", "--output-path", path,
+		"--quiet", "--only-categories=" + strings.Join(cats, ","), "--form-factor=" + form}
+	if form == "desktop" {
+		args = append(args, "--screenEmulation.disabled")
+	}
+	runCtx, stop := context.WithTimeout(ctx, timeout)
+	defer stop()
+	cmd := exec.CommandContext(runCtx, npx, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			err = fmt.Errorf("timed out after %s", timeout)
+		}
+		return nil, screen.Errf(screen.CodeCDP, auditHint, "lighthouse failed: %v\n%s", err, devtools.TailLines(stderr.String(), 15))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	sum, err := devtools.SummarizeLighthouse(raw, cats, 10)
+	if err != nil {
+		return nil, err
+	}
+	return textResult(map[string]any{"screen": rec.Name, "form_factor": form, "report": path, "summary": sum}), nil
 }

@@ -96,6 +96,11 @@ snapshot names the source. For CDP, launch a Chromium or Electron app with
 for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `hyprcage setup`.
 `hyprcage doctor` checks both.
 
+The `devtools_audit` tool runs Lighthouse against the Chrome that `browser_open`
+started. It needs Node.js: it runs `npx -y lighthouse` and installs nothing else.
+It returns the 0-100 score of each category, the 10 worst audits and the path of
+the full JSON report.
+
 A screen normally opens a mirror window on one of your spare workspaces, 6
 to 9 by default. Switch to it with your usual workspace binding to watch the
 agent live. Nothing you do there reaches the agent: the mirror shows the
