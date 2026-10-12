@@ -377,3 +377,61 @@ func TestShotResultPath(t *testing.T) {
 		}
 	}
 }
+
+func TestToolCallsAreAudited(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	cs := connect(t)
+	ctx := context.Background()
+	secret := "hunter2-SECRET"
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"click", map[string]any{"screen": "nope", "x": 1, "y": 2}},
+		{"key", map[string]any{"screen": "nope", "keys": []string{"Return"}}},
+		{"type", map[string]any{"screen": "nope", "text": secret}},
+		{"screen_list", map[string]any{}},
+	} {
+		if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: c.tool, Arguments: c.args}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hyprcage", "actions.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), secret) {
+		t.Fatalf("typed text leaked: %s", raw)
+	}
+	ls := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(ls) != 4 {
+		t.Fatalf("%d lines: %s", len(ls), raw)
+	}
+	for i, tool := range []string{"click", "key", "type", "screen_list"} {
+		var e map[string]any
+		json.Unmarshal([]byte(ls[i]), &e)
+		if e["tool"] != tool {
+			t.Errorf("line %d tool %v, want %s", i, e["tool"], tool)
+		}
+		wantErr := tool != "screen_list"
+		if (e["error"] != nil) != wantErr {
+			t.Errorf("line %d error %v", i, e["error"])
+		}
+	}
+	if !strings.Contains(ls[0], `"error":"screen_not_found"`) {
+		t.Errorf("click line lacks the error code: %s", ls[0])
+	}
+}
+
+// TestMain keeps the tests away from the real action log.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "hyprcage-state")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_STATE_HOME", dir)
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
