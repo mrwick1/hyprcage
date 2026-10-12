@@ -14,6 +14,7 @@ type clipIn struct {
 // registerClip adds the clipboard tools.
 func (s *Server) registerClip(srv *mcp.Server) {
 	tool(s, srv, "clipboard_get", "Read the clipboard of a screen (not the human's clipboard).", s.clipboardGet)
+	tool(s, srv, "read_selection", "Copy the selection of the focused window of a screen and return the exact text (no OCR). Sends ctrl+c, so use it on windows where ctrl+c copies (not terminals). The screen's earlier clipboard is restored. No selection returns an empty text.", s.readSelection)
 	tool(s, srv, "clipboard_set", "Put text on the clipboard of a screen (not the human's clipboard); paste it in the app with key ctrl+v.", s.clipboardSet)
 }
 
@@ -44,4 +45,19 @@ func (s *Server) clipboardSet(in clipIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return textResult(map[string]string{"status": "ok"}), nil
+}
+
+func (s *Server) readSelection(in clipIn) (*mcp.CallToolResult, error) {
+	if err := refuseDesktop(in.Screen, "read_selection has no desktop equivalent"); err != nil {
+		return nil, err
+	}
+	rec, cl, err := s.resolve(in.Screen, true)
+	if err != nil {
+		return nil, err
+	}
+	text, err := screen.ReadSelection(rec, cl)
+	if err != nil {
+		return nil, err
+	}
+	return textResult(map[string]any{"screen": rec.Name, "text": text}), nil
 }

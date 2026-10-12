@@ -56,7 +56,7 @@ func TestToolsRegistered(t *testing.T) {
 	}
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
-		"record_start", "record_stop", "clipboard_get", "clipboard_set",
+		"record_start", "record_stop", "clipboard_get", "clipboard_set", "read_selection",
 		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate",
 		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
@@ -241,6 +241,7 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		{"app_close", map[string]any{"toplevel": 1}, "no desktop"},
 		{"clipboard_get", nil, "no desktop"},
 		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
+		{"read_selection", nil, "no desktop"},
 		{"mirror", nil, "no desktop"},
 		{"screen_create", nil, "reserved"},
 	} {
