@@ -309,6 +309,7 @@ type shotIn struct {
 }
 
 type clickIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int      `json:"x" jsonschema:"screen pixel x"`
@@ -321,6 +322,7 @@ type clickIn struct {
 }
 
 type moveIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X      int    `json:"x" jsonschema:"screen pixel x"`
@@ -328,6 +330,7 @@ type moveIn struct {
 }
 
 type scrollIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int    `json:"x" jsonschema:"screen pixel x"`
@@ -339,6 +342,7 @@ type scrollIn struct {
 }
 
 type dragIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X1              int    `json:"x1"`
@@ -358,6 +362,7 @@ type typeIn struct {
 }
 
 type keyIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Keys            []string `json:"keys" jsonschema:"combinations pressed in order, xkb keysym names, e.g. [\"ctrl+l\", \"Return\", \"alt+F4\"]"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
@@ -392,6 +397,7 @@ type batchAction struct {
 }
 
 type batchIn struct {
+	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string        `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Actions         []batchAction `json:"actions" jsonschema:"actions executed in order; stops at the first error"`
 	ScreenshotAfter bool          `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the last action"`
@@ -717,6 +723,9 @@ func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X, in.Y}, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		b, err := screen.ParseButton(in.Button)
 		if err != nil {
@@ -744,6 +753,9 @@ func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X, in.Y}, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopPointer(in.Window, false, 0, func(p screen.PointerInput) error {
 			return screen.Click(p, in.X, in.Y, wl.ButtonLeft, 2, nil)
@@ -763,6 +775,9 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopHover(in.Window, in.X, in.Y)
 	}
@@ -778,6 +793,9 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 
 func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
@@ -797,6 +815,9 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 
 func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
+		return nil, err
+	}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
@@ -829,6 +850,9 @@ func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
+	if err := s.guard(guardCall{Screen: in.Screen, Keys: in.Keys, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if err := refuseDesktop(in.Screen, "use desktop_key"); err != nil {
 		return nil, err
 	}
@@ -887,6 +911,9 @@ func (s *Server) doWait(cl *wl.Client, stableMs int, title string, timeoutMs int
 
 func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
 	if err := refuseDesktop(in.Screen, "call desktop_type and desktop_key one by one"); err != nil {
+		return nil, err
+	}
+	if err := s.guardBatch(in); err != nil {
 		return nil, err
 	}
 	rec, cl, err := s.resolve(in.Screen, true)

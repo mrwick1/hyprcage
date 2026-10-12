@@ -52,6 +52,13 @@ idle = "1s"           # a pause with an unchanged screen stays this long at most
 [browser]
 command = ""          # Chrome binary for browser_open, empty to look one up on PATH
 lighthouse = "13.5.0" # Lighthouse version that devtools_audit runs through npx; npx fetches it once
+
+[guard]
+enabled = "desktop"   # desktop: guard actions on your own windows; all: agent screens too; off: no guard
+apps = []             # allowlist of app ids (window classes); empty means no allowlist
+keywords = ["delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"]
+                      # a click on a target whose label has one of these words needs ack
+combos = ["Ctrl+W", "Ctrl+Q", "Alt+F4"] # these key combinations need ack
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and
