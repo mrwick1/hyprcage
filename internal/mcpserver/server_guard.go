@@ -36,17 +36,28 @@ func (s *Server) guard(c guardCall) error {
 	if onDesktop && len(s.cfg.Guard.Apps) > 0 {
 		a.App = s.windowClass(c.Window)
 	}
+	labels := []string{""}
 	if t := s.guardTable(c); t != nil {
 		switch {
 		case c.Ref != "" && (c.Op == "click" || c.Op == "double_click"):
 			n, _ := t.Lookup(c.Ref)
-			a.Label = n.Name
+			labels = []string{n.Name}
 		case c.At != nil:
-			n, _ := t.NodeAt(c.At[0], c.At[1], labelRadius)
-			a.Label = n.Name
+			// A box that contains the point can be a container, and the
+			// nearest centre can be the real target. Block on either.
+			for _, n := range t.NodesAt(c.At[0], c.At[1], labelRadius) {
+				labels = append(labels, n.Name)
+			}
 		}
 	}
-	return guard.New(s.cfg.Guard).Check(a, c.Ack)
+	g := guard.New(s.cfg.Guard)
+	for _, l := range labels {
+		a.Label = l
+		if err := g.Check(a, c.Ack); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // guardBatch checks every key and click of a batch on an agent screen.

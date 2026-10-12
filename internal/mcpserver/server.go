@@ -841,8 +841,11 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
-	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X1, in.Y1}, Ack: in.Ack}); err != nil {
-		return nil, err
+	// Both ends can be the destructive part: a drop on "Trash" deletes.
+	for _, at := range [][2]int{{in.X1, in.Y1}, {in.X2, in.Y2}} {
+		if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &at, Ack: in.Ack}); err != nil {
+			return nil, err
+		}
 	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, in.Verify, []image.Point{image.Pt(in.X1, in.Y1), image.Pt(in.X2, in.Y2)}, func(p screen.PointerInput) error {

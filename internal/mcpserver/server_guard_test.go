@@ -172,3 +172,12 @@ func TestGuardCoversMoveScrollDragAndType(t *testing.T) {
 		t.Errorf("type: %s", out)
 	}
 }
+
+func TestGuardChecksTheDropEndOfADrag(t *testing.T) {
+	s, cs := guardServer(t, nil)
+	s.tableAt(desktopKey("")).Assign([]perceive.Node{{Key: "k1", Role: "button", Name: "Delete file", X: 500, Y: 400}})
+	args := map[string]any{"screen": "desktop", "x1": 10, "y1": 10, "x2": 505, "y2": 402}
+	if out := call(t, cs, "drag", args); !strings.Contains(out, "ack_required") {
+		t.Errorf("drag onto a destructive label: %s", out)
+	}
+}

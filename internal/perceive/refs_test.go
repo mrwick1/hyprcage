@@ -150,3 +150,18 @@ func TestNodeAtPrefersTheBoxUnderThePoint(t *testing.T) {
 		t.Errorf("NodeAt(125,100) = %q,%v, want Save (smallest box)", n.Name, ok)
 	}
 }
+
+func TestNodesAtReturnsTheContainingBoxAndTheNearestCentre(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Panel", X: 200, Y: 100, W: 200, H: 40},
+		{Key: "c", Name: "Delete", X: 140, Y: 100, W: 10, H: 20},
+	})
+	var names []string
+	for _, n := range tb.NodesAt(131, 100, 30) {
+		names = append(names, n.Name)
+	}
+	if len(names) != 2 || names[0] != "Panel" || names[1] != "Delete" {
+		t.Errorf("NodesAt(131,100) = %v, want [Panel Delete]", names)
+	}
+}
