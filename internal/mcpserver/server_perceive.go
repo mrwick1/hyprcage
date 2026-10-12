@@ -27,7 +27,7 @@ type snapIn struct {
 }
 
 type actIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty"`
 	Ref             string   `json:"ref"`
 	Op              string   `json:"op" jsonschema:"click, double_click, type, key, hover or scroll"`

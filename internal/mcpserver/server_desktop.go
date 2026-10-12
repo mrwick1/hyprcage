@@ -11,7 +11,7 @@ import (
 )
 
 type desktopIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack       string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Address   string   `json:"address,omitempty" jsonschema:"window address from desktop_windows, e.g. 0x55ebac116320"`
 	Workspace int      `json:"workspace,omitempty" jsonschema:"target workspace (desktop_move, desktop_workspace)"`
 	Text      string   `json:"text,omitempty" jsonschema:"text to type (desktop_type); US layout characters only"`

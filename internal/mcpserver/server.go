@@ -309,7 +309,7 @@ type shotIn struct {
 }
 
 type clickIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int      `json:"x" jsonschema:"screen pixel x"`
@@ -322,7 +322,7 @@ type clickIn struct {
 }
 
 type moveIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack    string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X      int    `json:"x" jsonschema:"screen pixel x"`
@@ -330,7 +330,7 @@ type moveIn struct {
 }
 
 type scrollIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X               int    `json:"x" jsonschema:"screen pixel x"`
@@ -342,7 +342,7 @@ type scrollIn struct {
 }
 
 type dragIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Window          string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X1              int    `json:"x1"`
@@ -362,7 +362,7 @@ type typeIn struct {
 }
 
 type keyIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Keys            []string `json:"keys" jsonschema:"combinations pressed in order, xkb keysym names, e.g. [\"ctrl+l\", \"Return\", \"alt+F4\"]"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
@@ -397,7 +397,7 @@ type batchAction struct {
 }
 
 type batchIn struct {
-	Ack string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
+	Ack             string        `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string        `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Actions         []batchAction `json:"actions" jsonschema:"actions executed in order; stops at the first error"`
 	ScreenshotAfter bool          `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the last action"`
