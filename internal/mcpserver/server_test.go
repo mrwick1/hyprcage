@@ -58,7 +58,7 @@ func TestToolsRegistered(t *testing.T) {
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set", "read_selection",
 		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate",
-		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
+		"snapshot", "act", "find", "watch", "read_page", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -131,7 +131,7 @@ func TestPerceiveToolsListed(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = true
 	}
-	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate"} {
+	for _, name := range []string{"snapshot", "act", "find", "read_page", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate"} {
 		if !got[name] {
 			t.Errorf("tool %s missing", name)
 		}
@@ -435,4 +435,15 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)
+}
+
+func TestReadPageRefusesDesktop(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "read_page", Arguments: map[string]any{"screen": "desktop"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "agent screens") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
+	}
 }
