@@ -1,8 +1,11 @@
 package perceive
 
 import (
+	"context"
 	"fmt"
 	"image"
+
+	"github.com/hexadecimil/hyprcage/internal/hypr"
 )
 
 // Verdict says whether an action did what its target implies.
@@ -24,8 +27,10 @@ const (
 )
 
 // Sense is the machine-readable summary that follows a verdict. Opened is set
-// by the caller, which owns the window list. Modal is always false: a Wayland
-// toplevel list carries no dialog role, so hyprcage cannot tell a dialog.
+// by the caller, which owns the window list. Modal is always false on an agent
+// screen: a Wayland toplevel list carries no dialog role. On the desktop,
+// Modal is true only when AT-SPI names a new window as a dialog, alert or file
+// chooser. A window that AT-SPI does not know stays false, which means unknown.
 type Sense struct {
 	Changed bool `json:"changed"`
 	Opened  bool `json:"opened"`
@@ -82,4 +87,59 @@ func (v Verification) String() string {
 	}
 	b := v.Diff.BBox
 	return fmt.Sprintf("verify: %s (changed %.1f%%, bbox %d,%d %dx%d)", v.Verdict, v.Diff.Ratio*100, b.Min.X, b.Min.Y, b.Dx(), b.Dy())
+}
+
+// dialogRoles are the AT-SPI top-level roles of a dialog window.
+var dialogRoles = map[string]bool{"dialog": true, "alert": true, "file chooser": true}
+
+// hasDialog reports whether objs hold a top-level object of the application
+// of w, with a dialog role and the title of w. Without a title match the
+// answer is false: hyprcage does not guess a role.
+func hasDialog(objs []accessible, w hypr.Client) bool {
+	role := make(map[string]string, len(objs))
+	for _, o := range objs {
+		role[atspiKey(o.Bus, o.Path)] = o.Role
+	}
+	for _, o := range objs {
+		if o.PID == w.PID && o.Name == w.Title && dialogRoles[o.Role] && role[atspiKey(o.Bus, o.Parent)] == "application" {
+			return true
+		}
+	}
+	return false
+}
+
+// anyModal reports whether one of the windows is a dialog by the AT-SPI tree
+// of t. An unreadable tree gives false.
+func anyModal(ctx context.Context, t tree, wins []hypr.Client) bool {
+	if len(wins) == 0 {
+		return false
+	}
+	pids := make([]int, len(wins))
+	for i, w := range wins {
+		pids[i] = w.PID
+	}
+	objs, err := t.Walk(ctx, pids)
+	if err != nil {
+		return false
+	}
+	for _, w := range wins {
+		if hasDialog(objs, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// AnyModal reports whether one of the new desktop windows is a dialog, read
+// from the a11y bus of the session. It gives false when the bus is not there.
+func AnyModal(ctx context.Context, wins []hypr.Client) bool {
+	if len(wins) == 0 {
+		return false
+	}
+	conn, err := dialA11y(ctx)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return anyModal(ctx, &dbusTree{conn: conn}, wins)
 }

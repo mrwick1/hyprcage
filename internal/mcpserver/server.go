@@ -750,7 +750,7 @@ func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, in.Verify, []image.Point{image.Pt(in.X, in.Y)}, func(p screen.PointerInput) error {
 			return screen.Click(p, in.X, in.Y, b, in.Count, in.Modifiers)
 		})
 	}
@@ -777,7 +777,7 @@ func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
-		return s.desktopPointer(in.Window, false, 0, func(p screen.PointerInput) error {
+		return s.desktopPointer(in.Window, false, 0, in.Verify, []image.Point{image.Pt(in.X, in.Y)}, func(p screen.PointerInput) error {
 			return screen.Click(p, in.X, in.Y, wl.ButtonLeft, 2, nil)
 		})
 	}
@@ -800,7 +800,7 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
-		return s.desktopHover(in.Window, in.X, in.Y)
+		return s.desktopHover(in.Window, in.X, in.Y, in.Verify)
 	}
 	rec, cl, err := s.resolve(in.Screen, true)
 	if err != nil {
@@ -821,7 +821,7 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
-		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, in.Verify, []image.Point{image.Pt(in.X, in.Y)}, func(p screen.PointerInput) error {
 			return screen.ScrollAt(p, in.X, in.Y, in.Direction, in.Amount)
 		})
 	}
@@ -844,7 +844,7 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
-		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, func(p screen.PointerInput) error {
+		return s.desktopPointer(in.Window, in.ScreenshotAfter, in.SettleMs, in.Verify, []image.Point{image.Pt(in.X1, in.Y1), image.Pt(in.X2, in.Y2)}, func(p screen.PointerInput) error {
 			return screen.Drag(p, in.X1, in.Y1, in.X2, in.Y2, time.Duration(in.DurationMs)*time.Millisecond)
 		})
 	}

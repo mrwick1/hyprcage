@@ -15,6 +15,7 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/audit"
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/wl"
 )
@@ -148,5 +149,77 @@ func TestVerdictReachesAuditLog(t *testing.T) {
 func TestSettleIsShortenedForTests(t *testing.T) {
 	if verifySettle <= 0 || verifySettle > time.Second {
 		t.Fatalf("verifySettle %s", verifySettle)
+	}
+}
+
+// deskScreen serves frames and desktop window lists, as the desktop does.
+type deskScreen struct {
+	frames []*image.RGBA
+	wins   [][]hypr.Client
+}
+
+func (f *deskScreen) Capture(bool) (*image.RGBA, error) {
+	img := f.frames[0]
+	f.frames = f.frames[1:]
+	return img, nil
+}
+
+func (f *deskScreen) Windows() ([]hypr.Client, error) {
+	w := f.wins[0]
+	f.wins = f.wins[1:]
+	return w, nil
+}
+
+func TestDesktopVerifierOpenedAndModal(t *testing.T) {
+	s := newServer(config.Default())
+	src := &deskScreen{
+		frames: []*image.RGBA{blank(image.Rectangle{}), blank(image.Rect(100, 100, 300, 200))},
+		wins:   [][]hypr.Client{{{Address: "0xa"}}, {{Address: "0xa"}, {Address: "0xb", PID: 7, Title: "About"}}},
+	}
+	var got []hypr.Client
+	v := s.startVerify(nil, src, image.Pt(150, 150))
+	v.modal = func(w []hypr.Client) bool { got = w; return true }
+	ver := v.finish(0)
+	if ver == nil || !ver.Sense.Opened || !ver.Sense.Modal || ver.Verdict != perceive.Confirmed {
+		t.Fatalf("got %+v", ver)
+	}
+	if len(got) != 1 || got[0].Address != "0xb" {
+		t.Fatalf("modal check saw %+v, want only the new window", got)
+	}
+}
+
+func TestDesktopVerifierClosedWindowIsNotOpened(t *testing.T) {
+	s := newServer(config.Default())
+	src := &deskScreen{
+		frames: []*image.RGBA{blank(image.Rectangle{}), blank(image.Rect(0, 0, 50, 50))},
+		wins:   [][]hypr.Client{{{Address: "0xa"}, {Address: "0xb"}}, {{Address: "0xa"}, {Address: "0xc"}}},
+	}
+	v := s.startVerify(nil, src)
+	v.modal = func(w []hypr.Client) bool { return false }
+	ver := v.finish(0)
+	if !ver.Sense.Opened || ver.Sense.Modal {
+		t.Fatalf("a replaced window is a new window, not modal by default: %+v", ver.Sense)
+	}
+	src = &deskScreen{
+		frames: []*image.RGBA{blank(image.Rectangle{}), blank(image.Rectangle{})},
+		wins:   [][]hypr.Client{{{Address: "0xa"}, {Address: "0xb"}}, {{Address: "0xa"}}},
+	}
+	if ver := s.startVerify(nil, src).finish(0); ver.Sense.Opened {
+		t.Fatal("a window that closed is not opened")
+	}
+}
+
+func TestToFrame(t *testing.T) {
+	// A 1920x1080 monitor at scale 1.5 shows 1280 logical pixels, captured at 1920 pixels.
+	if got := toFrame(image.Pt(740, 450), [2]int{100, 50}, 1280, 1920); got != image.Pt(960, 600) {
+		t.Fatalf("got %v", got)
+	}
+	// A window captured at its logical size keeps the offset only.
+	if got := toFrame(image.Pt(130, 70), [2]int{100, 50}, 800, 800); got != image.Pt(30, 20) {
+		t.Fatalf("got %v", got)
+	}
+	// A zero width gives the offset without a scale.
+	if got := toFrame(image.Pt(130, 70), [2]int{100, 50}, 0, 800); got != image.Pt(30, 20) {
+		t.Fatalf("got %v", got)
 	}
 }

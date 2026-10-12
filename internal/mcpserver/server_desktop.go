@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"fmt"
+	"image"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -16,6 +17,7 @@ type desktopIn struct {
 	Workspace int      `json:"workspace,omitempty" jsonschema:"target workspace (desktop_move, desktop_workspace)"`
 	Text      string   `json:"text,omitempty" jsonschema:"text to type (desktop_type); US layout characters only"`
 	Keys      []string `json:"keys,omitempty" jsonschema:"combinations such as [\"ctrl+l\", \"Return\"] (desktop_key)"`
+	Verify    *bool    `json:"verify,omitempty" jsonschema:"desktop_type and desktop_key: judge the action by diffing the window before and after it, see the tool description"`
 }
 
 // registerDesktop adds the tools that act on the human's own windows.
@@ -23,9 +25,9 @@ func (s *Server) registerDesktop(srv *mcp.Server) {
 	tool(s, srv, "desktop_windows", "List the human's own windows (address, class, title, workspace). Use an agent screen for your own apps; these are the human's.", s.desktopWindows)
 	tool(s, srv, "desktop_focus", "Give keyboard focus to one of the human's windows. This moves the human's focus: only when the task needs it.", s.desktopFocus)
 	tool(s, srv, "desktop_move", "Move one of the human's windows to a workspace, without following it.", s.desktopMove)
-	tool(s, srv, "desktop_type", "Type text into one of the human's windows without focusing it. Each key briefly takes the human's keyboard focus and gives it back. US layout characters only.", s.desktopType)
+	tool(s, srv, "desktop_type", "Type text into one of the human's windows without focusing it. Each key briefly takes the human's keyboard focus and gives it back. US layout characters only. Verify: "+verifyDoc+" (the diff is of that window)", s.desktopType)
 	tool(s, srv, "desktop_workspace", "Switch the human's visible workspace. This is the only tool that changes the human's view: only when the human asks for it.", s.desktopWorkspace)
-	tool(s, srv, "desktop_key", "Press key combinations in one of the human's windows without focusing it (same focus blip as desktop_type).", s.desktopKey)
+	tool(s, srv, "desktop_key", "Press key combinations in one of the human's windows without focusing it (same focus blip as desktop_type). Verify: "+verifyDoc+" (the diff is of that window)", s.desktopKey)
 }
 
 // desktop acts on the instance that desktop.Instance names. The driver is
@@ -67,7 +69,9 @@ func (s *Server) desktopShot(window string, settleMs int, path string, o screen.
 }
 
 // desktopPointer runs pointer input on the desktop and restores the cursor.
-func (s *Server) desktopPointer(window string, shotAfter bool, settleMs int, fn func(screen.PointerInput) error) (*mcp.CallToolResult, error) {
+// The window is the one that verify diffs; pts are the points of the action
+// in global logical pixels.
+func (s *Server) desktopPointer(window string, shotAfter bool, settleMs int, verify *bool, pts []image.Point, fn func(screen.PointerInput) error) (*mcp.CallToolResult, error) {
 	d, err := s.desktop()
 	if err != nil {
 		return nil, err
@@ -77,20 +81,28 @@ func (s *Server) desktopPointer(window string, shotAfter bool, settleMs int, fn 
 		return nil, err
 	}
 	defer conn.CL.Close()
+	v := s.startDesktopVerify(verify, conn, window, pts...)
 	if err := (desktop.Pointer{C: conn, D: d.D}).Do(window, fn); err != nil {
 		return nil, err
 	}
+	ver := v.finish(verifySettle)
 	if !shotAfter {
-		return textResult(map[string]string{"status": "ok"}), nil
+		res := textResult(map[string]string{"status": "ok"})
+		noteVerdict(res, ver)
+		return res, nil
 	}
 	if settleMs <= 0 {
 		settleMs = 150
 	}
-	return s.desktopShot("", settleMs, "", screen.ShotOptions{Cursor: true, MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+	res, err := s.desktopShot("", settleMs, "", screen.ShotOptions{Cursor: true, MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
+	if err == nil {
+		noteVerdict(res, ver)
+	}
+	return res, err
 }
 
 // desktopHover moves the desktop cursor and leaves it there.
-func (s *Server) desktopHover(window string, x, y int) (*mcp.CallToolResult, error) {
+func (s *Server) desktopHover(window string, x, y int, verify *bool) (*mcp.CallToolResult, error) {
 	d, err := s.desktop()
 	if err != nil {
 		return nil, err
@@ -100,10 +112,13 @@ func (s *Server) desktopHover(window string, x, y int) (*mcp.CallToolResult, err
 		return nil, err
 	}
 	defer conn.CL.Close()
+	v := s.startDesktopVerify(verify, conn, window, image.Pt(x, y))
 	if err := (desktop.Pointer{C: conn, D: d.D}).Hover(window, x, y); err != nil {
 		return nil, err
 	}
-	return textResult(map[string]string{"status": "ok"}), nil
+	res := textResult(map[string]string{"status": "ok"})
+	noteVerdict(res, v.finish(verifySettle))
+	return res, nil
 }
 
 // refuseDesktop refuses screen "desktop" in a tool made for agent screens.
@@ -156,10 +171,14 @@ func (s *Server) desktopType(in desktopIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startDesktopKeyVerify(in.Verify, d, in.Address)
+	defer v.release()
 	if err := d.Type(in.Address, in.Text); err != nil {
 		return nil, err
 	}
-	return textResult(map[string]string{"status": "ok"}), nil
+	res := textResult(map[string]string{"status": "ok"})
+	noteVerdict(res, v.finish(verifySettle))
+	return res, nil
 }
 
 func (s *Server) desktopKey(in desktopIn) (*mcp.CallToolResult, error) {
@@ -170,10 +189,14 @@ func (s *Server) desktopKey(in desktopIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startDesktopKeyVerify(in.Verify, d, in.Address)
+	defer v.release()
 	if err := d.Key(in.Address, in.Keys); err != nil {
 		return nil, err
 	}
-	return textResult(map[string]string{"status": "ok"}), nil
+	res := textResult(map[string]string{"status": "ok"})
+	noteVerdict(res, v.finish(verifySettle))
+	return res, nil
 }
 
 func (s *Server) desktopWorkspace(in desktopIn) (*mcp.CallToolResult, error) {

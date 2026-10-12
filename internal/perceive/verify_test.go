@@ -1,6 +1,8 @@
 package perceive
 
 import (
+	"context"
+	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"image"
 	"image/color"
 	"image/draw"
@@ -61,5 +63,41 @@ func TestVerificationLine(t *testing.T) {
 	}
 	if got := NewVerification(FrameDiff{}).String(); got != "verify: NO_OP (changed 0.0%)" {
 		t.Fatalf("line %q", got)
+	}
+}
+
+func TestHasDialog(t *testing.T) {
+	app := accessible{Bus: ":1", Path: "/app", Role: "application", PID: 7}
+	top := func(path, role, name string, pid int) accessible {
+		return accessible{Bus: ":1", Path: path, Parent: "/app", Role: role, Name: name, PID: pid}
+	}
+	tests := []struct {
+		name string
+		objs []accessible
+		win  hypr.Client
+		want bool
+	}{
+		{"dialog role", []accessible{app, top("/a", "frame", "Main", 7), top("/b", "dialog", "About", 7)}, hypr.Client{PID: 7, Title: "About"}, true},
+		{"alert role", []accessible{app, top("/b", "alert", "Quit?", 7)}, hypr.Client{PID: 7, Title: "Quit?"}, true},
+		{"file chooser", []accessible{app, top("/b", "file chooser", "Open", 7)}, hypr.Client{PID: 7, Title: "Open"}, true},
+		{"frame is not a dialog", []accessible{app, top("/a", "frame", "Main", 7), top("/b", "dialog", "About", 7)}, hypr.Client{PID: 7, Title: "Main"}, false},
+		{"no title match stays false", []accessible{app, top("/b", "dialog", "About", 7)}, hypr.Client{PID: 7, Title: "Other"}, false},
+		{"another pid", []accessible{app, top("/b", "dialog", "About", 8)}, hypr.Client{PID: 7, Title: "About"}, false},
+		{"empty tree", nil, hypr.Client{PID: 7, Title: "About"}, false},
+	}
+	for _, tc := range tests {
+		if got := hasDialog(tc.objs, tc.win); got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestAnyModalSkipsWithoutBus(t *testing.T) {
+	tr := &fakeTree{objs: []accessible{{Bus: ":1", Path: "/b", Parent: "/app", Role: "dialog", Name: "About", PID: 7}, {Bus: ":1", Path: "/app", Role: "application", PID: 7}}}
+	if !anyModal(context.Background(), tr, []hypr.Client{{PID: 7, Title: "About"}}) {
+		t.Fatal("a new dialog window must be modal")
+	}
+	if anyModal(context.Background(), tr, nil) {
+		t.Fatal("no new window is not modal")
 	}
 }
