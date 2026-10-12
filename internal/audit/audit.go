@@ -13,8 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
