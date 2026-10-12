@@ -106,3 +106,30 @@ func TestTableSourceDefaultsToAuto(t *testing.T) {
 		t.Errorf("empty table source %q, want auto", got)
 	}
 }
+
+func TestNodeAt(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Save", X: 100, Y: 100},
+		{Key: "b", Name: "Delete", X: 160, Y: 100},
+		{Key: "c", Name: "", X: 100, Y: 140},
+		{Key: "d", Name: "Hidden", X: 300, Y: 300, Offscreen: true},
+		{Key: "e", Name: "Popup item", X: 5, Y: 5, ActionOnly: true},
+	})
+	for _, c := range []struct {
+		x, y int
+		want string // "" means no node
+	}{
+		{100, 100, "Save"},
+		{150, 104, "Delete"}, // nearest of two within the radius
+		{100, 140, ""},       // the node there has no name
+		{300, 300, ""},       // offscreen
+		{5, 5, ""},           // coordinates not reliable
+		{500, 500, ""},       // nothing near
+	} {
+		n, ok := tb.NodeAt(c.x, c.y, 30)
+		if got := n.Name; ok != (c.want != "") || got != c.want {
+			t.Errorf("NodeAt(%d,%d) = %q,%v, want %q", c.x, c.y, got, ok, c.want)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 )
 
 type desktopIn struct {
+	Ack       string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Address   string   `json:"address,omitempty" jsonschema:"window address from desktop_windows, e.g. 0x55ebac116320"`
 	Workspace int      `json:"workspace,omitempty" jsonschema:"target workspace (desktop_move, desktop_workspace)"`
 	Text      string   `json:"text,omitempty" jsonschema:"text to type (desktop_type); US layout characters only"`
@@ -148,6 +149,9 @@ func (s *Server) desktopMove(in desktopIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) desktopType(in desktopIn) (*mcp.CallToolResult, error) {
+	if err := s.guard(guardCall{Screen: desktop.Name, Window: in.Address, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	d, err := s.desktop()
 	if err != nil {
 		return nil, err
@@ -159,6 +163,9 @@ func (s *Server) desktopType(in desktopIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) desktopKey(in desktopIn) (*mcp.CallToolResult, error) {
+	if err := s.guard(guardCall{Screen: desktop.Name, Window: in.Address, Keys: in.Keys, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	d, err := s.desktop()
 	if err != nil {
 		return nil, err

@@ -27,6 +27,7 @@ type snapIn struct {
 }
 
 type actIn struct {
+	Ack             string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty"`
 	Ref             string   `json:"ref"`
 	Op              string   `json:"op" jsonschema:"click, double_click, type, key, hover or scroll"`
@@ -216,6 +217,9 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
 	defer cancel()
 	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ref: in.Ref, Op: in.Op, Keys: in.Keys, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopAct(ctx, in, op)
 	}

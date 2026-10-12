@@ -169,7 +169,7 @@ def child():
     sig = os.environ[CHILD]
     tmp = tempfile.mkdtemp(prefix="hc-e2e-desktop.")
     notify_file = f"{tmp}/notifications.jsonl"
-    env = dict(os.environ, HC_E2E_TMP=tmp, HYPRCAGE_NOTIFY_FILE=notify_file)
+    env = dict(os.environ, HC_E2E_TMP=tmp, HYPRCAGE_NOTIFY_FILE=notify_file, XDG_STATE_HOME=f"{tmp}/state")
     bus = os.environ["DBUS_SESSION_BUS_ADDRESS"]
     procs = []
     results = []
@@ -429,14 +429,52 @@ def child():
             need(closed is True, f"notification {nid2} not closed: {lst}")
             return f"wait/list/act ok on {nid}, notify-send printed 'ok'; {nid2} closed"
 
+        def l_guard():
+            t = state["thunar"]
+            # A second server with "home" as a destructive word, to see a keyword
+            # block on a real AT-SPI label. The first server keeps the defaults.
+            os.makedirs(f"{tmp}/guard-cfg/hyprcage")
+            os.makedirs(f"{tmp}/guard2")
+            with open(f"{tmp}/guard-cfg/hyprcage/config.toml", "w") as f:
+                f.write('[guard]\nkeywords = ["home"]\n')
+            m2 = MCP(dict(env, XDG_CONFIG_HOME=f"{tmp}/guard-cfg", HC_E2E_TMP=f"{tmp}/guard2"))
+            try:
+                text = ok(m2.call("find", screen="desktop", window=t, text="^Home$", timeout_ms=15000), "find Home")
+                home = [n for n in nodes(text) if n[2] == "Home"]
+                need(home, f"no Home node: {text[:200]}")
+                err, out, _ = m2.call("act", screen="desktop", window=t, ref=home[0][0], op="click")
+                need(err and "ack_required" in out, f"keyword click without ack: error={err}: {out[:200]}")
+                r = ok(m2.call("act", screen="desktop", window=t, ref=home[0][0], op="click", ack="e2e: opening Home"), "act click Home with ack")
+                need(r.splitlines()[0] == "path=atspi", f"with ack: first line {r.splitlines()[0]}")
+            finally:
+                m2.close()
+            # Default config: a blocked combo does not reach the window.
+            err, out, _ = mcp.call("desktop_key", address=t, keys=["ctrl+w"])
+            need(err and "ack_required" in out, f"ctrl+w without ack: error={err}: {out[:200]}")
+            need(client(t), "Thunar closed although the guard blocked ctrl+w")
+            # An agent screen is not guarded under the default config.
+            err, out, _ = mcp.call("key", screen="e2e-none", keys=["ctrl+w"])
+            need(err and "screen_not_found" in out, f"agent screen key: {out[:200]}")
+            ok(mcp.call("desktop_key", address=t, keys=["ctrl+w"], ack="e2e: closing the test window"), "desktop_key ctrl+w with ack")
+            for _ in range(20):
+                if not client(t):
+                    break
+                time.sleep(0.25)
+            need(not client(t), "Thunar is still open after ctrl+w with ack")
+            log = open(f"{tmp}/state/hyprcage/actions.jsonl").read()
+            for reason in ("e2e: opening Home", "e2e: closing the test window"):
+                need(f'"ack":"{reason}"' in log, f"audit log lacks the ack {reason!r}")
+            need('"error":"ack_required"' in log, "audit log lacks the blocked calls")
+            return "keyword click and ctrl+w blocked, repeated with ack and ran, both acks in the audit log, agent screen unguarded"
+
         def k_lock():
             raise Skip("cannot lock a session safely in an unattended run (criterion 5 needs hyprlock)")
 
         for name, fn in [("a app_launch", a_launch), ("b snapshot atspi", b_snapshot), ("c act click Home", c_click_home),
                          ("d act type", d_type), ("e Wireshark About", e_about), ("f OCR pointer click", f_ocr),
                          ("g hidden screenshot", g_hidden_shot), ("h hidden click", h_hidden_click),
-                         ("i desktop_workspace", i_workspace), ("j notifications", j_notify), ("k lock refusal", k_lock)]:
-            if name[0] in "bcdefgh" and not state.get("kitty"):
+                         ("i desktop_workspace", i_workspace), ("j notifications", j_notify), ("l ack guard", l_guard), ("k lock refusal", k_lock)]:
+            if name[0] in "bcdefghl" and not state.get("kitty"):
                 results.append("FAIL")
                 print(f"FAIL [{name}] no windows from step a", flush=True)
                 continue

@@ -138,3 +138,22 @@ func ReResolve(old Node, fresh []Node) (Node, error) {
 	return Node{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot",
 		"%s %q matches %d nodes, want 1", old.Role, old.Name, len(found))
 }
+
+// NodeAt returns the named node of the last snapshot whose centre is nearest
+// to (x, y) and within radius pixels. Offscreen nodes and action-only nodes,
+// whose coordinates are not reliable, never match.
+func (t *Table) NodeAt(x, y, radius int) (Node, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var best Node
+	found, bestD := false, radius*radius+1
+	for _, n := range t.last {
+		if n.Name == "" || n.Offscreen || n.ActionOnly {
+			continue
+		}
+		if d := (n.X-x)*(n.X-x) + (n.Y-y)*(n.Y-y); d < bestD {
+			best, found, bestD = n, true, d
+		}
+	}
+	return best, found
+}
