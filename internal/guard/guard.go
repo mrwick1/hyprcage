@@ -72,7 +72,7 @@ func (p Policy) reason(a Action) string {
 		switch {
 		case a.App != "" && !p.apps[strings.ToLower(a.App)]:
 			return fmt.Sprintf("app %q is not in the guard allowlist", a.App)
-		case a.App == "" && a.Desktop:
+		case a.App == "":
 			return "the app of the target is unknown and the guard has an allowlist"
 		}
 	}

@@ -132,3 +132,15 @@ func TestNoAllowlistMeansAnyApp(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAllowlistBlocksAnAgentScreenAction(t *testing.T) {
+	p := policy(func(g *config.Guard) { g.Enabled = "all"; g.Apps = []string{"kate"} })
+	blocked(t, p.Check(Action{}, ""))
+	if err := p.Check(Action{}, "the task needs it"); err != nil {
+		t.Errorf("ack: %v", err)
+	}
+	// Without an allowlist an agent screen action still passes.
+	if err := policy(func(g *config.Guard) { g.Enabled = "all" }).Check(Action{}, ""); err != nil {
+		t.Errorf("no allowlist: %v", err)
+	}
+}

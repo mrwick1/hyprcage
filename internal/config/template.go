@@ -58,7 +58,7 @@ enabled = true        # actions on an agent screen return a verdict (CONFIRMED, 
 
 [guard]
 enabled = "desktop"   # desktop: guard actions on your own windows; all: agent screens too; off: no guard
-apps = []             # allowlist of app ids (window classes); empty means no allowlist
+apps = []             # allowlist of app ids (window classes); empty means no allowlist. An action on a window or screen with no known app id needs ack when the list is not empty
 keywords = ["delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"]
                       # a click on a target whose label has one of these words needs ack
 combos = ["Ctrl+W", "Ctrl+Q", "Alt+F4"] # these key combinations need ack
