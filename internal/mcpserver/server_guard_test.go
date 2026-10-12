@@ -147,3 +147,28 @@ func TestGuardOff(t *testing.T) {
 		t.Errorf("off: %s", out)
 	}
 }
+
+func TestGuardCoversMoveScrollDragAndType(t *testing.T) {
+	s, cs := guardServer(t, nil)
+	s.tableAt(desktopKey("")).Assign([]perceive.Node{{Key: "k1", Role: "button", Name: "Delete file", X: 200, Y: 120}})
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"move", map[string]any{"screen": "desktop", "x": 205, "y": 118}},
+		{"scroll", map[string]any{"screen": "desktop", "x": 205, "y": 118, "direction": "down"}},
+		{"drag", map[string]any{"screen": "desktop", "x1": 205, "y1": 118, "x2": 300, "y2": 300}},
+	} {
+		if out := call(t, cs, c.tool, c.args); !strings.Contains(out, "ack_required") {
+			t.Errorf("%s over a destructive label: %s", c.tool, out)
+		}
+		c.args["ack"] = "the test needs it"
+		if out := call(t, cs, c.tool, c.args); strings.Contains(out, "ack_required") {
+			t.Errorf("%s with ack: %s", c.tool, out)
+		}
+	}
+	s.cfg.Guard.Apps = []string{"kate"} // type has no target: the allowlist rule applies
+	if out := call(t, cs, "type", map[string]any{"screen": "desktop", "text": "x"}); !strings.Contains(out, "ack_required") {
+		t.Errorf("type: %s", out)
+	}
+}

@@ -366,6 +366,7 @@ type dragIn struct {
 }
 
 type typeIn struct {
+	Ack             string `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
 	Text            string `json:"text" jsonschema:"Unicode text to type; \\n presses Return, \\t presses Tab"`
 	ScreenshotAfter bool   `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
@@ -796,7 +797,7 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
-	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X, in.Y}, Ack: in.Ack}); err != nil {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
@@ -817,7 +818,7 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
-	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X, in.Y}, Ack: in.Ack}); err != nil {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
@@ -840,7 +841,7 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
-	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ack: in.Ack}); err != nil {
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, At: &[2]int{in.X1, in.Y1}, Ack: in.Ack}); err != nil {
 		return nil, err
 	}
 	if desktop.IsDesktop(in.Screen) {
@@ -860,6 +861,9 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
+	if err := s.guard(guardCall{Screen: in.Screen, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if err := refuseDesktop(in.Screen, "use desktop_type"); err != nil {
 		return nil, err
 	}
