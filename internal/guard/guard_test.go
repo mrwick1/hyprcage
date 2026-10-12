@@ -58,6 +58,13 @@ func TestKeywordLabel(t *testing.T) {
 	}
 }
 
+func TestKeywordMatchesInflections(t *testing.T) {
+	p := policy(nil)
+	for _, l := range []string{"Deleted", "Deleting", "Removed", "Removing items", "Uninstalling", "Erased", "Formatting disk"} {
+		blocked(t, p.Check(Action{Desktop: true, Label: l}, ""))
+	}
+}
+
 func TestKeywordNeedsAWholeWord(t *testing.T) {
 	p := policy(nil)
 	for _, l := range []string{"Information", "Reformat", "Save", "Close", "Close tab", ""} {

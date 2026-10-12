@@ -40,10 +40,16 @@ func New(g config.Guard) Policy {
 	}
 	var words []string
 	for _, k := range g.Keywords {
-		words = append(words, regexp.QuoteMeta(strings.TrimSpace(k)))
+		// A final "e" is optional, so "delete" also matches "deleting" and "removing".
+		w := strings.TrimSpace(k)
+		if stem, ok := strings.CutSuffix(w, "e"); ok && stem != "" {
+			words = append(words, regexp.QuoteMeta(stem)+"e?")
+		} else {
+			words = append(words, regexp.QuoteMeta(w))
+		}
 	}
 	if len(words) > 0 {
-		p.keywords = regexp.MustCompile(`(?i)\b(?:` + strings.Join(words, "|") + `)\b`)
+		p.keywords = regexp.MustCompile(`(?i)\b(?:` + strings.Join(words, "|") + `)`)
 	}
 	return p
 }
