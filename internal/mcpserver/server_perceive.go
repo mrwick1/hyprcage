@@ -45,12 +45,21 @@ type findIn struct {
 	Window    string `json:"window,omitempty" jsonschema:"screen desktop only: a window address from desktop_windows; default every window on a visible workspace"`
 }
 
+type readPageIn struct {
+	Screen   string `json:"screen,omitempty"`
+	Mode     string `json:"mode,omitempty" jsonschema:"interactive (default: controls, landmarks, headings) or full"`
+	MaxNodes int    `json:"max_nodes,omitempty" jsonschema:"cap on the elements returned, default 1000"`
+	MaxSteps int    `json:"max_steps,omitempty" jsonschema:"cap on the scroll steps, default 30"`
+	Source   string `json:"source,omitempty" jsonschema:"auto (default), cdp or atspi; ocr cannot be merged"`
+}
+
 const perceiveTimeout = 30 * time.Second
 
 // registerPerceive adds snapshot, act and find.
 func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "snapshot", "List the elements of a screen as text with refs and screen coordinates. Read this before a screenshot: it costs a fraction of the tokens.", s.snapshot)
 	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text.", s.act)
+	tool(s, srv, "read_page", "Scroll an agent screen from the top to the bottom, snapshot at each step, and return every element once, in page order. Use it for a page longer than one viewport. It leaves the page scrolled to the bottom.", s.readPage)
 	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Use it instead of wait plus screenshot.", s.find)
 }
 
@@ -312,4 +321,48 @@ func (s *Server) find(in findIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return plain(perceive.RenderMatches(nodes)), nil
+}
+
+// readPageTimeout bounds one read_page call: up to 30 scroll steps.
+const readPageTimeout = 2 * time.Minute
+
+// readPageSettle is the wait after a scroll step, before the next snapshot.
+const readPageSettle = 250 * time.Millisecond
+
+func (s *Server) readPage(in readPageIn) (*mcp.CallToolResult, error) {
+	if desktop.IsDesktop(in.Screen) {
+		return nil, fmt.Errorf("read_page works on agent screens only; use snapshot with a window for the desktop")
+	}
+	m, err := perceive.ParseMode(in.Mode)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), readPageTimeout)
+	defer cancel()
+	want := in.Source
+	if want == "" {
+		want = "auto"
+	}
+	cl, src, t, rec, err := s.source(ctx, in.Screen, want)
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+	// Scroll with the pointer in the middle of the screen, a full step per read.
+	scrollDown := func(ctx context.Context) error {
+		if err := screen.ScrollAt(cl, rec.Width/2, rec.Height/2, "down", 10); err != nil {
+			return err
+		}
+		select {
+		case <-time.After(readPageSettle):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	out, _, err := perceive.ReadPage(ctx, src, t, perceive.ReadOpts{Mode: m, MaxNodes: in.MaxNodes, MaxSteps: in.MaxSteps}, scrollDown)
+	if err != nil {
+		return nil, err
+	}
+	return plain(out), nil
 }

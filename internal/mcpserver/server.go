@@ -19,6 +19,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hexadecimil/hyprcage/internal/audit"
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/devtools"
@@ -423,6 +424,11 @@ func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			res, err := h(in)
+			failed := err
+			if failed == nil && res != nil && res.IsError {
+				failed = errors.New("tool result is an error")
+			}
+			audit.Record(name, in, failed)
 			if err != nil {
 				return nil, nil, err
 			}
