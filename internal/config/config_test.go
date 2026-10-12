@@ -169,3 +169,13 @@ func TestExpandHome(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 }
+
+func TestVerifyDefaultAndOverride(t *testing.T) {
+	if !Default().Verify {
+		t.Fatal("verify defaults to on when the 150 ms gate passes")
+	}
+	cfg := Default()
+	if err := Apply(&cfg, "[verify]\nenabled = false\n"); err != nil || cfg.Verify {
+		t.Fatalf("verify.enabled = false: err %v, verify %v", err, cfg.Verify)
+	}
+}

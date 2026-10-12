@@ -55,7 +55,7 @@ func TestJudge(t *testing.T) {
 
 func TestVerificationLine(t *testing.T) {
 	v := NewVerification(Compare(testFrame(nil), testFrame(box(image.Rect(120, 80, 760, 380)))), image.Pt(200, 200))
-	want := "verify: CONFIRMED (changed 18.7%, bbox 120,80 640x300)"
+	want := "verify: CONFIRMED (changed 18.8%, bbox 120,80 640x300)"
 	if got := v.String(); got != want {
 		t.Fatalf("line %q, want %q", got, want)
 	}

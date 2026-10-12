@@ -37,6 +37,7 @@ type Sense struct {
 // features (the audit log) attach to an action record.
 type Verification struct {
 	Verdict Verdict   `json:"verdict"`
+	Ratio   float64   `json:"ratio"` // fraction (0 to 1) of changed pixels
 	Diff    FrameDiff `json:"-"`
 	Sense   Sense     `json:"sense"`
 }
@@ -45,7 +46,7 @@ type Verification struct {
 // With no point (a key press or typed text) any change above the noise floor
 // confirms.
 func NewVerification(d FrameDiff, points ...image.Point) Verification {
-	v := Verification{Diff: d}
+	v := Verification{Diff: d, Ratio: d.Ratio}
 	switch {
 	case d.Ratio < NoiseFloor:
 		v.Verdict = NoOp

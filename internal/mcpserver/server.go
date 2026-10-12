@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"math"
 	"os"
@@ -246,9 +247,13 @@ func shotResult(res *screen.ShotResult, name, path string) (*mcp.CallToolResult,
 }
 
 // afterAction optionally appends a screenshot to an action's result.
-func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, settleMs int) (*mcp.CallToolResult, error) {
+// v, when not nil, judges the action and adds its verdict to the result.
+func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, settleMs int, v *verifier) (*mcp.CallToolResult, error) {
+	ver := v.finish(verifySettle)
 	if !want {
-		return textResult(map[string]string{"status": "ok"}), nil
+		res := textResult(map[string]string{"status": "ok"})
+		noteVerdict(res, ver)
+		return res, nil
 	}
 	if settleMs <= 0 {
 		settleMs = 150
@@ -258,7 +263,9 @@ func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, set
 	if err != nil {
 		return nil, err
 	}
-	return imageResult(res, rec.Name), nil
+	out := imageResult(res, rec.Name)
+	noteVerdict(out, ver)
+	return out, nil
 }
 
 // --- tool inputs ------------------------------------------------------------
@@ -318,6 +325,7 @@ type clickIn struct {
 	Modifiers       []string `json:"modifiers,omitempty" jsonschema:"modifiers held during the click: ctrl, shift, alt, super"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
 	SettleMs        int      `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type moveIn struct {
@@ -325,6 +333,7 @@ type moveIn struct {
 	Window string `json:"window,omitempty" jsonschema:"screen desktop only: the window meant (address from desktop_windows); refused when it is on a hidden workspace. x and y stay global logical pixels"`
 	X      int    `json:"x" jsonschema:"screen pixel x"`
 	Y      int    `json:"y" jsonschema:"screen pixel y"`
+	Verify *bool  `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type scrollIn struct {
@@ -336,6 +345,7 @@ type scrollIn struct {
 	Amount          int    `json:"amount,omitempty" jsonschema:"wheel clicks, default 3"`
 	ScreenshotAfter bool   `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
 	SettleMs        int    `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool  `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type dragIn struct {
@@ -348,6 +358,7 @@ type dragIn struct {
 	DurationMs      int    `json:"duration_ms,omitempty" jsonschema:"time between press and release, default 250"`
 	ScreenshotAfter bool   `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
 	SettleMs        int    `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool  `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type typeIn struct {
@@ -355,6 +366,7 @@ type typeIn struct {
 	Text            string `json:"text" jsonschema:"Unicode text to type; \\n presses Return, \\t presses Tab"`
 	ScreenshotAfter bool   `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
 	SettleMs        int    `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool  `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type keyIn struct {
@@ -362,6 +374,7 @@ type keyIn struct {
 	Keys            []string `json:"keys" jsonschema:"combinations pressed in order, xkb keysym names, e.g. [\"ctrl+l\", \"Return\", \"alt+F4\"]"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the action (default false)"`
 	SettleMs        int      `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type waitIn struct {
@@ -396,6 +409,7 @@ type batchIn struct {
 	Actions         []batchAction `json:"actions" jsonschema:"actions executed in order; stops at the first error"`
 	ScreenshotAfter bool          `json:"screenshot_after,omitempty" jsonschema:"return a screenshot after the last action"`
 	SettleMs        int           `json:"settle_ms,omitempty" jsonschema:"delay before that screenshot, default 150"`
+	Verify          *bool         `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type batchResult struct {
@@ -428,7 +442,11 @@ func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")
 			}
-			audit.Record(name, in, failed)
+			var opts []audit.Option
+			if v := takeVerdict(res); v != nil {
+				opts = append(opts, audit.WithVerdict(v))
+			}
+			audit.Record(name, in, failed, opts...)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -446,15 +464,15 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "app_close", "Ask a window of the screen to close gracefully. Window ids change when a window remaps, so take the id from windows rather than from an older reply.", s.appClose)
 	tool(s, srv, "windows", "List the windows of a screen with their ids, titles and app ids.", s.windows)
 	tool(s, srv, "screenshot", "Capture the screen. Returns the image plus its geometry, or with path writes the image to that file and returns the path as text (path auto picks one in the cache dir), which keeps the image out of your context; coordinates for other tools are screen pixels. With screen desktop: the human's output, or with window one of the human's windows on any workspace, without switching it; the geometry adds origin and logical_per_pixel, which map image pixels to the global logical coordinates of the desktop tools.", s.screenshot)
-	tool(s, srv, "click", "Click at screen coordinates (left by default; count=2 for a double click).", s.click)
-	tool(s, srv, "double_click", "Double-click at screen coordinates with the left button.", s.doubleClick)
-	tool(s, srv, "move", "Move the pointer to screen coordinates without clicking (hover).", s.move)
-	tool(s, srv, "scroll", "Scroll the mouse wheel at screen coordinates.", s.scroll)
-	tool(s, srv, "drag", "Press the left button at (x1,y1), move to (x2,y2) and release.", s.drag)
-	tool(s, srv, "type", "Type Unicode text with the virtual keyboard (accents and emoji included).", s.typeText)
-	tool(s, srv, "key", "Press key combinations such as ctrl+l, Return, alt+F4, ctrl+shift+t.", s.key)
+	tool(s, srv, "click", "Click at screen coordinates (left by default; count=2 for a double click). Verify: "+verifyDoc, s.click)
+	tool(s, srv, "double_click", "Double-click at screen coordinates with the left button. Verify: "+verifyDoc, s.doubleClick)
+	tool(s, srv, "move", "Move the pointer to screen coordinates without clicking (hover). Verify: "+verifyDoc, s.move)
+	tool(s, srv, "scroll", "Scroll the mouse wheel at screen coordinates. Verify: "+verifyDoc, s.scroll)
+	tool(s, srv, "drag", "Press the left button at (x1,y1), move to (x2,y2) and release. Verify: "+verifyDoc, s.drag)
+	tool(s, srv, "type", "Type Unicode text with the virtual keyboard (accents and emoji included). Verify: "+verifyDoc, s.typeText)
+	tool(s, srv, "key", "Press key combinations such as ctrl+l, Return, alt+F4, ctrl+shift+t. Verify: "+verifyDoc, s.key)
 	tool(s, srv, "wait", "Wait for a delay, for the image to stop changing (stable_ms) or for a window title (regexp).", s.wait)
-	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
+	tool(s, srv, "batch", "Run several actions in one call; stops at the first error. Verify: "+verifyDoc, s.batch)
 	s.registerFork(srv)
 	s.registerPerceive(srv)
 }
@@ -734,10 +752,11 @@ func (s *Server) click(in clickIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl, image.Pt(in.X, in.Y))
 	if err := screen.Click(cl, in.X, in.Y, b, in.Count, in.Modifiers); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs)
+	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs, v)
 }
 
 func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
@@ -753,10 +772,11 @@ func (s *Server) doubleClick(in moveIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl, image.Pt(in.X, in.Y))
 	if err := screen.Click(cl, in.X, in.Y, wl.ButtonLeft, 2, nil); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, false, 0)
+	return s.afterAction(rec, cl, false, 0, v)
 }
 
 func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
@@ -770,10 +790,11 @@ func (s *Server) move(in moveIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl, image.Pt(in.X, in.Y))
 	if err := cl.Move(in.X, in.Y); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, false, 0)
+	return s.afterAction(rec, cl, false, 0, v)
 }
 
 func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
@@ -789,10 +810,11 @@ func (s *Server) scroll(in scrollIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl, image.Pt(in.X, in.Y))
 	if err := screen.ScrollAt(cl, in.X, in.Y, in.Direction, in.Amount); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs)
+	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs, v)
 }
 
 func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
@@ -808,10 +830,11 @@ func (s *Server) drag(in dragIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl, image.Pt(in.X1, in.Y1), image.Pt(in.X2, in.Y2))
 	if err := screen.Drag(cl, in.X1, in.Y1, in.X2, in.Y2, time.Duration(in.DurationMs)*time.Millisecond); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs)
+	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs, v)
 }
 
 func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
@@ -822,10 +845,11 @@ func (s *Server) typeText(in typeIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl)
 	if err := cl.Type(in.Text); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs)
+	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs, v)
 }
 
 func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
@@ -836,10 +860,11 @@ func (s *Server) key(in keyIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl)
 	if err := screen.Keys(cl, in.Keys); err != nil {
 		return nil, err
 	}
-	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs)
+	return s.afterAction(rec, cl, in.ScreenshotAfter, in.SettleMs, v)
 }
 
 func (s *Server) wait(in waitIn) (*mcp.CallToolResult, error) {
@@ -893,6 +918,7 @@ func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	v := s.startVerify(in.Verify, cl)
 	results := make([]batchResult, len(in.Actions))
 	failed := false
 	for i, a := range in.Actions {
@@ -913,9 +939,11 @@ func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil
 	}
 	if !in.ScreenshotAfter {
-		return textResult(results), nil
+		res := textResult(results)
+		noteVerdict(res, v.finish(verifySettle))
+		return res, nil
 	}
-	res, err := s.afterAction(rec, cl, true, in.SettleMs)
+	res, err := s.afterAction(rec, cl, true, in.SettleMs, v)
 	if err != nil {
 		return nil, err
 	}
