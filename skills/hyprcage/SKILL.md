@@ -69,6 +69,17 @@ installs nothing and asks them for a password for nothing.
 - **Clipboard**: `clipboard_set`, then `key ctrl+v`, to paste long text into an app. `clipboard_get` reads what the app copied. It is the screen's clipboard, never the human's.
 - **Files**: no file tool is needed. Apps on a screen run as the human and see the same file system, so give them normal paths.
 
+## Know whether an action worked
+
+- **Verdict**: each action tool returns a `verify:` line, for example `verify: CONFIRMED (changed 4.2%, bbox ...)`. The server compares a frame before the action with a frame after it. `CONFIRMED` means the changed area contains the target. `PARTIAL` means the change is near the target, or covers only some points of a drag. `DIVERGED` means the change is far from the target. `NO_OP` means the screen did not change. Pass `verify: false` to skip the check. The `[verify] enabled` key in `config.toml` sets the default. The check adds about 120 ms to an action.
+- **Sense**: the result also has a `sense` object with `changed`, `opened`, `modal` and `no_op`. `opened` is true when the action opened a window. `modal` is true only when AT-SPI names the new window a dialog. `modal: false` can mean unknown.
+- **Spacing**: wait 0.5 seconds or more between two clicks at the same spot. Chrome reads two quick clicks as a double-click and selects a word. The selection then shows as a change, and a later click on a dead area returns `DIVERGED` instead of `NO_OP`.
+- **Animated pages**: a video or a spinner can make a verdict `CONFIRMED` when the action did nothing. Use `watch` for these pages.
+- **`watch`**: `watch` with `screen`, `seconds` (default 5, maximum 30) and `fps` (default 1, maximum 4) samples the screen. The verdict is `stable`, `jitter`, or `frozen`. `frozen` needs `expect_change: true` and a screen that never changes. A change in fewer than half of the frames returns `stable`. Pass `path` (a directory) to write each frame as a PNG. Without `path`, the reply has three thumbnails. It works on agent screens only.
+- **`read_selection`**: copies the selection of the focused window and returns the exact text, with no OCR. It restores the earlier clipboard of the screen. Do not use it in a terminal, because ctrl+c interrupts the program.
+- **`read_page`**: scrolls a view from the top to the bottom and returns every node once. `max_steps` (default 30) and `max_nodes` (default 1000) limit it. It leaves the page scrolled to the bottom. It works on agent screens only, and not with `source: ocr`.
+- **Audit log**: every tool call adds one JSON line to `~/.local/state/hyprcage/actions.jsonl`. The line holds the tool, the screen, the arguments, the error code, the verdict and `ack`. The log never holds typed text, script text, environment values, command arguments, URL queries, or printable keys.
+
 ## Check a run end to end
 
 After every action, read the result. A click that returns no error does not prove that the page did the right thing.
@@ -104,6 +115,7 @@ Use the human's desktop only when the job needs their own apps or their session.
 - **Keys**: `desktop_type` and `desktop_key` send keys to a window without focusing it. Each key briefly takes the human's keyboard focus. `desktop_focus` moves their focus for real, and `desktop_move` moves a window to a workspace.
 - **Notifications**: `notify_list` shows the notifications of the last 48 hours. `notify_wait` waits for a new one. `notify_act` closes one, or invokes an action of the latest one only. `notifyd_down` means the daemon does not run: tell the human.
 - Every desktop tool refuses with `session_locked` while the screen is locked.
+- **Guard**: a desktop action that closes a window or hits a destructive control returns `ack_required` with the reason. The blocked keys are `Ctrl+W`, `Ctrl+Q` and `Alt+F4`. The blocked clicks are on controls with a label such as delete, remove, erase, format, uninstall, close all, quit or shut down. Repeat the call with `ack: "<reason>"` only when the task needs the action. The server logs the reason. The guard reads the label from your last `snapshot`. With no snapshot, only the keys are blocked. The `[guard]` table in `config.toml` sets `enabled` (`desktop`, `all` or `off`), `apps`, `keywords` and `combos`.
 
 ## Never
 
