@@ -110,7 +110,7 @@ func TestRecordKeepsSecretsOutOfTheLog(t *testing.T) {
 		"env":     map[string]string{"API_KEY": "key-SECRET", "LANG": "C"},
 	}, nil)
 	Record("browser_open", map[string]any{"url": "https://user:pw-SECRET@example.org/a?token=q-SECRET#frag-SECRET"}, nil)
-	Record("key", map[string]any{"keys": []string{"h", "Return", "ctrl+l", "7"}}, nil)
+	Record("key", map[string]any{"keys": []string{"h", "Return", "ctrl+l", "7", "shift+h", "KP_7", "exclam", "space", "F5"}}, nil)
 	raw, err := os.ReadFile(Path())
 	if err != nil {
 		t.Fatal(err)
@@ -118,12 +118,14 @@ func TestRecordKeepsSecretsOutOfTheLog(t *testing.T) {
 	if strings.Contains(string(raw), "SECRET") {
 		t.Fatalf("a secret reached the log: %s", raw)
 	}
-	for _, want := range []string{`"command":["curl"]`, `"env":["API_KEY","LANG"]`, `https://example.org/a`, `"Return"`, `"ctrl+l"`} {
+	for _, want := range []string{`"command":["curl"]`, `"env":["API_KEY","LANG"]`, `https://example.org/a`, `"Return"`, `"ctrl+l"`, `"F5"`} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("log lacks %s: %s", want, raw)
 		}
 	}
-	if strings.Contains(string(raw), `"h"`) || strings.Contains(string(raw), `"7"`) {
-		t.Errorf("a single printable key reached the log: %s", raw)
+	for _, bad := range []string{`"h"`, `"7"`, `shift+h`, `KP_7`, `exclam`, `space`} {
+		if strings.Contains(string(raw), bad) {
+			t.Errorf("a printable key %s reached the log: %s", bad, raw)
+		}
 	}
 }

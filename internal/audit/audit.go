@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-	"unicode/utf8"
+	"strings"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -140,7 +140,7 @@ func scrub(k string, v any) any {
 			out := make([]any, len(x))
 			for i, e := range x {
 				out[i] = e
-				if s, ok := e.(string); ok && utf8.RuneCountInString(s) == 1 {
+				if s, ok := e.(string); ok && !loggableKey(s) {
 					out[i] = "<char>"
 				}
 			}
@@ -156,4 +156,30 @@ func scrub(k string, v any) any {
 		}
 	}
 	return v
+}
+
+// controlKeys are the keysyms that print nothing. A key press is logged only
+// when its last key is one of these, or when it holds ctrl, alt or super,
+// which do not enter text. Any other key can be part of a typed secret.
+var controlKeys = map[string]bool{
+	"return": true, "kp_enter": true, "tab": true, "iso_left_tab": true, "escape": true, "backspace": true,
+	"delete": true, "insert": true, "home": true, "end": true, "page_up": true, "page_down": true, "prior": true, "next": true,
+	"up": true, "down": true, "left": true, "right": true, "menu": true, "print": true, "pause": true,
+}
+
+func loggableKey(k string) bool {
+	parts := strings.Split(strings.ToLower(k), "+")
+	for _, m := range parts[:len(parts)-1] {
+		if m == "ctrl" || m == "control" || m == "alt" || m == "super" || m == "meta" {
+			return true
+		}
+	}
+	last := parts[len(parts)-1]
+	if controlKeys[last] {
+		return true
+	}
+	if strings.HasPrefix(last, "f") && len(last) > 1 && len(last) <= 3 && strings.Trim(last[1:], "0123456789") == "" {
+		return true
+	}
+	return false
 }
