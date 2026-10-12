@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"image"
 	"regexp"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ type actIn struct {
 	Direction       string   `json:"direction,omitempty"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window of the snapshot that gave the ref"`
+	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it (agent screens only), see the tool description"`
 }
 
 type findIn struct {
@@ -59,7 +61,7 @@ const perceiveTimeout = 30 * time.Second
 // registerPerceive adds snapshot, act and find.
 func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "snapshot", "List the elements of a screen as text with refs and screen coordinates. Read this before a screenshot: it costs a fraction of the tokens.", s.snapshot)
-	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text.", s.act)
+	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text. Verify: "+verifyDoc, s.act)
 	tool(s, srv, "read_page", "Scroll an agent screen from the top to the bottom, snapshot at each step, and return every element once, in page order. Use it for a page longer than one viewport. It leaves the page scrolled to the bottom.", s.readPage)
 	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Use it instead of wait plus screenshot.", s.find)
 }
@@ -228,13 +230,19 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	defer src.Close()
+	var pts []image.Point
+	if n, ok := t.Lookup(in.Ref); ok && in.Op != "key" {
+		pts = append(pts, image.Pt(n.X, n.Y))
+	}
+	v := s.startVerify(in.Verify, cl, pts...)
 	d, err := perceive.Act(ctx, cl, src, t, op)
 	if err != nil {
 		return nil, err
 	}
 	res := plain(d.String())
+	noteVerdict(res, v.finish(0)) // Act has already waited for the tree to settle
 	if in.ScreenshotAfter {
-		shot, err := s.afterAction(rec, cl, true, 0)
+		shot, err := s.afterAction(rec, cl, true, 0, nil)
 		if err != nil {
 			return nil, err
 		}

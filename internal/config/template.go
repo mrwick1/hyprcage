@@ -53,6 +53,9 @@ idle = "1s"           # a pause with an unchanged screen stays this long at most
 command = ""          # Chrome binary for browser_open, empty to look one up on PATH
 lighthouse = "13.5.0" # Lighthouse version that devtools_audit runs through npx; npx fetches it once
 
+[verify]
+enabled = true        # actions on an agent screen return a verdict (CONFIRMED, PARTIAL, NO_OP, DIVERGED); a call can pass verify:false
+
 [guard]
 enabled = "desktop"   # desktop: guard actions on your own windows; all: agent screens too; off: no guard
 apps = []             # allowlist of app ids (window classes); empty means no allowlist

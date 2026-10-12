@@ -16,6 +16,11 @@ import (
 
 var lighthouseVersion = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]*$`)
 
+// defaultVerify is the built-in default of the verify option on agent-screen
+// actions. It follows the 150 ms measurement gate of the agent-confidence spec:
+// on when the median added time per action is at most 150 ms, else off.
+const defaultVerify = true
+
 // Guard is the [guard] table: what an action must acknowledge (ack) first.
 type Guard struct {
 	Enabled  string   // desktop: only actions on the human's desktop; all; off
@@ -70,7 +75,8 @@ type Config struct {
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
 	Lighthouse     string        // Lighthouse version that devtools_audit runs through npx
 
-	Guard Guard
+	Verify bool // actions on an agent screen return a verdict unless the call passes verify:false
+	Guard  Guard
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -110,6 +116,7 @@ func Default() Config {
 		RecordCrop: "viewport",
 		RecordIdle: time.Second,
 		Lighthouse: "13.5.0",
+		Verify:     defaultVerify,
 
 		Guard: Guard{
 			Enabled:  "desktop",
@@ -204,6 +211,9 @@ type file struct {
 		Crop string `toml:"crop"`
 		Idle string `toml:"idle"`
 	} `toml:"record"`
+	Verify struct {
+		Enabled *bool `toml:"enabled"`
+	} `toml:"verify"`
 	Browser struct {
 		Command    *string `toml:"command"`
 		Lighthouse *string `toml:"lighthouse"`
@@ -288,6 +298,9 @@ func Apply(cfg *Config, text string) error {
 	}
 	if f.Record.Crop != "" {
 		cfg.RecordCrop = strings.ToLower(strings.TrimSpace(f.Record.Crop))
+	}
+	if f.Verify.Enabled != nil {
+		cfg.Verify = *f.Verify.Enabled
 	}
 	if f.Browser.Command != nil {
 		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
