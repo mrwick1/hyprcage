@@ -58,7 +58,7 @@ func TestToolsRegistered(t *testing.T) {
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
 		"record_start", "record_stop", "clipboard_get", "clipboard_set", "read_selection",
 		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate",
-		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
+		"snapshot", "act", "find", "watch", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl

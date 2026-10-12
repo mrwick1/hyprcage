@@ -451,6 +451,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error.", s.batch)
 	s.registerFork(srv)
 	s.registerPerceive(srv)
+	s.registerWatch(srv)
 }
 
 // --- handlers ---------------------------------------------------------------
