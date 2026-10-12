@@ -138,3 +138,46 @@ func ReResolve(old Node, fresh []Node) (Node, error) {
 	return Node{}, screen.Errf(screen.CodeStaleRef, "take a new snapshot",
 		"%s %q matches %d nodes, want 1", old.Role, old.Name, len(found))
 }
+
+// NodesAt returns the named nodes that the point can belong to: the smallest
+// box that contains it, and the nearest centre within radius pixels. The two
+// can differ, and a caller that must not miss a label checks both. Offscreen
+// nodes and action-only nodes, whose coordinates are not reliable, never
+// match.
+func (t *Table) NodesAt(x, y, radius int) []Node {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var inside, near Node
+	foundIn, foundNear := false, false
+	bestArea, bestD := 0, radius*radius+1
+	for _, n := range t.last {
+		if n.Name == "" || n.Offscreen || n.ActionOnly {
+			continue
+		}
+		if n.W > 0 && n.H > 0 && max(x-n.X, n.X-x)*2 <= n.W && max(y-n.Y, n.Y-y)*2 <= n.H {
+			if a := n.W * n.H; !foundIn || a < bestArea {
+				inside, foundIn, bestArea = n, true, a
+			}
+		}
+		if d := (n.X-x)*(n.X-x) + (n.Y-y)*(n.Y-y); d < bestD {
+			near, foundNear, bestD = n, true, d
+		}
+	}
+	var out []Node
+	if foundIn {
+		out = append(out, inside)
+	}
+	if foundNear && !(foundIn && near.Name == inside.Name && near.X == inside.X && near.Y == inside.Y) {
+		out = append(out, near)
+	}
+	return out
+}
+
+// NodeAt returns the node that the point most likely belongs to: the
+// smallest box that contains it, else the nearest centre within radius.
+func (t *Table) NodeAt(x, y, radius int) (Node, bool) {
+	if ns := t.NodesAt(x, y, radius); len(ns) > 0 {
+		return ns[0], true
+	}
+	return Node{}, false
+}

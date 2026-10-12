@@ -77,6 +77,8 @@ func (s *ocrSource) read(ctx context.Context) ([]Node, error) {
 		for i := range nodes {
 			nodes[i].X = shot.Origin[0] + int(float64(nodes[i].X)*shot.LogicalPerPixel+0.5)
 			nodes[i].Y = shot.Origin[1] + int(float64(nodes[i].Y)*shot.LogicalPerPixel+0.5)
+			nodes[i].W = int(float64(nodes[i].W)*shot.LogicalPerPixel + 0.5)
+			nodes[i].H = int(float64(nodes[i].H)*shot.LogicalPerPixel + 0.5)
 		}
 	}
 	return nodes, nil
@@ -116,6 +118,8 @@ func scaleNodes(nodes []Node, scale float64) {
 	for i := range nodes {
 		nodes[i].X = int(float64(nodes[i].X)/scale + 0.5)
 		nodes[i].Y = int(float64(nodes[i].Y)/scale + 0.5)
+		nodes[i].W = int(float64(nodes[i].W)/scale + 0.5)
+		nodes[i].H = int(float64(nodes[i].H)/scale + 0.5)
 	}
 }
 
@@ -188,6 +192,8 @@ func parseTSV(tsv []byte) []Node {
 			Name: strings.Join(ln.words, " "),
 			X:    (ln.left + ln.right) / 2,
 			Y:    (ln.top + ln.bott) / 2,
+			W:    ln.right - ln.left,
+			H:    ln.bott - ln.top,
 		})
 	}
 	return nodes

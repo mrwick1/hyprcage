@@ -256,6 +256,9 @@ func atspiNodes(objs []accessible, place func(top accessible) (int, int)) []Node
 			dx, dy := offset(k)
 			n.X, n.Y = n.X+dx, n.Y+dy
 		}
+		if !n.Offscreen {
+			n.W, n.H = w, h
+		}
 		nodes = append(nodes, n)
 	}
 	return nodes

@@ -106,3 +106,62 @@ func TestTableSourceDefaultsToAuto(t *testing.T) {
 		t.Errorf("empty table source %q, want auto", got)
 	}
 }
+
+func TestNodeAt(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Save", X: 100, Y: 100},
+		{Key: "b", Name: "Delete", X: 160, Y: 100},
+		{Key: "c", Name: "", X: 100, Y: 140},
+		{Key: "d", Name: "Hidden", X: 300, Y: 300, Offscreen: true},
+		{Key: "e", Name: "Popup item", X: 5, Y: 5, ActionOnly: true},
+	})
+	for _, c := range []struct {
+		x, y int
+		want string // "" means no node
+	}{
+		{100, 100, "Save"},
+		{150, 104, "Delete"}, // nearest of two within the radius
+		{100, 140, ""},       // the node there has no name
+		{300, 300, ""},       // offscreen
+		{5, 5, ""},           // coordinates not reliable
+		{500, 500, ""},       // nothing near
+	} {
+		n, ok := tb.NodeAt(c.x, c.y, 30)
+		if got := n.Name; ok != (c.want != "") || got != c.want {
+			t.Errorf("NodeAt(%d,%d) = %q,%v, want %q", c.x, c.y, got, ok, c.want)
+		}
+	}
+}
+
+func TestNodeAtPrefersTheBoxUnderThePoint(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Delete", X: 200, Y: 100, W: 200, H: 40}, // wide, spans x 100..300
+		{Key: "b", Name: "Save", X: 120, Y: 100, W: 20, H: 20},    // the smaller box that contains (125,100)
+		{Key: "c", Name: "Close", X: 140, Y: 100, W: 10, H: 20},   // nearer by centre to (131,100), does not contain it
+	})
+	// (131,100): Close centre is 9 away, Delete box contains the point, Save box (110..130) does not.
+	if n, ok := tb.NodeAt(131, 100, 30); !ok || n.Name != "Delete" {
+		t.Errorf("NodeAt(131,100) = %q,%v, want Delete (the box under the pointer)", n.Name, ok)
+	}
+	// Two boxes contain (125,100): the smaller one wins.
+	if n, ok := tb.NodeAt(125, 100, 30); !ok || n.Name != "Save" {
+		t.Errorf("NodeAt(125,100) = %q,%v, want Save (smallest box)", n.Name, ok)
+	}
+}
+
+func TestNodesAtReturnsTheContainingBoxAndTheNearestCentre(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Panel", X: 200, Y: 100, W: 200, H: 40},
+		{Key: "c", Name: "Delete", X: 140, Y: 100, W: 10, H: 20},
+	})
+	var names []string
+	for _, n := range tb.NodesAt(131, 100, 30) {
+		names = append(names, n.Name)
+	}
+	if len(names) != 2 || names[0] != "Panel" || names[1] != "Delete" {
+		t.Errorf("NodesAt(131,100) = %v, want [Panel Delete]", names)
+	}
+}

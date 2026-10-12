@@ -56,9 +56,9 @@ func TestToolsRegistered(t *testing.T) {
 	}
 	want := []string{"screen_create", "screen_destroy", "screen_list", "mirror", "app_launch", "app_close", "windows",
 		"screenshot", "click", "double_click", "move", "scroll", "drag", "type", "key", "wait", "batch", "setup",
-		"record_start", "record_stop", "clipboard_get", "clipboard_set",
+		"record_start", "record_stop", "clipboard_get", "clipboard_set", "read_selection",
 		"desktop_windows", "desktop_focus", "desktop_move", "desktop_type", "desktop_key", "desktop_workspace", "browser_open", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate",
-		"snapshot", "act", "find", "notify_list", "notify_act", "notify_wait"}
+		"snapshot", "act", "find", "watch", "read_page", "notify_list", "notify_act", "notify_wait"}
 	got := map[string]*mcp.Tool{}
 	for _, tl := range res.Tools {
 		got[tl.Name] = tl
@@ -131,7 +131,7 @@ func TestPerceiveToolsListed(t *testing.T) {
 	for _, tl := range res.Tools {
 		got[tl.Name] = true
 	}
-	for _, name := range []string{"snapshot", "act", "find", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate"} {
+	for _, name := range []string{"snapshot", "act", "find", "read_page", "devtools_eval", "devtools_console", "devtools_network", "devtools_trace", "devtools_heap", "devtools_audit", "devtools_emulate"} {
 		if !got[name] {
 			t.Errorf("tool %s missing", name)
 		}
@@ -241,6 +241,7 @@ func TestDesktopRefusedByScreenTools(t *testing.T) {
 		{"app_close", map[string]any{"toplevel": 1}, "no desktop"},
 		{"clipboard_get", nil, "no desktop"},
 		{"clipboard_set", map[string]any{"text": "a"}, "no desktop"},
+		{"read_selection", nil, "no desktop"},
 		{"mirror", nil, "no desktop"},
 		{"screen_create", nil, "reserved"},
 	} {
@@ -375,5 +376,74 @@ func TestShotResultPath(t *testing.T) {
 		if b, err := os.ReadFile(got.Path); err != nil || string(b) != "png-bytes" {
 			t.Errorf("file %q: %q, %v", got.Path, b, err)
 		}
+	}
+}
+
+func TestToolCallsAreAudited(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	cs := connect(t)
+	ctx := context.Background()
+	secret := "hunter2-SECRET"
+	for _, c := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"click", map[string]any{"screen": "nope", "x": 1, "y": 2}},
+		{"key", map[string]any{"screen": "nope", "keys": []string{"Return"}}},
+		{"type", map[string]any{"screen": "nope", "text": secret}},
+		{"screen_list", map[string]any{}},
+	} {
+		if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: c.tool, Arguments: c.args}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hyprcage", "actions.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), secret) {
+		t.Fatalf("typed text leaked: %s", raw)
+	}
+	ls := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(ls) != 4 {
+		t.Fatalf("%d lines: %s", len(ls), raw)
+	}
+	for i, tool := range []string{"click", "key", "type", "screen_list"} {
+		var e map[string]any
+		json.Unmarshal([]byte(ls[i]), &e)
+		if e["tool"] != tool {
+			t.Errorf("line %d tool %v, want %s", i, e["tool"], tool)
+		}
+		wantErr := tool != "screen_list"
+		if (e["error"] != nil) != wantErr {
+			t.Errorf("line %d error %v", i, e["error"])
+		}
+	}
+	if !strings.Contains(ls[0], `"error":"screen_not_found"`) {
+		t.Errorf("click line lacks the error code: %s", ls[0])
+	}
+}
+
+// TestMain keeps the tests away from the real action log.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "hyprcage-state")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("XDG_STATE_HOME", dir)
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+func TestReadPageRefusesDesktop(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	res, err := connect(t).CallTool(context.Background(), &mcp.CallToolParams{Name: "read_page", Arguments: map[string]any{"screen": "desktop"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(text(res), "agent screens") {
+		t.Errorf("isError=%v text=%q", res.IsError, text(res))
 	}
 }

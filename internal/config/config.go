@@ -16,7 +16,21 @@ import (
 
 var lighthouseVersion = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]*$`)
 
-// Config is the effective configuration.
+// defaultVerify is the built-in default of the verify option on agent-screen
+// actions. It follows the 150 ms measurement gate of the agent-confidence spec:
+// on when the median added time per action is at most 150 ms, else off.
+const defaultVerify = true
+
+// Guard is the [guard] table: what an action must acknowledge (ack) first.
+type Guard struct {
+	Enabled  string   // desktop: only actions on the human's desktop; all; off
+	Apps     []string // allowlist of app ids (window classes); empty means no allowlist
+	Keywords []string // destructive words that block a click whose target label matches
+	Combos   []string // blocked key combinations
+}
+
+// Config is the effective configuration. It holds slices, so compare it
+// with reflect.DeepEqual, not ==.
 type Config struct {
 	OutputPrefix  string
 	DefaultWidth  int
@@ -61,6 +75,9 @@ type Config struct {
 	BrowserCommand string        // Chrome binary; empty to look one up on PATH
 	Lighthouse     string        // Lighthouse version that devtools_audit runs through npx
 
+	Verify bool // actions on an agent screen return a verdict unless the call passes verify:false
+	Guard  Guard
+
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
 }
@@ -99,6 +116,13 @@ func Default() Config {
 		RecordCrop: "viewport",
 		RecordIdle: time.Second,
 		Lighthouse: "13.5.0",
+		Verify:     defaultVerify,
+
+		Guard: Guard{
+			Enabled:  "desktop",
+			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
+			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
+		},
 	}
 }
 
@@ -187,11 +211,20 @@ type file struct {
 		Crop string `toml:"crop"`
 		Idle string `toml:"idle"`
 	} `toml:"record"`
+	Verify struct {
+		Enabled *bool `toml:"enabled"`
+	} `toml:"verify"`
 	Browser struct {
 		Command    *string `toml:"command"`
 		Lighthouse *string `toml:"lighthouse"`
 		Port       *int    `toml:"port"` // ignored: each screen picks a free port; kept so older files load
 	} `toml:"browser"`
+	Guard struct {
+		Enabled  string   `toml:"enabled"`
+		Apps     []string `toml:"apps"`
+		Keywords []string `toml:"keywords"`
+		Combos   []string `toml:"combos"`
+	} `toml:"guard"`
 }
 
 // Apply overrides cfg with the TOML text and validates the result.
@@ -266,11 +299,26 @@ func Apply(cfg *Config, text string) error {
 	if f.Record.Crop != "" {
 		cfg.RecordCrop = strings.ToLower(strings.TrimSpace(f.Record.Crop))
 	}
+	if f.Verify.Enabled != nil {
+		cfg.Verify = *f.Verify.Enabled
+	}
 	if f.Browser.Command != nil {
 		cfg.BrowserCommand = strings.TrimSpace(*f.Browser.Command)
 	}
 	if f.Browser.Lighthouse != nil {
 		cfg.Lighthouse = strings.TrimSpace(*f.Browser.Lighthouse)
+	}
+	if f.Guard.Enabled != "" {
+		cfg.Guard.Enabled = strings.ToLower(strings.TrimSpace(f.Guard.Enabled))
+	}
+	if len(f.Guard.Apps) > 0 { // the default is empty, so an empty list changes nothing
+		cfg.Guard.Apps = f.Guard.Apps
+	}
+	if f.Guard.Keywords != nil {
+		cfg.Guard.Keywords = f.Guard.Keywords
+	}
+	if f.Guard.Combos != nil {
+		cfg.Guard.Combos = f.Guard.Combos
 	}
 	return cfg.Validate()
 }
@@ -327,6 +375,18 @@ func (c Config) Validate() error {
 	case "session", "pack", "screen":
 	default:
 		return fmt.Errorf("mirror.group: %q is not session, pack or screen", c.MirrorGroup)
+	}
+	switch c.Guard.Enabled {
+	case "desktop", "all", "off":
+	default:
+		return fmt.Errorf("guard.enabled: %q is not desktop, all or off", c.Guard.Enabled)
+	}
+	for key, list := range map[string][]string{"apps": c.Guard.Apps, "keywords": c.Guard.Keywords, "combos": c.Guard.Combos} {
+		for _, v := range list {
+			if strings.TrimSpace(v) == "" {
+				return fmt.Errorf("guard.%s: an entry is empty", key)
+			}
+		}
 	}
 	return nil
 }

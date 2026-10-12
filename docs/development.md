@@ -25,14 +25,23 @@ timer once the session is dead.
 cmd/hyprcage          the binary
 internal/hypr         Hyprland IPC, events, classic + Lua config drivers
 internal/mirror       the human's mirror window
-internal/screen       create / launch / destroy / gc, capture, input
+internal/screen       create / launch / destroy / gc, capture, input, selection.go (read_selection)
 internal/wl           the Wayland client (pointer, keyboard, screencopy)
 internal/registry     one record per screen
 internal/session      who owns a screen, is that session alive
 internal/sysd         systemd slices, scopes, timers
 internal/config       config.toml
+internal/audit        the action log (actions.jsonl), one line per tool call
+internal/guard        the [guard] policy: blocked keys, destructive labels, app allowlist
+internal/perceive     snapshots, refs, find, act, and the frame tools:
+                        diff.go (FrameDiff), verify.go (verdicts), watch.go,
+                        readpage.go (read_page)
 internal/setup        installing cage with the human's authorisation
 internal/mcpserver    the MCP server
+                        server_perceive.go (snapshot, act, find, read_page),
+                        server_guard.go (guard in front of the actions),
+                        verify.go (verify around the actions),
+                        server_watch.go (watch), server_clip.go (read_selection)
 internal/cli          the command line
 bin/, hooks/, skills/, .mcp.json, .claude-plugin/   the plugin
 install.sh, .github/  the installer and the release workflow

@@ -49,6 +49,15 @@ container, and give it hyprcage inside.
   SessionStart and a SessionEnd hook that only record the session and
   schedule the cleanup of its screens.
 
+## The audit log
+
+hyprcage appends one JSON line per tool call to
+`$XDG_STATE_HOME/hyprcage/actions.jsonl` (default
+`~/.local/state/hyprcage/actions.jsonl`). The file has mode 0600. The log
+never records typed or pasted text, script text, environment values, command
+arguments, URL queries or printable keys. It records the `ack` reason that
+the caller gives for a guarded action. Do not put a secret in an `ack`.
+
 ## Reporting
 
 Open a private security advisory on GitHub or write to the maintainer.

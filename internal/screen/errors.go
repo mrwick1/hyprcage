@@ -33,6 +33,7 @@ const (
 	CodeWindowHidden Code = "window_hidden" // pointer input on a window of a hidden workspace
 	CodeNoAction     Code = "no_action"
 	CodeNotifydDown  Code = "notifyd_down"
+	CodeAckRequired  Code = "ack_required" // a guarded action needs an ack argument that says why
 )
 
 // Error carries a code, a message and a hint for the caller.

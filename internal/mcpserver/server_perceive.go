@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"image"
 	"regexp"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type snapIn struct {
 }
 
 type actIn struct {
+	Ack             string   `json:"ack,omitempty" jsonschema:"the reason for an action the guard blocked with ack_required; repeat the call with it"`
 	Screen          string   `json:"screen,omitempty"`
 	Ref             string   `json:"ref"`
 	Op              string   `json:"op" jsonschema:"click, double_click, type, key, hover or scroll"`
@@ -35,6 +37,7 @@ type actIn struct {
 	Direction       string   `json:"direction,omitempty"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window of the snapshot that gave the ref"`
+	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type findIn struct {
@@ -45,12 +48,21 @@ type findIn struct {
 	Window    string `json:"window,omitempty" jsonschema:"screen desktop only: a window address from desktop_windows; default every window on a visible workspace"`
 }
 
+type readPageIn struct {
+	Screen   string `json:"screen,omitempty"`
+	Mode     string `json:"mode,omitempty" jsonschema:"interactive (default: controls, landmarks, headings) or full"`
+	MaxNodes int    `json:"max_nodes,omitempty" jsonschema:"cap on the elements returned, default 1000"`
+	MaxSteps int    `json:"max_steps,omitempty" jsonschema:"cap on the scroll steps, default 30"`
+	Source   string `json:"source,omitempty" jsonschema:"auto (default), cdp or atspi; ocr cannot be merged"`
+}
+
 const perceiveTimeout = 30 * time.Second
 
 // registerPerceive adds snapshot, act and find.
 func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "snapshot", "List the elements of a screen as text with refs and screen coordinates. Read this before a screenshot: it costs a fraction of the tokens.", s.snapshot)
-	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text.", s.act)
+	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text. Verify: "+verifyDoc, s.act)
+	tool(s, srv, "read_page", "Scroll an agent screen from the top to the bottom, snapshot at each step, and return every element once, in page order. Use it for a page longer than one viewport. It leaves the page scrolled to the bottom.", s.readPage)
 	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Use it instead of wait plus screenshot.", s.find)
 }
 
@@ -207,6 +219,9 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
 	defer cancel()
 	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction}
+	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ref: in.Ref, Op: in.Op, Keys: in.Keys, Ack: in.Ack}); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Screen) {
 		return s.desktopAct(ctx, in, op)
 	}
@@ -215,13 +230,19 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	defer src.Close()
+	var pts []image.Point
+	if n, ok := t.Lookup(in.Ref); ok && in.Op != "key" {
+		pts = append(pts, image.Pt(n.X, n.Y))
+	}
+	v := s.startVerify(in.Verify, cl, pts...)
 	d, err := perceive.Act(ctx, cl, src, t, op)
 	if err != nil {
 		return nil, err
 	}
 	res := plain(d.String())
+	noteVerdict(res, v.finish(0)) // Act has already waited for the tree to settle
 	if in.ScreenshotAfter {
-		shot, err := s.afterAction(rec, cl, true, 0)
+		shot, err := s.afterAction(rec, cl, true, 0, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -247,11 +268,17 @@ func (s *Server) desktopAct(ctx context.Context, in actIn, op perceive.ActOp) (*
 		return nil, err
 	}
 	defer src.Close()
+	var pts []image.Point
+	if n, ok := t.Lookup(in.Ref); ok && in.Op != "key" {
+		pts = append(pts, image.Pt(n.X, n.Y))
+	}
+	v := s.startDesktopVerify(in.Verify, conn, in.Window, pts...)
 	out, err := perceive.DesktopAct(ctx, desktop.Pointer{C: conn, D: d.D}, d, target.Windows, src, t, op)
 	if err != nil {
 		return nil, err
 	}
 	res := plain(out)
+	noteVerdict(res, v.finish(verifySettle))
 	if in.ScreenshotAfter {
 		shot, err := s.desktopShot(in.Window, 150, "", screen.ShotOptions{MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
 		if err != nil {
@@ -312,4 +339,51 @@ func (s *Server) find(in findIn) (*mcp.CallToolResult, error) {
 		return nil, err
 	}
 	return plain(perceive.RenderMatches(nodes)), nil
+}
+
+// readPageTimeout bounds one read_page call: up to 30 scroll steps.
+const readPageTimeout = 2 * time.Minute
+
+// readPageSettle is the wait after a scroll step, before the next snapshot.
+const readPageSettle = 250 * time.Millisecond
+
+func (s *Server) readPage(in readPageIn) (*mcp.CallToolResult, error) {
+	if desktop.IsDesktop(in.Screen) {
+		return nil, fmt.Errorf("read_page works on agent screens only; use snapshot with a window for the desktop")
+	}
+	m, err := perceive.ParseMode(in.Mode)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), readPageTimeout)
+	defer cancel()
+	want := in.Source
+	if want == "" {
+		want = "auto"
+	}
+	cl, src, t, rec, err := s.source(ctx, in.Screen, want)
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+	// Scroll with the pointer in the middle of the screen, a full step per read.
+	// The read starts at the top, so a page that is scrolled down still returns all nodes.
+	scroll := func(dir string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			if err := screen.ScrollAt(cl, rec.Width/2, rec.Height/2, dir, 10); err != nil {
+				return err
+			}
+			select {
+			case <-time.After(readPageSettle):
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	out, _, err := perceive.ReadPage(ctx, src, t, perceive.ReadOpts{Mode: m, MaxNodes: in.MaxNodes, MaxSteps: in.MaxSteps}, scroll("down"), scroll("up"))
+	if err != nil {
+		return nil, err
+	}
+	return plain(out), nil
 }

@@ -186,7 +186,7 @@ type frame struct {
 	target  string
 	nodes   []Node
 	backend []int
-	boxes   []*[2]float64 // nil: no box
+	boxes   []*[4]float64 // nil: no box
 }
 
 func (s *cdpSource) Nodes(ctx context.Context) ([]Node, error) {
@@ -285,7 +285,7 @@ func (s *cdpSource) read(ctx context.Context, target, typ string) (*frame, error
 		return nil, err
 	}
 	f := convert(target, tree.Nodes)
-	f.boxes = make([]*[2]float64, len(f.nodes))
+	f.boxes = make([]*[4]float64, len(f.nodes))
 	// ponytail: one DOM.getBoxModel per node, 16 in flight; DOMSnapshot.captureSnapshot is the next step if this is still slow.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(16)
@@ -302,13 +302,18 @@ func (s *cdpSource) read(ctx context.Context, target, typ string) (*frame, error
 	return f, g.Wait()
 }
 
-// centre returns the mean of the border quad of the node, in CSS pixels.
-func (s *cdpSource) centre(ctx context.Context, session string, backend int) (*[2]float64, error) {
+// centre returns the mean and the width and height of the border quad of
+// the node, in CSS pixels.
+func (s *cdpSource) centre(ctx context.Context, session string, backend int) (*[4]float64, error) {
 	q, err := s.quad(ctx, session, backend, "border")
 	if err != nil {
 		return nil, err
 	}
-	c := [2]float64{(q[0] + q[2] + q[4] + q[6]) / 4, (q[1] + q[3] + q[5] + q[7]) / 4}
+	c := [4]float64{
+		(q[0] + q[2] + q[4] + q[6]) / 4, (q[1] + q[3] + q[5] + q[7]) / 4,
+		max(q[0], q[2], q[4], q[6]) - min(q[0], q[2], q[4], q[6]),
+		max(q[1], q[3], q[5], q[7]) - min(q[1], q[3], q[5], q[7]),
+	}
 	return &c, nil
 }
 
@@ -380,8 +385,8 @@ func (s *cdpSource) owner(ctx context.Context, target string) (string, int, erro
 // session of the node's target. A node without a box keeps (0,0) and is
 // offscreen. Offscreen is judged against the viewport of the top page and
 // against own's viewport, which clips a node inside an iframe.
-func place(n *Node, c *[2]float64, ox, oy float64, root, own *cdpSession) {
-	n.X, n.Y, n.Offscreen = 0, 0, true
+func place(n *Node, c *[4]float64, ox, oy float64, root, own *cdpSession) {
+	n.X, n.Y, n.W, n.H, n.Offscreen = 0, 0, 0, 0, true
 	if c == nil {
 		return
 	}
@@ -391,6 +396,7 @@ func place(n *Node, c *[2]float64, ox, oy float64, root, own *cdpSession) {
 	x, y := ox+c[0], oy+c[1]
 	n.X, n.Y = int(math.Round(x*root.dpr+root.chromeX)), int(math.Round(y*root.dpr+root.chromeY))
 	// ponytail: only the node's own frame clips; an iframe nested in a clipped iframe is not checked.
+	n.W, n.H = int(math.Round(c[2]*root.dpr)), int(math.Round(c[3]*root.dpr))
 	n.Offscreen = out(x, y, root) || out(c[0], c[1], own)
 }
 
