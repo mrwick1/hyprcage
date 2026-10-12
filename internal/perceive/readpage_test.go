@@ -23,7 +23,7 @@ func scrolledPage() *fakeSource {
 func TestReadPageMergesBelowTheFirstViewport(t *testing.T) {
 	src, tb := scrolledPage(), NewTable()
 	scrolls := 0
-	out, nodes, err := ReadPage(context.Background(), src, tb, ReadOpts{}, func(context.Context) error { scrolls++; return nil })
+	out, nodes, err := ReadPage(context.Background(), src, tb, ReadOpts{}, func(context.Context) error { scrolls++; return nil }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestReadPageMergesBelowTheFirstViewport(t *testing.T) {
 func TestReadPageStopsOnAPageThatDoesNotScroll(t *testing.T) {
 	src := &fakeSource{name: "cdp", reads: [][]Node{{pageNode("a", 10), pageNode("b", 20)}}}
 	scrolls := 0
-	_, nodes, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{}, func(context.Context) error { scrolls++; return nil })
+	_, nodes, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{}, func(context.Context) error { scrolls++; return nil }, nil)
 	if err != nil || len(nodes) != 2 {
 		t.Fatalf("nodes=%d err=%v", len(nodes), err)
 	}
@@ -62,7 +62,7 @@ func TestReadPageStopsOnAPageThatDoesNotScroll(t *testing.T) {
 func TestReadPageStopsAtMaxSteps(t *testing.T) {
 	src := &changing{fakeSource{name: "cdp"}}
 	scrolls := 0
-	_, _, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{MaxSteps: 4}, func(context.Context) error { scrolls++; return nil })
+	_, _, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{MaxSteps: 4}, func(context.Context) error { scrolls++; return nil }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestReadPageStopsAtMaxSteps(t *testing.T) {
 }
 
 func TestReadPageCapsNodes(t *testing.T) {
-	out, nodes, err := ReadPage(context.Background(), scrolledPage(), NewTable(), ReadOpts{MaxNodes: 4}, func(context.Context) error { return nil })
+	out, nodes, err := ReadPage(context.Background(), scrolledPage(), NewTable(), ReadOpts{MaxNodes: 4}, func(context.Context) error { return nil }, nil)
 	if err != nil || len(nodes) != 4 || !strings.Contains(out, "truncated=true") {
 		t.Errorf("nodes=%d err=%v out=%q", len(nodes), err, out)
 	}
@@ -80,7 +80,40 @@ func TestReadPageCapsNodes(t *testing.T) {
 
 func TestReadPageRefusesOCR(t *testing.T) {
 	src := &fakeSource{name: "ocr", reads: [][]Node{{pageNode("ocr:1", 1)}}}
-	if _, _, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{}, func(context.Context) error { return nil }); err == nil {
+	if _, _, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{}, func(context.Context) error { return nil }, nil); err == nil {
 		t.Error("ocr keys are per snapshot: want an error")
+	}
+}
+
+// pagedSource shows three links per viewport and starts at viewport 2.
+type pagedSource struct {
+	fakeSource
+	pos int
+}
+
+var pagedLinks = []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"}
+
+func (p *pagedSource) Nodes(context.Context) ([]Node, error) {
+	var out []Node
+	for i, k := range pagedLinks[p.pos*3 : p.pos*3+3] {
+		out = append(out, pageNode(k, 10*(i+1)))
+	}
+	return out, nil
+}
+
+func TestReadPageScrollsToTheTopFirst(t *testing.T) {
+	src := &pagedSource{fakeSource: fakeSource{name: "cdp"}, pos: 2}
+	down := func(context.Context) error { src.pos = min(src.pos+1, 2); return nil }
+	up := func(context.Context) error { src.pos = max(src.pos-1, 0); return nil }
+	_, nodes, err := ReadPage(context.Background(), src, NewTable(), ReadOpts{}, down, up)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for _, n := range nodes {
+		keys = append(keys, n.Key)
+	}
+	if got := strings.Join(keys, ""); got != "abcdefghi" {
+		t.Errorf("keys = %q, want abcdefghi", got)
 	}
 }

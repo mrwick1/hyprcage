@@ -367,18 +367,21 @@ func (s *Server) readPage(in readPageIn) (*mcp.CallToolResult, error) {
 	}
 	defer src.Close()
 	// Scroll with the pointer in the middle of the screen, a full step per read.
-	scrollDown := func(ctx context.Context) error {
-		if err := screen.ScrollAt(cl, rec.Width/2, rec.Height/2, "down", 10); err != nil {
-			return err
-		}
-		select {
-		case <-time.After(readPageSettle):
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
+	// The read starts at the top, so a page that is scrolled down still returns all nodes.
+	scroll := func(dir string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			if err := screen.ScrollAt(cl, rec.Width/2, rec.Height/2, dir, 10); err != nil {
+				return err
+			}
+			select {
+			case <-time.After(readPageSettle):
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
-	out, _, err := perceive.ReadPage(ctx, src, t, perceive.ReadOpts{Mode: m, MaxNodes: in.MaxNodes, MaxSteps: in.MaxSteps}, scrollDown)
+	out, _, err := perceive.ReadPage(ctx, src, t, perceive.ReadOpts{Mode: m, MaxNodes: in.MaxNodes, MaxSteps: in.MaxSteps}, scroll("down"), scroll("up"))
 	if err != nil {
 		return nil, err
 	}

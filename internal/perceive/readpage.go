@@ -15,12 +15,14 @@ type ReadOpts struct {
 	MaxSteps int // snapshots to take at most, 0 means 30
 }
 
-// ReadPage takes a snapshot, scrolls one step with scroll and repeats until
+// ReadPage first scrolls to the top with up, until two snapshots in a row
+// render the same or MaxSteps snapshots are taken. A nil up skips this.
+// Then it takes a snapshot, scrolls one step with scroll and repeats until
 // two snapshots in a row render the same or MaxSteps snapshots are taken.
 // It returns the nodes of all snapshots, each Key once, in the order first
 // seen, with refs assigned. OCR keys name the position in one snapshot, so
 // OCR cannot be merged and ReadPage refuses it.
-func ReadPage(ctx context.Context, src Source, t *Table, o ReadOpts, scroll func(context.Context) error) (string, []Node, error) {
+func ReadPage(ctx context.Context, src Source, t *Table, o ReadOpts, scroll, up func(context.Context) error) (string, []Node, error) {
 	if src.Name() == "ocr" {
 		return "", nil, screen.Errf(screen.CodeNoSource, "launch the app with debug=true", "read_page cannot merge OCR snapshots")
 	}
@@ -31,6 +33,22 @@ func ReadPage(ctx context.Context, src Source, t *Table, o ReadOpts, scroll func
 	limit := o.MaxNodes
 	if limit <= 0 {
 		limit = 1000
+	}
+	if up != nil {
+		prev := ""
+		for i := 0; i < steps; i++ {
+			out, _, err := Snapshot(ctx, src, t, SnapOpts{Mode: o.Mode, MaxNodes: 1 << 30})
+			if err != nil {
+				return "", nil, err
+			}
+			if out == prev {
+				break
+			}
+			prev = out
+			if err := up(ctx); err != nil {
+				return "", nil, err
+			}
+		}
 	}
 	var merged []Node
 	seen := map[string]bool{}
