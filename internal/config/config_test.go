@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +12,7 @@ import (
 
 func TestLoadFileMissingGivesDefaults(t *testing.T) {
 	cfg, err := LoadFile(filepath.Join(t.TempDir(), "none.toml"))
-	if err != nil || cfg.Loaded || cfg != func() Config { d := Default(); d.Path = cfg.Path; return d }() {
+	if err != nil || cfg.Loaded || !reflect.DeepEqual(cfg, func() Config { d := Default(); d.Path = cfg.Path; return d }()) {
 		t.Fatalf("missing file: err=%v loaded=%v", err, cfg.Loaded)
 	}
 }
@@ -61,7 +63,7 @@ renderer = "Pixman"
 	want.Renderer = "pixman"
 	want.MirrorGroup = "screen"
 	want.MirrorPerWorkspace = 2
-	if cfg != want {
+	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("got  %+v\nwant %+v", cfg, want)
 	}
 }
@@ -113,7 +115,7 @@ func TestTemplateIsTheDefaults(t *testing.T) {
 	if err := Apply(&cfg, Template); err != nil {
 		t.Fatal(err)
 	}
-	if cfg != Default() {
+	if !reflect.DeepEqual(cfg, Default()) {
 		t.Errorf("the template changes a default:\ngot  %+v\nwant %+v", cfg, Default())
 	}
 }
@@ -177,5 +179,52 @@ func TestVerifyDefaultAndOverride(t *testing.T) {
 	cfg := Default()
 	if err := Apply(&cfg, "[verify]\nenabled = false\n"); err != nil || cfg.Verify {
 		t.Fatalf("verify.enabled = false: err %v, verify %v", err, cfg.Verify)
+	}
+}
+
+func TestGuardDefaults(t *testing.T) {
+	g := Default().Guard
+	if g.Enabled != "desktop" || len(g.Apps) != 0 {
+		t.Errorf("enabled=%q apps=%v", g.Enabled, g.Apps)
+	}
+	for _, k := range []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"} {
+		if !slices.Contains(g.Keywords, k) {
+			t.Errorf("keyword %q missing from %v", k, g.Keywords)
+		}
+	}
+	if want := []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"}; !slices.Equal(g.Combos, want) {
+		t.Errorf("combos = %v, want %v", g.Combos, want)
+	}
+}
+
+func TestGuardOverrides(t *testing.T) {
+	cfg := Default()
+	err := Apply(&cfg, `
+[guard]
+enabled = "All"
+apps = ["firefox"]
+keywords = ["wipe"]
+combos = ["Ctrl+Shift+Q"]
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Guard{Enabled: "all", Apps: []string{"firefox"}, Keywords: []string{"wipe"}, Combos: []string{"Ctrl+Shift+Q"}}
+	if !reflect.DeepEqual(cfg.Guard, want) {
+		t.Errorf("got %+v, want %+v", cfg.Guard, want)
+	}
+}
+
+func TestGuardRejects(t *testing.T) {
+	for text, want := range map[string]string{
+		"[guard]\nenabled = \"sometimes\"": "not desktop, all or off",
+		"[guard]\ncombos = [\"\"]":         "empty",
+		"[guard]\nkeywords = [\" \"]":      "empty",
+		"[guard]\nmode = 1":                "unknown key",
+	} {
+		cfg := Default()
+		if err := Apply(&cfg, text); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: got %v, want %q", text, err, want)
+		}
 	}
 }
