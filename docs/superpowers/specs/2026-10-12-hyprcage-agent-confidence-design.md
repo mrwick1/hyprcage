@@ -43,13 +43,13 @@ The ideas come from a review of `88plug/screen-mcp` (2026-10-12). The review rea
 Package `internal/perceive/diff.go`. It has no tool surface.
 
 - Input: two `*image.RGBA` frames.
-- Output: `Diff{Ratio float64, BBox image.Rectangle}`. `Ratio` is the fraction of changed pixels.
+- Output: `FrameDiff{Ratio float64, BBox image.Rectangle}`. `Ratio` is the fraction of changed pixels.
 - Reuse the pixel-compare and threshold code of the recorder. Move the shared function to one place. Do not copy it.
-- Ignore the mouse pointer and a one-pixel blink area. A blinking caret must not count as a change.
+- Ignore the mouse pointer and a one-pixel blink area. A blinking caret must not count as a change. The 1-px rule drops a change whose bounding box is 1 px or less in width or height.
 
 ## Part 2: verify and the sense hint
 
-Every action tool accepts `verify` (default true).
+Every action tool accepts `verify` (default true). The config key `[verify] enabled` (default true) turns verify off for all calls.
 
 The action captures a frame before it runs and a frame after the settle delay. The result gains one line:
 
@@ -75,7 +75,7 @@ New tool `watch`: `screen`, `seconds` (default 5, max 30), `fps` (default 1, max
 - Verdict `stable`: no frame changes after the first.
 - Verdict `jitter`: the changed ratio stays above the noise floor for more than half of the frames.
 - Verdict `frozen`: the screen never changes, and the caller passed `expect_change: true`.
-- The result lists the verdict, the number of frames and the per-frame ratios.
+- The result lists the verdict, the number of frames and the per-frame ratios. `watch` refuses `desktop`.
 - With `path`, the tool writes each frame as a PNG and lists the file names. Without `path`, it returns three thumbnails: first, middle and last.
 
 ## Part 4: ack guard
@@ -94,10 +94,10 @@ A blocked action returns the error code `ack_required` and the reason. The agent
 
 ## Part 5: read tools and audit log
 
-- `read_selection`: copies the selection of the focused window and returns the text. It restores the previous clipboard of that screen.
+- `read_selection`: copies the selection of the focused window and returns the text. It restores the previous clipboard of that screen. It returns an empty string when nothing is selected. It refuses `desktop`.
 - `tour`: takes a list of actions. After each action it captures a thumbnail with a label. It returns the thumbnails.
-- `read_page`: scrolls a view from top to bottom, takes a snapshot at each step and returns the merged list of nodes without duplicates. It stops when two snapshots are equal.
-- Audit log: `~/.local/state/hyprcage/actions.jsonl`, one JSON line per action: time, screen, tool, arguments without text content, verdict, `ack`. Typed text is never logged.
+- `read_page`: scrolls a view from top to bottom, takes a snapshot at each step and returns the merged list of nodes without duplicates. It stops when two snapshots are equal. It accepts `max_steps` and `max_nodes`. It refuses `desktop` and `source: ocr`.
+- Audit log: `~/.local/state/hyprcage/actions.jsonl`, one JSON line per tool call (every tool, not only actions): time, screen, tool, arguments without text content, verdict, `ack`. Typed text is never logged.
 
 ## Delivery
 
