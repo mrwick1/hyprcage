@@ -37,7 +37,7 @@ type actIn struct {
 	Direction       string   `json:"direction,omitempty"`
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window of the snapshot that gave the ref"`
-	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it (agent screens only), see the tool description"`
+	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
 }
 
 type findIn struct {
@@ -268,11 +268,17 @@ func (s *Server) desktopAct(ctx context.Context, in actIn, op perceive.ActOp) (*
 		return nil, err
 	}
 	defer src.Close()
+	var pts []image.Point
+	if n, ok := t.Lookup(in.Ref); ok && in.Op != "key" {
+		pts = append(pts, image.Pt(n.X, n.Y))
+	}
+	v := s.startDesktopVerify(in.Verify, conn, in.Window, pts...)
 	out, err := perceive.DesktopAct(ctx, desktop.Pointer{C: conn, D: d.D}, d, target.Windows, src, t, op)
 	if err != nil {
 		return nil, err
 	}
 	res := plain(out)
+	noteVerdict(res, v.finish(verifySettle))
 	if in.ScreenshotAfter {
 		shot, err := s.desktopShot(in.Window, 150, "", screen.ShotOptions{MaxSide: s.cfg.ShotMaxSide, MaxBytes: s.cfg.ShotMaxBytes})
 		if err != nil {

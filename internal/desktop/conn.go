@@ -102,6 +102,22 @@ func handle(addr string) (uint32, error) {
 	return uint32(v), nil
 }
 
+// Frame captures the desktop output, or the window addr on any workspace, as
+// pixels, without any scaling.
+func (c *Conn) Frame(addr string, cursor bool) (*image.RGBA, error) {
+	if addr == "" {
+		return c.CL.Capture(cursor)
+	}
+	if err := CheckAddress(addr); err != nil {
+		return nil, err
+	}
+	h, err := handle(addr)
+	if err != nil {
+		return nil, err
+	}
+	return c.CL.CaptureToplevel(h, cursor)
+}
+
 // Shot captures the desktop output, or the window addr on any workspace, and
 // places the capture in the global logical layout.
 func (c *Conn) Shot(addr string, o screen.ShotOptions) (*screen.ShotResult, error) {
