@@ -56,13 +56,13 @@ func (s *Server) watch(in watchIn) (*mcp.CallToolResult, error) {
 	out := map[string]any{"screen": rec.Name, "verdict": res.Verdict, "frames": len(res.Frames), "ratios": res.Ratios}
 	var images []mcp.Content
 	if in.Path != "" {
-		if err := os.MkdirAll(in.Path, 0o755); err != nil {
+		if err := os.MkdirAll(in.Path, 0o700); err != nil {
 			return nil, err
 		}
 		files := []string{}
 		for i, f := range res.Frames {
 			name := filepath.Join(in.Path, fmt.Sprintf("frame-%03d.png", i))
-			w, err := os.Create(name)
+			w, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 			if err != nil {
 				return nil, err
 			}
