@@ -166,21 +166,48 @@ func resizeBox(src *image.RGBA, dw, dh int) *image.RGBA {
 // more than a small tolerance between two equally sized images. A global
 // mean would miss one new line in a terminal; counting pixels does not.
 func ChangedPercent(a, b *image.RGBA) float64 {
-	if len(a.Pix) != len(b.Pix) || len(a.Pix) == 0 {
+	n, _, ok := DiffPixels(a, b)
+	if !ok {
 		return 100
 	}
+	return 100 * float64(n) / float64(len(a.Pix)/4)
+}
+
+// DiffPixels counts the pixels whose colour moved by more than a small
+// tolerance between two equally sized images, and returns their bounding box.
+// Pixels inside a skip rectangle never count. ok is false when the images
+// differ in size or hold no pixels. It is the one pixel compare that the
+// recorder, WaitStable and perceive.Compare share.
+func DiffPixels(a, b *image.RGBA, skip ...image.Rectangle) (changed int, bbox image.Rectangle, ok bool) {
+	if len(a.Pix) != len(b.Pix) || len(a.Pix) == 0 || a.Rect.Size() != b.Rect.Size() {
+		return 0, image.Rectangle{}, false
+	}
 	const tolerance = 12
-	changed := 0
+	w, r := a.Rect.Dx(), a.Rect
 	for i := 0; i < len(a.Pix); i += 4 {
 		for k := 0; k < 3; k++ {
 			d := int(a.Pix[i+k]) - int(b.Pix[i+k])
 			if d > tolerance || d < -tolerance {
+				p := image.Pt(r.Min.X+(i/4)%w, r.Min.Y+(i/4)/w)
+				if inAny(skip, p) {
+					break
+				}
 				changed++
+				bbox = bbox.Union(image.Rectangle{Min: p, Max: p.Add(image.Pt(1, 1))})
 				break
 			}
 		}
 	}
-	return 100 * float64(changed) / float64(len(a.Pix)/4)
+	return changed, bbox, true
+}
+
+func inAny(rs []image.Rectangle, p image.Point) bool {
+	for _, r := range rs {
+		if p.In(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // WaitStable returns once the screen, sampled at 10 Hz without the cursor
