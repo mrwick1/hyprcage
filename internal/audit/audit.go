@@ -9,9 +9,12 @@ package audit
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -35,6 +38,9 @@ func WithVerdict(v any) Option { return func(e *Entry) { e.Verdict = v } }
 
 // secret names the arguments that can hold typed or pasted text. Record
 // removes them at any depth, for example inside the actions of a batch.
+// Other arguments that can hold a secret are reduced by scrub: env to its
+// names, command to its program, url to scheme, host and path, and a
+// single-character key to a placeholder.
 var secret = map[string]bool{"text": true, "expression": true, "value": true, "data": true}
 
 // Path returns the log file.
@@ -102,11 +108,52 @@ func redact(v any) {
 				delete(t, k)
 				continue
 			}
-			redact(x)
+			t[k] = scrub(k, x)
+			redact(t[k])
 		}
 	case []any:
 		for _, x := range t {
 			redact(x)
 		}
 	}
+}
+
+// scrub reduces the value of an argument that can hold a secret.
+func scrub(k string, v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		if k == "env" {
+			names := make([]string, 0, len(x))
+			for n := range x {
+				names = append(names, n)
+			}
+			sort.Strings(names)
+			return names
+		}
+	case []any:
+		switch k {
+		case "command":
+			if len(x) > 1 {
+				return x[:1]
+			}
+		case "keys":
+			out := make([]any, len(x))
+			for i, e := range x {
+				out[i] = e
+				if s, ok := e.(string); ok && utf8.RuneCountInString(s) == 1 {
+					out[i] = "<char>"
+				}
+			}
+			return out
+		}
+	case string:
+		if k == "url" || k == "url_contains" {
+			u, err := url.Parse(x)
+			if err != nil || u.Host == "" {
+				return "<redacted>"
+			}
+			return u.Scheme + "://" + u.Host + u.Path
+		}
+	}
+	return v
 }
