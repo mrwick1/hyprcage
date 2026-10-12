@@ -29,6 +29,7 @@ type Node struct {
 	Level     int
 	States    []string // subset of: focused checked expanded selected disabled required invalid readonly
 	X, Y      int      // centre, screen pixels
+	W, H      int      // size of the box, screen pixels, 0 when unknown
 	Offscreen bool
 	// ActionOnly means X and Y are not reliable (an AT-SPI popup menu item
 	// has coordinates relative to its popup): act uses the accessibility action.

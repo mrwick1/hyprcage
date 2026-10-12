@@ -133,3 +133,20 @@ func TestNodeAt(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeAtPrefersTheBoxUnderThePoint(t *testing.T) {
+	tb := NewTable()
+	tb.Assign([]Node{
+		{Key: "a", Name: "Delete", X: 200, Y: 100, W: 200, H: 40}, // wide, spans x 100..300
+		{Key: "b", Name: "Save", X: 120, Y: 100, W: 20, H: 20},    // the smaller box that contains (125,100)
+		{Key: "c", Name: "Close", X: 140, Y: 100, W: 10, H: 20},   // nearer by centre to (131,100), does not contain it
+	})
+	// (131,100): Close centre is 9 away, Delete box contains the point, Save box (110..130) does not.
+	if n, ok := tb.NodeAt(131, 100, 30); !ok || n.Name != "Delete" {
+		t.Errorf("NodeAt(131,100) = %q,%v, want Delete (the box under the pointer)", n.Name, ok)
+	}
+	// Two boxes contain (125,100): the smaller one wins.
+	if n, ok := tb.NodeAt(125, 100, 30); !ok || n.Name != "Save" {
+		t.Errorf("NodeAt(125,100) = %q,%v, want Save (smallest box)", n.Name, ok)
+	}
+}

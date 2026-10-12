@@ -139,21 +139,33 @@ func ReResolve(old Node, fresh []Node) (Node, error) {
 		"%s %q matches %d nodes, want 1", old.Role, old.Name, len(found))
 }
 
-// NodeAt returns the named node of the last snapshot whose centre is nearest
-// to (x, y) and within radius pixels. Offscreen nodes and action-only nodes,
-// whose coordinates are not reliable, never match.
+// NodeAt returns the named node of the last snapshot for a point (x, y).
+// A node whose box contains the point wins, the smallest box first. With no
+// such node, the node whose centre is nearest and within radius pixels
+// wins. Offscreen nodes and action-only nodes, whose coordinates are not
+// reliable, never match.
 func (t *Table) NodeAt(x, y, radius int) (Node, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	var best Node
-	found, bestD := false, radius*radius+1
+	var inside, near Node
+	foundIn, foundNear := false, false
+	bestArea, bestD := 0, radius*radius+1
 	for _, n := range t.last {
 		if n.Name == "" || n.Offscreen || n.ActionOnly {
 			continue
 		}
+		if n.W > 0 && n.H > 0 && max(x-n.X, n.X-x)*2 <= n.W && max(y-n.Y, n.Y-y)*2 <= n.H {
+			if a := n.W * n.H; !foundIn || a < bestArea {
+				inside, foundIn, bestArea = n, true, a
+			}
+			continue
+		}
 		if d := (n.X-x)*(n.X-x) + (n.Y-y)*(n.Y-y); d < bestD {
-			best, found, bestD = n, true, d
+			near, foundNear, bestD = n, true, d
 		}
 	}
-	return best, found
+	if foundIn {
+		return inside, true
+	}
+	return near, foundNear
 }
