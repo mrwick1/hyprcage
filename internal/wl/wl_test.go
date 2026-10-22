@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"strings"
 	"sync"
@@ -62,6 +63,8 @@ type fakeServer struct {
 	askedH     int32
 	askedScale int32
 	refuseMode bool
+
+	damage []uint32 // x, y, width, height sent before a frame's flags, when set
 
 	stopped chan struct{}
 }
@@ -241,6 +244,9 @@ func (s *fakeServer) handle(id uint32, op int, body []byte, fds *[]int) {
 		if _, err := syscall.Pwrite(fd, s.pixels, int64(info.offset)); err != nil {
 			s.t.Errorf("fake: writing pixels: %v", err)
 			return
+		}
+		if s.damage != nil {
+			s.event(id, iface, "damage", s.damage[0], s.damage[1], s.damage[2], s.damage[3])
 		}
 		s.event(id, iface, "flags", uint32(frameFlagYInvert))
 		s.event(id, iface, "ready", uint32(0), uint32(0), uint32(0))
@@ -770,6 +776,41 @@ func TestCapture(t *testing.T) {
 	}
 	for _, want := range []string{"wl_shm.create_pool", "wl_shm_pool.create_buffer", "zwlr_screencopy_frame_v1.copy"} {
 		onlyRequest(t, s.log(), want)
+	}
+}
+
+func TestStartFrameDamage(t *testing.T) {
+	c, s := startFake(t, fullGlobals())
+	s.damage = []uint32{3, 1, 1, 1}
+	pool, err := NewShmPool(s.stride * s.height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	pid, err := c.ImportPool(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got *Frame
+	announce := func(f *Frame) uint32 {
+		return c.CreateBuffer(pid, 0, int(f.Width), int(f.Height), int(f.Stride), f.Format, nil)
+	}
+	done := func(f *Frame, err error) {
+		if err != nil {
+			t.Errorf("frame failed: %v", err)
+		}
+		got = f
+	}
+	if err := c.StartFrame(FrameOptions{}, announce, done); err != nil {
+		t.Fatal(err)
+	}
+	for got == nil {
+		if err := c.DispatchPending(); err != nil {
+			t.Fatalf("DispatchPending: %v", err)
+		}
+	}
+	if want := image.Rect(3, 1, 4, 2); got.Damage != want {
+		t.Errorf("Damage = %v, want %v", got.Damage, want)
 	}
 }
 

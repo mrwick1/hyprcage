@@ -56,8 +56,8 @@ func (c *Client) StartFrame(opts FrameOptions, announce func(f *Frame) uint32, d
 		case evtZwlrScreencopyFrameV1Flags:
 			f.Flags = args[0].(uint32)
 		case evtZwlrScreencopyFrameV1Damage:
-			r := image.Rect(int(args[0].(uint32)), int(args[1].(uint32)), 0, 0)
-			r.Max = r.Min.Add(image.Pt(int(args[2].(uint32)), int(args[3].(uint32))))
+			x, y := int(args[0].(uint32)), int(args[1].(uint32))
+			r := image.Rect(x, y, x+int(args[2].(uint32)), y+int(args[3].(uint32)))
 			f.Damage = f.Damage.Union(r)
 		case evtZwlrScreencopyFrameV1Ready:
 			c.destroyObject(f.id, reqZwlrScreencopyFrameV1Destroy)
