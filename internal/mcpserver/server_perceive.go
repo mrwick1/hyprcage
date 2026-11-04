@@ -63,7 +63,7 @@ func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "snapshot", "List the elements of a screen as text with refs and screen coordinates. Read this before a screenshot: it costs a fraction of the tokens.", s.snapshot)
 	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text. Verify: "+verifyDoc, s.act)
 	tool(s, srv, "read_page", "Scroll an agent screen from the top to the bottom, snapshot at each step, and return every element once, in page order. Use it for a page longer than one viewport. It leaves the page scrolled to the bottom.", s.readPage)
-	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Use it instead of wait plus screenshot.", s.find)
+	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Controls, landmarks and headings match first; when none match, page text (a status line, a paragraph) matches too. Use it instead of wait plus screenshot.", s.find)
 }
 
 // tableKey names one screen instance: a reused screen name never inherits

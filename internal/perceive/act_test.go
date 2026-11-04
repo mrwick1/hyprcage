@@ -608,6 +608,29 @@ func TestFindKeepsRefsAndFiltersRole(t *testing.T) {
 	}
 }
 
+func TestFindStaticText(t *testing.T) {
+	nodes := []Node{
+		button("k1", "Submit", 1, 1),
+		{Key: "k2", Role: "StaticText", Name: "Submit"},
+		{Key: "k3", Role: "status"},
+		{Key: "k4", Parent: "k3", Role: "StaticText", Name: "Welcome, Tuf Tester!"},
+	}
+	src := &fakeSource{name: "cdp", reads: [][]Node{nodes}}
+	tb := NewTable()
+	got, err := Find(context.Background(), src, tb, regexp.MustCompile("Welcome"), "", 0)
+	if err != nil || len(got) != 1 || got[0].Key != "k4" || got[0].Ref == "" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if _, ok := tb.Lookup(got[0].Ref); !ok {
+		t.Fatal("the text match has no current ref")
+	}
+	// An interactive match wins: the button's own label text is not returned.
+	got, err = Find(context.Background(), src, tb, regexp.MustCompile("Submit"), "", 0)
+	if err != nil || len(got) != 1 || got[0].Key != "k1" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
 func TestFindTimeout(t *testing.T) {
 	fastTiming(t)
 	src := &fakeSource{name: "cdp", reads: [][]Node{{button("k1", "A", 1, 1)}}}

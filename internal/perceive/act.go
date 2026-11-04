@@ -378,6 +378,7 @@ func isStale(err error) bool {
 }
 
 // Find returns the nodes whose name or value matches re (and role, when set).
+// It searches the interactive nodes first, then every node, page text included.
 // With timeout > 0 it polls every 250 ms until a match appears. A timeout
 // returns an empty slice and no error.
 func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role string, timeout time.Duration) ([]Node, error) {
@@ -387,13 +388,24 @@ func Find(ctx context.Context, src Source, t *Table, re *regexp.Regexp, role str
 		if err != nil {
 			return nil, err
 		}
+		hit := func(n Node) bool {
+			return (role == "" || n.Role == role) && (re.MatchString(n.Name) || re.MatchString(n.Value))
+		}
+		// Interactive nodes match first. Only when none match does Find
+		// search every node, so that page text (a status line, a paragraph)
+		// can be found too.
+		all := Filter(nodes, mode(src, ModeInteractive), "")
+		if !slices.ContainsFunc(all, hit) {
+			if full := Filter(nodes, ModeFull, ""); slices.ContainsFunc(full, hit) {
+				all = full
+			}
+		}
 		// Assign the whole read, not only the matches, so that the refs of
 		// the other nodes stay valid.
-		all := Filter(nodes, mode(src, ModeInteractive), "")
 		t.Assign(all)
 		matches := []Node{}
 		for _, n := range all {
-			if (role == "" || n.Role == role) && (re.MatchString(n.Name) || re.MatchString(n.Value)) {
+			if hit(n) {
 				matches = append(matches, n)
 			}
 		}
