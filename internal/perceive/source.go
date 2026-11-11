@@ -63,7 +63,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		if !ownsPort(rec) {
 			return nil, screen.Errf(screen.CodeCDP, foreignPortHint, "the process that opened 127.0.0.1:%d for screen %s no longer listens on it", rec.DebugPort, rec.Name)
 		}
-		return newCDP(ctx, rec.DebugPort)
+		return cdpFor(ctx, rec)
 	case "atspi":
 		return newATSPI(ctx, rec.Name, rec.Width, rec.Height)
 	case "ocr":
@@ -77,7 +77,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 			// another screen's app or the human's Chrome may hold the port now
 			cdpNote = " (CDP: " + foreignPortHint + ")"
 		} else if rec.DebugPort > 0 {
-			src, err := newCDP(ctx, rec.DebugPort)
+			src, err := cdpFor(ctx, rec)
 			if err == nil {
 				return src, nil
 			}
@@ -97,4 +97,14 @@ func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want strin
 		return nil, screen.Errf(screen.CodeNoSource, noSourceHint, "screen %s has no DevTools answer, no AT-SPI application and no OCR data%s", rec.Name, cdpNote)
 	}
 	return nil, fmt.Errorf("unknown source %q (auto, cdp, atspi, ocr)", want)
+}
+
+// cdpFor dials the screen's DevTools port and gives the source the page
+// origin that devtools_emulate recorded.
+func cdpFor(ctx context.Context, rec *registry.Screen) (Source, error) {
+	src, err := newCDP(ctx, rec.DebugPort)
+	if c, ok := src.(*cdpSource); ok {
+		c.emulated = rec.EmulatedOrigin
+	}
+	return src, err
 }

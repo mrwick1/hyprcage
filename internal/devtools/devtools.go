@@ -103,6 +103,10 @@ type Emulation struct {
 	Color     string  `json:"color_scheme,omitempty"`
 }
 
+// Metrics reports whether e overrides the device metrics. The page then
+// reports the emulated screen as its window size.
+func (e Emulation) Metrics() bool { return e.Width != 0 || e.Scale != 0 || e.Mobile }
+
 // networks are the DevTools throttling presets: latency in ms, throughput
 // in bytes per second. Slow 4G is Fast 3G, as in DevTools and Lighthouse.
 var networks = map[string]struct{ latency, down, up float64 }{
@@ -578,6 +582,10 @@ func (s *Session) Viewport(ctx context.Context) (image.Rectangle, error) {
 	if err := json.Unmarshal(r.Result.Value, &v); err != nil {
 		return image.Rectangle{}, screen.Errf(screen.CodeCDP, "", "viewport: %v", err)
 	}
+	if v[2] <= 0 || v[3] <= 0 {
+		// A window that has not laid out the page yet reports 0x0.
+		return image.Rectangle{}, screen.Errf(screen.CodeCDP, "wait for the page to load, then try again", "the page has no size yet")
+	}
 	return image.Rect(v[0], v[1], v[0]+v[2], v[1]+v[3]), nil
 }
 
@@ -623,7 +631,7 @@ func (s *Session) apply(ctx context.Context, sid string, e Emulation) error {
 		params any
 	}
 	metrics := command{"Emulation.clearDeviceMetricsOverride", nil}
-	if e.Width != 0 || e.Scale != 0 || e.Mobile {
+	if e.Metrics() {
 		metrics.method = "Emulation.setDeviceMetricsOverride"
 		metrics.params = map[string]any{"width": e.Width, "height": e.Height, "deviceScaleFactor": e.Scale, "mobile": e.Mobile}
 	}

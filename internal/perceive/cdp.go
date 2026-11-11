@@ -56,6 +56,9 @@ type cdpSource struct {
 	mu       sync.Mutex
 	sessions map[string]*cdpSession // by targetId
 	last     map[string]Node        // by Key, from the last Nodes
+	// emulated is the screen pixel of the page's top-left while
+	// devtools_emulate overrides the device metrics, nil otherwise.
+	emulated *[2]int
 }
 
 // errNoOwner means that no attached session owns the frame of a child target.
@@ -145,6 +148,13 @@ func (s *cdpSource) session(ctx context.Context, target, typ string) (*cdpSessio
 		return nil, err
 	}
 	se.dpr, se.w, se.h = vp.DPR, vp.W, vp.H
+	if o := s.emulated; o != nil && vp.W > 0 {
+		// outer is then the emulated screen, in screen pixels, and dpr the
+		// emulated pixel ratio, which does not enlarge the page on the screen.
+		se.dpr = float64(vp.OW) / float64(vp.W)
+		se.chromeX, se.chromeY = float64(o[0]), float64(o[1])
+		return se, nil
+	}
 	if se.dpr == 0 {
 		se.dpr = 1
 	}
