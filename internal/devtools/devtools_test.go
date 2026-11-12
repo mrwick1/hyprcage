@@ -436,3 +436,24 @@ func TestAttachReleasesAWaitingPage(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestViewportRejectsAnUnlaidPage(t *testing.T) {
+	s, f := newFake()
+	var v []int
+	f.reply = func(method string, _ any) (any, error) {
+		if method != "Runtime.evaluate" {
+			return nil, nil
+		}
+		return map[string]any{"result": map[string]any{"type": "object", "value": v}}, nil
+	}
+	attach(s, "S1", "T1", "https://a.test/")
+	v = []int{0, 87, 1280, 713}
+	if r, err := s.Viewport(context.Background()); err != nil || r.Min.Y != 87 || r.Dy() != 713 {
+		t.Fatalf("laid out: %v %v, want the page at y 87, 713 high", r, err)
+	}
+	// Just after launch the window reports a 0x0 page under the whole outer height.
+	v = []int{0, 800, 0, 0}
+	if _, err := s.Viewport(context.Background()); codeOf(err) != screen.CodeCDP {
+		t.Fatalf("0x0 page: %v, want a CDP error", err)
+	}
+}

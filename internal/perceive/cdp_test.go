@@ -562,6 +562,36 @@ func TestCDPToolbarOffsetZoomed(t *testing.T) {
 	}
 }
 
+func TestCDPEmulatedDevice(t *testing.T) {
+	at := func(viewport string) Node {
+		t.Helper()
+		f := &fakeCaller{
+			targets: `[{"targetId":"P","type":"page"}]`,
+			trees: map[string]json.RawMessage{"S-P": json.RawMessage(`{"nodes":[
+				{"nodeId":"2","role":{"value":"button"},"name":{"value":"B"},"backendDOMNodeId":2}]}`)},
+			boxes:    map[string]map[string]json.RawMessage{"S-P": {"2": json.RawMessage(`{"model":{"border":[10,10,60,10,60,60,10,60]}}`)}},
+			viewport: viewport,
+		}
+		src := newCDPWith(f, cdpTargetTypes).(*cdpSource)
+		src.emulated = &[2]int{0, 87} // the page origin before devtools_emulate
+		nodes, err := src.Nodes(context.Background())
+		if err != nil || len(nodes) != 1 {
+			t.Fatalf("Nodes = %+v, %v", nodes, err)
+		}
+		return nodes[0]
+	}
+	// A 390x660 phone at pixel ratio 3: outer is the emulated screen, and
+	// the emulated pixel ratio does not enlarge the page on the screen.
+	if n := at(`{"dpr":3,"w":390,"h":660,"ow":390,"oh":660}`); n.X != 35 || n.Y != 122 || n.W != 50 || n.Offscreen {
+		t.Fatalf("phone page: %+v, want (35,122) 50 wide", n)
+	}
+	// The same phone on a page without a meta viewport: 980 CSS pixels
+	// shrink to the 390 of the screen.
+	if n := at(`{"dpr":3,"w":980,"h":1659,"ow":390,"oh":660}`); n.X != 14 || n.Y != 101 || n.W != 20 || n.Offscreen {
+		t.Fatalf("zoomed-out phone page: %+v, want (14,101) 20 wide", n)
+	}
+}
+
 func TestCDPActHitTest(t *testing.T) {
 	fastTiming(t)
 	run := func(f *fakeCaller) ([]string, error) {

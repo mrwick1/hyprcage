@@ -102,7 +102,20 @@ func (s *Server) devtoolsEmulate(in emulateIn) (*mcp.CallToolResult, error) {
 	}
 	e := devtools.Emulation{Width: in.Width, Height: in.Height, Scale: in.Scale, Mobile: in.Mobile, Touch: in.Touch,
 		UserAgent: in.UserAgent, Network: in.Network, CPU: in.CPU, Color: in.Color}
+	// Measure the page origin while the page still reports its real window.
+	if !e.Metrics() {
+		rec.EmulatedOrigin = nil
+	} else if rec.EmulatedOrigin == nil {
+		vp, err := d.Viewport(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rec.EmulatedOrigin = &[2]int{vp.Min.X, vp.Min.Y}
+	}
 	if err := d.Emulate(ctx, e); err != nil {
+		return nil, err
+	}
+	if err := registry.Save(rec); err != nil {
 		return nil, err
 	}
 	return textResult(map[string]any{"screen": rec.Name, "emulation": e}), nil

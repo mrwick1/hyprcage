@@ -65,6 +65,10 @@ type Screen struct {
 	// HYPRCAGE_SCREEN.
 	DebugPID      int    `json:"debug_pid,omitempty"`
 	DebugPIDStart uint64 `json:"debug_pid_start,omitempty"`
+	// EmulatedOrigin is the screen pixel of the page's top-left, measured
+	// before devtools_emulate overrode the device metrics; nil without an
+	// override. The page cannot tell it while the override is on.
+	EmulatedOrigin *[2]int `json:"emulated_origin,omitempty"`
 }
 
 // Dir is the registry directory.
