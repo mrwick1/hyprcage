@@ -21,6 +21,8 @@ any other MCP client.
 
 ## Install
 
+Closed-beta testers on Linux: read [docs/beta-linux.md](docs/beta-linux.md).
+
 **Claude Code**
 
 ```
@@ -34,14 +36,14 @@ asks for it through a password dialog the first time it needs a screen.
 **Terminal**
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/offstage/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | bash
 ```
 
 Installs cage, the latest release, and registers offstage with every agent
 found on the machine. Options come after `bash -s --`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/offstage/main/install.sh | bash -s -- --agents codex,cursor
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | bash -s -- --agents codex,cursor
 ```
 
 | Option | Effect |
@@ -55,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/hexadecimil/offstage/main/install.s
 To pin the script itself to a version as well, fetch it from the tag:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/offstage/v0.1.0/install.sh | OFFSTAGE_VERSION=v0.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/v0.1.0/install.sh | OFFSTAGE_VERSION=v0.1.0 bash
 ```
 
 **From source** (Go ≥ 1.24)
