@@ -430,12 +430,19 @@ type batchResult struct {
 
 type handler[In any] func(in In) (*mcp.CallToolResult, error)
 
-// tool wraps a handler: serialised, errors become isError results.
+// tool wraps a handler: serialised, errors become isError results. Before
+// a pointer action or act, it reads the target from the last snapshot for
+// the audit log.
 func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) {
-	unlocked(srv, name, desc, func(in In) (*mcp.CallToolResult, error) {
+	add(srv, name, desc, func(in In) (*mcp.CallToolResult, []audit.Option, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		return h(in)
+		var opts []audit.Option
+		if t := s.targets(name, in); t != nil {
+			opts = append(opts, audit.WithTarget(t))
+		}
+		res, err := h(in)
+		return res, opts, err
 	})
 }
 
@@ -443,18 +450,33 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 // handler that touches no Server state may use it, for example a long wait
 // on a file.
 func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
+	add(srv, name, desc, func(in In) (*mcp.CallToolResult, []audit.Option, error) {
+		res, err := h(in)
+		return res, nil, err
+	})
+}
+
+// recorded, when set, receives each audit line. A replay reads the outcome
+// of its calls from it.
+var recorded func(audit.Entry)
+
+// add registers a handler and writes its audit line with the options it
+// returns.
+func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error)) {
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			res, err := h(in)
+			res, opts, err := h(in)
 			failed := err
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")
 			}
-			var opts []audit.Option
 			if v := takeVerdict(res); v != nil {
 				opts = append(opts, audit.WithVerdict(v))
 			}
-			audit.Record(name, in, failed, opts...)
+			e := audit.Record(name, in, failed, opts...)
+			if recorded != nil {
+				recorded(e)
+			}
 			if err != nil {
 				return nil, nil, err
 			}

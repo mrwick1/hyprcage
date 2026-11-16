@@ -1,9 +1,9 @@
 // Package audit appends one JSON line per tool call to the action log,
 // $XDG_STATE_HOME/offstage/actions.jsonl (default ~/.local/state/offstage).
 //
-// Every line has time and tool. The fields screen, args, error, ack and
-// verdict appear only when set, so a later field never changes the meaning
-// of an older line. Typed text is never logged.
+// Every line has time and tool. The fields screen, args, error, ack, verdict
+// and target appear only when set, so a later field never changes the
+// meaning of an older line. Typed text is never logged: only its length is.
 package audit
 
 import (
@@ -15,7 +15,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	textredact "github.com/hexadecimil/offstage/internal/redact"
 	"github.com/hexadecimil/offstage/internal/screen"
 )
 
@@ -28,6 +30,17 @@ type Entry struct {
 	Error   string         `json:"error,omitempty"`   // error code of a failed action
 	Ack     string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
 	Verdict any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
+	Target  []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
+}
+
+// Target is the element of the last snapshot under a point or a ref of an
+// action. A replay finds it again by role and name. An empty Target means
+// that no element was known there.
+type Target struct {
+	Role string `json:"role,omitempty"`
+	Name string `json:"name,omitempty"`
+	X    int    `json:"x,omitempty"` // centre of the element, screen pixels
+	Y    int    `json:"y,omitempty"`
 }
 
 // Option sets an optional field of an Entry.
@@ -36,11 +49,15 @@ type Option func(*Entry)
 // WithVerdict sets the verdict field.
 func WithVerdict(v any) Option { return func(e *Entry) { e.Verdict = v } }
 
+// WithTarget sets the target field.
+func WithTarget(t []Target) Option { return func(e *Entry) { e.Target = t } }
+
 // secret names the arguments that can hold typed or pasted text. Record
-// removes them at any depth, for example inside the actions of a batch.
-// Other arguments that can hold a secret are reduced by scrub: env to its
-// names, command to its program, url to scheme, host and path, and a
-// single-character key to a placeholder.
+// replaces them at any depth, for example inside the actions of a batch,
+// with <name>_len, the length of the text in characters. Other arguments
+// that can hold a secret are reduced by scrub: env to its names, the
+// arguments of command through redact.Text, url to scheme, host and path,
+// and a single-character key to a placeholder.
 var secret = map[string]bool{"text": true, "expression": true, "value": true, "data": true}
 
 // Path returns the log file.
@@ -53,9 +70,9 @@ func Path() string {
 	return filepath.Join(dir, "offstage", "actions.jsonl")
 }
 
-// Record appends one line for a tool call with input in and result err.
-// It never fails the call: a write error is dropped.
-func Record(tool string, in any, err error, opts ...Option) {
+// Record appends one line for a tool call with input in and result err, and
+// returns the line. It never fails the call: a write error is dropped.
+func Record(tool string, in any, err error, opts ...Option) Entry {
 	e := Entry{Time: time.Now().UTC().Format(time.RFC3339Nano), Tool: tool}
 	if b, jerr := json.Marshal(in); jerr == nil {
 		var args map[string]any
@@ -86,18 +103,19 @@ func Record(tool string, in any, err error, opts ...Option) {
 	}
 	line, jerr := json.Marshal(e)
 	if jerr != nil {
-		return
+		return e
 	}
 	p := Path()
 	if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
-		return
+		return e
 	}
 	f, oerr := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if oerr != nil {
-		return
+		return e
 	}
 	defer f.Close()
 	f.Write(append(line, '\n')) // one write call keeps lines whole across processes
+	return e
 }
 
 func redact(v any) {
@@ -106,6 +124,9 @@ func redact(v any) {
 		for k, x := range t {
 			if secret[k] {
 				delete(t, k)
+				if str, ok := x.(string); ok {
+					t[k+"_len"] = utf8.RuneCountInString(str)
+				}
 				continue
 			}
 			t[k] = scrub(k, x)
@@ -133,9 +154,14 @@ func scrub(k string, v any) any {
 	case []any:
 		switch k {
 		case "command":
-			if len(x) > 1 {
-				return x[:1]
+			out := make([]any, len(x))
+			for i, a := range x {
+				out[i] = a
+				if s, ok := a.(string); ok && i > 0 {
+					out[i] = textredact.Text(s)
+				}
 			}
+			return out
 		case "keys":
 			out := make([]any, len(x))
 			for i, e := range x {

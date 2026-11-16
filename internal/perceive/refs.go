@@ -118,6 +118,17 @@ func (t *Table) Lookup(ref string) (Node, bool) {
 	return n, ok
 }
 
+// Nodes returns the nodes of the last snapshot.
+func (t *Table) Nodes() []Node {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]Node, 0, len(t.last))
+	for _, n := range t.last {
+		out = append(out, n)
+	}
+	return out
+}
+
 // ReResolve looks in fresh for exactly one node with old.Role and old.Name.
 // No match, more than one match, or an unnamed old node gives a stale_ref
 // error, so that act never guesses between look-alike controls.
