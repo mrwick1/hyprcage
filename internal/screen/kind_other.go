@@ -11,3 +11,6 @@ import (
 // pidAlive only tests that pid exists: start times need /proc on Linux and
 // the process times on Windows.
 func pidAlive(pid int, _ uint64) bool { return pid > 0 && proc.Kill(pid, syscall.Signal(0)) == nil }
+
+// groupGone is true: there are no process groups to wait for here.
+func groupGone(int) bool { return true }

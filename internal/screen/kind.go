@@ -42,6 +42,10 @@ func destroyHeadless(rec *registry.Screen) error {
 		// Chrome's group, which the system does not reuse while it has members.
 		proc.KillTree(rec.DebugPID)
 	}
+	// Killed processes still write to the profile until the system reaps them.
+	for deadline := time.Now().Add(3 * time.Second); rec.DebugPID > 0 && !groupGone(rec.DebugPID) && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+	}
 	// Chrome may hold files for a moment after it is killed.
 	for i := 0; i < 20; i++ {
 		removeProfiles(rec.Name)
