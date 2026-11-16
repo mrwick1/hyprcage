@@ -512,7 +512,9 @@ func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolRe
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+			start := time.Now()
 			res, opts, err := safely(name, h, in)
+			opts = append(opts, audit.WithDuration(time.Since(start)))
 			failed := err
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")

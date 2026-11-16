@@ -2,8 +2,8 @@
 // $XDG_STATE_HOME/offstage/actions.jsonl (default ~/.local/state/offstage,
 // %LOCALAPPDATA%\offstage on Windows).
 //
-// Every line has time and tool. The fields screen, args, error, ack, verdict
-// and target appear only when set, so a later field never changes the
+// Every line has time and tool. The fields screen, args, error, ack, verdict,
+// target and ms appear only when set, so a later field never changes the
 // meaning of an older line. Typed text is never logged: only its length is.
 package audit
 
@@ -33,6 +33,7 @@ type Entry struct {
 	Ack     string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
 	Verdict any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
 	Target  []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
+	Ms      int64          `json:"ms,omitempty"`      // how long the call took, in milliseconds
 }
 
 // Target is the element of the last snapshot under a point or a ref of an
@@ -50,6 +51,9 @@ type Option func(*Entry)
 
 // WithVerdict sets the verdict field.
 func WithVerdict(v any) Option { return func(e *Entry) { e.Verdict = v } }
+
+// WithDuration sets the ms field.
+func WithDuration(d time.Duration) Option { return func(e *Entry) { e.Ms = d.Milliseconds() } }
 
 // WithTarget sets the target field.
 func WithTarget(t []Target) Option { return func(e *Entry) { e.Target = t } }

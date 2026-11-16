@@ -11,6 +11,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +24,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -30,6 +32,7 @@ import (
 
 	"github.com/hexadecimil/offstage/internal/audit"
 	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/headless"
 	"github.com/hexadecimil/offstage/internal/redact"
 	"github.com/hexadecimil/offstage/internal/relay"
 	"github.com/hexadecimil/offstage/internal/screen"
@@ -44,6 +47,14 @@ const (
 	maxBody      = 18000 // under the relay's 20000 characters
 	maxLogFiles  = 6
 	recentEvents = 60 // tool calls kept when the report names no screen
+
+	// The files added for a maintainer stay under 256 KiB together:
+	// log.txt 200, timeline.txt 40, the Chrome and config lines of env.txt the rest.
+	maxLogTxt     = 200 << 10
+	maxTimeline   = 40 << 10
+	timelineLines = 200
+	recentLogs    = 300
+	recentWindow  = 10 * time.Minute
 )
 
 // Request is what the caller knows about the problem.
@@ -97,6 +108,12 @@ func Build(r Request) (*Bundle, error) {
 	}
 	for name, data := range Logs(screen.LogDir(), r.Screen) {
 		files["logs/"+name] = data
+	}
+	if log := RecentLog(screen.LogDir(), r.Screen, time.Now()); log != "" {
+		files["log.txt"] = []byte(log)
+	}
+	if tl := Timeline(trace); tl != "" {
+		files["timeline.txt"] = []byte(tl)
 	}
 	for name, data := range r.Extra {
 		files[name] = data
@@ -364,6 +381,68 @@ func Logs(dir, name string) map[string][]byte {
 	return out
 }
 
+// RecentLog returns the state-dir logs that are not tied to one launch: the
+// restore log, and the recording log of the screen. It keeps the last
+// recentLogs lines, or the lines of the last recentWindow when the log is
+// timestamped and that is fewer. A line with no timestamp counts as recent.
+func RecentLog(dir, name string, now time.Time) string {
+	names := []string{"restore.log"}
+	if name != "" {
+		names = append(names, "record-"+name+".log")
+	}
+	var b strings.Builder
+	for _, n := range names {
+		data, err := os.ReadFile(filepath.Join(dir, n))
+		if err != nil {
+			continue
+		}
+		var keep []string
+		for _, l := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+			if ts, _, _ := strings.Cut(l, " "); ts != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ts); err == nil && now.Sub(t) > recentWindow {
+					continue
+				}
+			}
+			keep = append(keep, l)
+		}
+		keep = keep[max(0, len(keep)-recentLogs):]
+		if len(keep) > 0 {
+			fmt.Fprintf(&b, "== %s ==\n%s\n", n, strings.Join(keep, "\n"))
+		}
+	}
+	return tail(b.String(), maxLogTxt)
+}
+
+// tail keeps the last n bytes of s, from the start of a line.
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	s = s[len(s)-n:]
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[i+1:]
+	}
+	return "(cut)\n" + s
+}
+
+// Timeline returns one line per call of the trace: time, tool, duration
+// and result. It keeps the last timelineLines calls.
+func Timeline(trace []audit.Entry) string {
+	var b strings.Builder
+	for _, e := range trace[max(0, len(trace)-timelineLines):] {
+		res := "ok"
+		if e.Error != "" {
+			res = e.Error
+		}
+		ms := "-"
+		if e.Ms > 0 {
+			ms = fmt.Sprintf("%dms", e.Ms)
+		}
+		fmt.Fprintf(&b, "%s %s %s %s\n", e.Time, e.Tool, ms, res)
+	}
+	return tail(b.String(), maxTimeline)
+}
+
 func modTime(p string) time.Time {
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -375,7 +454,19 @@ func modTime(p string) time.Time {
 // Env describes the machine: versions, OS, desktop and the config file.
 func Env() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "offstage %s\n%s/%s\nos: %s\n", version.Version, runtime.GOOS, runtime.GOARCH, osName())
+	fmt.Fprintf(&b, "offstage %s\n%s/%s\nos: %s\ngo: %s\n", version.Version, runtime.GOOS, runtime.GOARCH, osName(), runtime.Version())
+	if p, err := headless.FindChrome(); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		out, err := exec.CommandContext(ctx, p, "--version").Output()
+		cancel()
+		if err == nil {
+			fmt.Fprintf(&b, "chrome: %s\n", firstLine(string(out)))
+		} else {
+			fmt.Fprintf(&b, "chrome: %s (version unreadable: %v)\n", filepath.Base(p), err)
+		}
+	} else {
+		b.WriteString("chrome: not found\n")
+	}
 	if runtime.GOOS == "linux" {
 		if k, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
 			fmt.Fprintf(&b, "kernel: %s", k)
@@ -397,11 +488,33 @@ func Env() string {
 			}
 		}
 	}
-	cfg := config.Fallback()
+	cfg, cerr := config.Load()
+	if cerr != nil {
+		fmt.Fprintf(&b, "\nconfig error: %v\n", cerr)
+		cfg = config.Default()
+		cfg.Path = config.Path()
+	}
+	b.WriteString("\neffective config:\n")
+	b.WriteString(render(reflect.ValueOf(cfg), ""))
 	if data, err := os.ReadFile(cfg.Path); err == nil {
 		fmt.Fprintf(&b, "\nconfig (%s):\n%s", cfg.Path, data)
 	} else {
 		b.WriteString("\nconfig: defaults\n")
+	}
+	return b.String()
+}
+
+// render writes the fields of a struct as key = value lines, nested
+// structs as prefix.key.
+func render(v reflect.Value, prefix string) string {
+	var b strings.Builder
+	for i := 0; i < v.NumField(); i++ {
+		f := v.Type().Field(i)
+		if f.Type.Kind() == reflect.Struct {
+			b.WriteString(render(v.Field(i), prefix+f.Name+"."))
+			continue
+		}
+		fmt.Fprintf(&b, "%s%s = %v\n", prefix, f.Name, v.Field(i).Interface())
 	}
 	return b.String()
 }
