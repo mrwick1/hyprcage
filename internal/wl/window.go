@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"syscall"
 	"time"
 )
 
@@ -336,7 +335,7 @@ func (c *Client) MainDevice() (uint64, error) {
 				dev = binary.LittleEndian.Uint64(b)
 			}
 		case evtZwpLinuxDmabufFeedbackV1FormatTable:
-			syscall.Close(args[0].(int)) // the table is not needed here
+			closeFD(args[0].(int)) // the table is not needed here
 		case evtZwpLinuxDmabufFeedbackV1Done:
 			done = true
 		}
