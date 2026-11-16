@@ -40,6 +40,9 @@ func (s *Server) recordTarget(target string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
+	if err := screen.RefuseHeadless(rec, "recording"); err != nil {
+		return "", false, err
+	}
 	return rec.Name, true, nil
 }
 
