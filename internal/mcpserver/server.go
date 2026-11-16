@@ -570,6 +570,7 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerWatch(srv)
 	s.registerTasks(srv)
 	s.registerConditions(srv)
+	s.registerScreenConditions(srv)
 }
 
 // --- handlers ---------------------------------------------------------------

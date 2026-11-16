@@ -9,6 +9,7 @@ var goos = runtime.GOOS
 // headless Chrome. Every other tool is not registered, so an agent never
 // sees a tool that cannot work.
 var offLinux = map[string]bool{
+	"condition_wait": true, "condition_cursor": true,
 	"screen_create": true, "screen_destroy": true, "screen_list": true, "browser_open": true,
 	"screenshot": true, "click": true, "double_click": true, "type": true, "key": true,
 	"scroll": true, "drag": true, "move": true, "wait": true,

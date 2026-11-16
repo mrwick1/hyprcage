@@ -53,6 +53,8 @@ type Msg struct {
 
 // Req is one network request. It holds no headers and no bodies.
 type Req struct {
+	ID       string  `json:"id,omitempty"`
+	Started  uint64  `json:"started,omitempty"`
 	Method   string  `json:"method"`
 	URL      string  `json:"url"`
 	Status   int     `json:"status,omitempty"`   // 0 until a response arrives
@@ -61,8 +63,9 @@ type Req struct {
 	Duration float64 `json:"duration,omitempty"` // seconds, once the request ends
 	Page     string  `json:"page,omitempty"`     // url of the page that made it
 
-	start float64
-	key   string
+	completed bool
+	start     float64
+	key       string
 }
 
 // Failed reports whether the request got an error status or never completed.
@@ -76,17 +79,22 @@ type Session struct {
 	c    conn
 	port int
 
-	mu      sync.Mutex
-	pages   map[string]target // by session id
-	console []Msg
-	dropped int
-	reqs    []*Req          // oldest first
-	reqByID map[string]*Req // by session id and request id
-	reqDrop int
-	heap    *os.File // sink of the heap snapshot being taken
-	heapErr error
-	traced  chan string // the trace stream handle, once Tracing.end completes
-	emu     Emulation   // applied to every page, and to each new page on attach
+	requestSeq  uint64
+	eventSource string
+	eventSeq    uint64
+	eventLost   uint64
+	events      []NetworkEvent
+	mu          sync.Mutex
+	pages       map[string]target // by session id
+	console     []Msg
+	dropped     int
+	reqs        []*Req          // oldest first
+	reqByID     map[string]*Req // by session id and request id
+	reqDrop     int
+	heap        *os.File // sink of the heap snapshot being taken
+	heapErr     error
+	traced      chan string // the trace stream handle, once Tracing.end completes
+	emu         Emulation   // applied to every page, and to each new page on attach
 }
 
 // Emulation is the device the pages of a screen pretend to be. The zero
@@ -279,6 +287,7 @@ func (s *Session) event(ev cdp.Event) {
 			key := ev.SessionID + " " + p.ID
 			if old := s.reqByID[key]; old != nil && p.Redirect != nil { // a redirect hop reuses the request id
 				old.Status, old.Duration = p.Redirect.Status, p.Time-old.start
+				s.complete(old)
 			}
 			s.track(key, &Req{Method: p.Request.Method, URL: p.Request.URL, Type: p.Type, Page: s.pages[ev.SessionID].url, start: p.Time})
 			s.mu.Unlock()
@@ -321,6 +330,7 @@ func (s *Session) event(ev cdp.Event) {
 					r.Type = p.Type
 				}
 				r.Duration = p.Time - r.start
+				s.complete(r)
 			})
 		}
 	case "Network.loadingFinished":
@@ -329,7 +339,7 @@ func (s *Session) event(ev cdp.Event) {
 			Time float64 `json:"timestamp"`
 		}
 		if json.Unmarshal(ev.Params, &p) == nil {
-			s.update(ev.SessionID, p.ID, func(r *Req) { r.Duration = p.Time - r.start })
+			s.update(ev.SessionID, p.ID, func(r *Req) { r.Duration = p.Time - r.start; s.complete(r) })
 		}
 	case "HeapProfiler.addHeapSnapshotChunk":
 		var p struct {
@@ -376,11 +386,17 @@ func (s *Session) track(key string, r *Req) {
 	}
 	if len(s.reqs) >= MaxNetwork {
 		if old := s.reqs[0]; s.reqByID[old.key] == old {
+			if !old.completed {
+				s.eventLost++
+			}
 			delete(s.reqByID, old.key)
 		}
 		s.reqs = s.reqs[1:]
 		s.reqDrop++
 	}
+	s.requestSeq++
+	r.Started = s.requestSeq
+	r.ID = key
 	r.key = key
 	s.reqs = append(s.reqs, r)
 	s.reqByID[key] = r
@@ -412,6 +428,11 @@ func (s *Session) Network(failedOnly bool, contains string, clear bool) ([]Req, 
 	}
 	dropped := s.reqDrop
 	if clear {
+		for _, r := range s.reqs {
+			if !r.completed {
+				s.eventLost++
+			}
+		}
 		s.reqs, s.reqByID, s.reqDrop = nil, nil, 0
 	}
 	return out, dropped

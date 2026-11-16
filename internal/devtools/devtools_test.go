@@ -188,9 +188,6 @@ func TestNetworkEnabledOnAttachAndDropsOldestPastTheCap(t *testing.T) {
 
 func TestNavigateEnablesDomainsBeforeLoading(t *testing.T) {
 	s, f := newFake()
-	// A restored profile leaves tabs besides the initial about:blank.
-	attach(s, "S1", "T1", "about:blank")
-	attach(s, "S2", "T2", "https://old.test/")
 	f.reply = func(method string, _ any) (any, error) {
 		if method == "Target.createTarget" {
 			attach(s, "S3", "T3", "about:blank")
@@ -198,6 +195,9 @@ func TestNavigateEnablesDomainsBeforeLoading(t *testing.T) {
 		}
 		return nil, nil
 	}
+	// Configure the fake before attach starts asynchronous calls.
+	attach(s, "S1", "T1", "about:blank")
+	attach(s, "S2", "T2", "https://old.test/")
 	if err := s.Navigate(context.Background(), "https://a.test/"); err != nil {
 		t.Fatal(err)
 	}

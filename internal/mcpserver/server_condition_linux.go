@@ -100,3 +100,32 @@ func (s *Server) taskWait(ctx context.Context, in taskWaitIn) (*mcp.CallToolResu
 	result.ElapsedMs = time.Since(start).Milliseconds()
 	return textResult(result), nil
 }
+
+func observeProcessCondition(ctx context.Context, p predicate) condition.Observation {
+	sample, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	t, err := task.InspectContext(sample, p.TaskID, session.Current().Owner())
+	if err != nil {
+		return condition.Observation{Status: "unsupported", Evidence: map[string]string{"reason": "process task unavailable"}}
+	}
+	for _, r := range t.Resources {
+		if r.ID == p.ResourceID && r.Kind == "process" {
+			evidence := map[string]any{"task_state": t.State, "resource": r}
+			if t.State != "active" || r.State == "closed" {
+				return condition.Observation{Status: "unsupported", Evidence: evidence}
+			}
+			if r.ExitCode != nil {
+				status := "pending"
+				if p.ExitCode == nil || *p.ExitCode == *r.ExitCode {
+					status = "satisfied"
+				}
+				return condition.Observation{Status: status, Evidence: evidence}
+			}
+			if r.State == "active" || r.State == "starting" || r.State == "activating" || (r.State == "missing" && r.LogState == "collecting") {
+				return condition.Observation{Status: "pending", Evidence: evidence}
+			}
+			return condition.Observation{Status: "unsupported", Evidence: evidence}
+		}
+	}
+	return condition.Observation{Status: "unsupported", Evidence: map[string]string{"reason": "owned process unavailable"}}
+}

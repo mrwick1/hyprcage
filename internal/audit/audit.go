@@ -52,6 +52,8 @@ type Target struct {
 // Option sets an optional field of an Entry.
 type Option func(*Entry)
 
+func WithActionID(id string) Option { return func(e *Entry) { e.ActionID = id } }
+
 // WithVerdict sets the verdict field.
 func WithVerdict(v any) Option { return func(e *Entry) { e.Verdict = v } }
 
