@@ -178,6 +178,9 @@ func TestHeadlessRefusesWhatNeedsACage(t *testing.T) {
 		{"clipboard_set", map[string]any{"text": "x"}},
 		{"read_selection", nil},
 	} {
+		if !available(c.tool) {
+			continue // not registered on this system: the agent never sees it
+		}
 		args := map[string]any{"screen": rec.Name}
 		for k, v := range c.args {
 			args[k] = v
