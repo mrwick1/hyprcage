@@ -2,10 +2,36 @@
 # Hook shim shipped in the plugin: runs the offstage hook when the binary is
 # there and stays silent otherwise (the first session after installing the
 # plugin can start before the MCP launcher has fetched the binary).
+# On session-start it also checks, at most once a day, whether the beta
+# branch pins another plugin version, and starts the update in the background.
+root=$(cd "$(dirname "$0")/.." && pwd)
+note=
+if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
+  stamp=${XDG_STATE_HOME:-$HOME/.local/state}/offstage/update-check
+  now=$(date +%s); last=$(cat "$stamp" 2>/dev/null || echo 0)
+  case $last in '' | *[!0-9]*) last=0 ;; esac
+  if [ $((now - last)) -ge 86400 ]; then
+    mkdir -p "$(dirname "$stamp")" && echo "$now" > "$stamp"
+    ver() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1; }
+    have=$(ver < "$root/.claude-plugin/plugin.json")
+    latest=$(curl -fsS -m 2 https://raw.githubusercontent.com/mrwick1/offstage/beta/.claude-plugin/plugin.json 2>/dev/null | ver)
+    # The beta branch pins the current beta; any other version is stale.
+    if [ -n "$latest" ] && [ -n "$have" ] && [ "$latest" != "$have" ]; then
+      if command -v claude >/dev/null 2>&1; then
+        (claude plugin update offstage@offstage-mrwick1 </dev/null >/dev/null 2>&1 &)
+        note="offstage $latest is out (this session runs $have). It is being installed now and applies after /reload-plugins or a relaunch."
+      else
+        note="offstage $latest is out (this session runs $have). Run: claude plugin update offstage@offstage-mrwick1, then /reload-plugins."
+      fi
+    fi
+  fi
+fi
 bin=$(command -v offstage 2>/dev/null || true)
 [ -z "$bin" ] && [ -x "$HOME/.local/bin/offstage" ] && bin=$HOME/.local/bin/offstage
 # Git Bash on Windows: the user-level install of install.ps1.
 [ -z "$bin" ] && [ -n "${LOCALAPPDATA:-}" ] && [ -x "$(cygpath -u "$LOCALAPPDATA" 2>/dev/null)/offstage/bin/offstage.exe" ] \
   && bin=$(cygpath -u "$LOCALAPPDATA")/offstage/bin/offstage.exe
-[ -n "$bin" ] || exit 0
-exec "$bin" "$@"
+rc=0
+[ -n "$bin" ] && { "$bin" "$@" >/dev/null; rc=$?; }
+[ -n "$note" ] && printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s Tell the human once."}}\n' "$note" "$note"
+exit $rc
