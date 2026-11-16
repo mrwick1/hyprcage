@@ -40,6 +40,9 @@ func withInner(rec *registry.Screen) error {
 
 // ClipboardSet puts text on the screen's clipboard.
 func ClipboardSet(rec *registry.Screen, text string) error {
+	if err := RefuseHeadless(rec, "clipboard_set"); err != nil {
+		return err
+	}
 	if err := withInner(rec); err != nil {
 		return err
 	}
@@ -64,6 +67,9 @@ func ClipboardSet(rec *registry.Screen, text string) error {
 
 // ClipboardGet reads the screen's clipboard; an empty clipboard is "".
 func ClipboardGet(rec *registry.Screen) (string, error) {
+	if err := RefuseHeadless(rec, "clipboard_get"); err != nil {
+		return "", err
+	}
 	if err := withInner(rec); err != nil {
 		return "", err
 	}

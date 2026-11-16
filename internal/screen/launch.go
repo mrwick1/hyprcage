@@ -22,6 +22,9 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 	if len(command) == 0 {
 		return 0, "", fmt.Errorf("empty command")
 	}
+	if err := RefuseHeadless(rec, "app_launch"); err != nil {
+		return 0, "", err
+	}
 	if rec.InnerDisplay == "" {
 		inner, err := registry.ReadInner(rec.Name)
 		if err != nil {

@@ -16,3 +16,10 @@ func Detach(c *exec.Cmd) { c.SysProcAttr = &syscall.SysProcAttr{Setsid: true} }
 // Kill sends sig to pid. A negative pid targets the process group. Signal 0
 // only tests that the process exists.
 func Kill(pid int, sig syscall.Signal) error { return syscall.Kill(pid, sig) }
+
+// KillTree kills pid and every process of its group. It expects a process
+// that Detach started, which leads its own group.
+func KillTree(pid int) {
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	_ = syscall.Kill(pid, syscall.SIGKILL)
+}

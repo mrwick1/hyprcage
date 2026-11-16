@@ -236,3 +236,30 @@ func TestToplevels(t *testing.T) {
 		t.Error("CloseToplevel(9999) = nil, want an error")
 	}
 }
+
+func TestAttach(t *testing.T) {
+	b := start(t)
+	eval(t, b, "q.value='kept'")
+	a, err := Attach(context.Background(), b.Port(), b.PID(), 1280, 800)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := eval(t, a, "q.value"); got != "kept" {
+		t.Errorf("value through the attached browser = %q, want kept", got)
+	}
+	if img, err := a.Capture(false); err != nil || img.Bounds().Dx() != 1280 {
+		t.Errorf("capture through the attached browser: %v", err)
+	}
+	if !a.Alive() {
+		t.Error("attached browser is not alive")
+	}
+	a.Close() // kills Chrome: it is the same process as b's
+	select {
+	case <-b.exited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Chrome still runs after the attached browser closed")
+	}
+	if b.Alive() {
+		t.Error("original browser still alive")
+	}
+}

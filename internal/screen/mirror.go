@@ -73,6 +73,9 @@ func WriteMirror(name string, st MirrorState) error {
 // puts new windows. One mirror per screen: a second request while one runs
 // is a no-op.
 func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) error {
+	if err := RefuseHeadless(rec, "mirror"); err != nil {
+		return err
+	}
 	if _, alive := ReadMirror(rec.Name); alive {
 		return nil
 	}

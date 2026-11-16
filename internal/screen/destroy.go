@@ -28,6 +28,15 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 	}
 	defer release()
 
+	if rec.Kind == KindHeadless {
+		if err := destroyHeadless(rec); err != nil {
+			return err
+		}
+		if c.Cfg.Notify {
+			notify.Send("Agent screen closed", rec.Name)
+		}
+		return nil
+	}
 	CloseConn(rec.Name)
 	StopMirror(rec.Name)
 	killDebug(rec) // before cage: Chromium left the slice and survives it
@@ -53,8 +62,11 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 	return nil
 }
 
-// Alive reports whether a screen's cage still runs.
+// Alive reports whether a screen's cage, or the Chrome of a headless screen, still runs.
 func Alive(rec *registry.Screen) bool {
+	if rec.Kind == KindHeadless {
+		return headlessAlive(rec)
+	}
 	if rec.CagePID <= 0 {
 		return false
 	}
@@ -81,12 +93,21 @@ func ProfilePrefix(name string) string { return "hc-chrome-" + name + "-" }
 // removeProfiles deletes the Chrome profiles of a screen. The digits check
 // keeps the profiles of a screen whose name extends this one.
 func removeProfiles(name string) {
+	for _, d := range profileDirs(name) {
+		_ = os.RemoveAll(d)
+	}
+}
+
+// profileDirs lists the Chrome profiles of a screen that exist.
+func profileDirs(name string) []string {
 	prefix := filepath.Join(os.TempDir(), ProfilePrefix(name))
 	dirs, _ := filepath.Glob(prefix + "*")
+	var out []string
 	for _, d := range dirs {
 		suffix := strings.TrimPrefix(d, prefix)
 		if suffix != "" && strings.Trim(suffix, "0123456789") == "" {
-			_ = os.RemoveAll(d)
+			out = append(out, d)
 		}
 	}
+	return out
 }

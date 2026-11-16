@@ -16,6 +16,9 @@ const (
 // and returns it. It restores the earlier clipboard of the screen.
 // No selection returns "".
 func ReadSelection(rec *registry.Screen, cl Surface) (string, error) {
+	if err := RefuseHeadless(rec, "read_selection"); err != nil {
+		return "", err
+	}
 	return readSelection(
 		func() (string, error) { return ClipboardGet(rec) },
 		func(s string) error { return ClipboardSet(rec, s) },

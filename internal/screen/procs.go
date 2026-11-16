@@ -114,8 +114,11 @@ func ListenerPID(port int) (int, error) {
 
 // OwnsPort reports whether the process recorded as the owner of
 // rec.DebugPort still listens on it: same PID, same start time. It reads
-// only that process's fds.
+// only that process's fds. A headless screen owns its port while its Chrome runs.
 func OwnsPort(rec *registry.Screen) bool {
+	if rec.Kind == KindHeadless { // its Chrome owns the port while it runs
+		return rec.DebugPort > 0 && headlessAlive(rec)
+	}
 	if rec.DebugPID <= 0 || rec.DebugPIDStart == 0 {
 		return false
 	}

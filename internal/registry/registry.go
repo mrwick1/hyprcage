@@ -29,6 +29,10 @@ type Screen struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	State     string    `json:"state"` // starting, ready
+	// Kind is "headless" for a screen that is one headless Chrome driven
+	// over DevTools, and empty for a cage screen. A headless screen has no
+	// cage: DebugPort, DebugPID and DebugPIDStart name its Chrome.
+	Kind string `json:"kind,omitempty"`
 	// Version is the record format: 3 for a screen with its own headless
 	// output (cage on wlroots' headless backend). A record without one was
 	// written by a 0.1 or 0.2 hyprcage, whose screens were Hyprland outputs,

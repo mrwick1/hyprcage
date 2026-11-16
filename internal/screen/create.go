@@ -49,19 +49,8 @@ func mirrorWanted(want *bool, configured bool) bool {
 // human's compositor except, at the end, the launch of the mirror window.
 func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 	cfg := c.Cfg
-	if opts.Name == "" {
-		opts.Name = NewName(cfg.OutputPrefix)
-	} else {
-		opts.Name = Prefixed(opts.Name, cfg.OutputPrefix)
-	}
-	if err := ValidateName(opts.Name); err != nil {
+	if err := normalize(c, &opts); err != nil {
 		return nil, err
-	}
-	if opts.Width <= 0 || opts.Height <= 0 {
-		opts.Width, opts.Height = cfg.DefaultWidth, cfg.DefaultHeight
-	}
-	if opts.Width < 320 || opts.Height < 240 || opts.Width > cfg.MaxWidth || opts.Height > cfg.MaxHeight {
-		return nil, errf(CodeLimit, "screen.max_width / screen.max_height in config.toml", "size %dx%d is outside 320x240 .. %dx%d", opts.Width, opts.Height, cfg.MaxWidth, cfg.MaxHeight)
 	}
 	if _, err := exec.LookPath("cage"); err != nil {
 		return nil, errf(CodeCage, "run `hyprcage setup` (or the setup tool): it installs cage after the human enters their password", "cage not found in PATH")
@@ -71,29 +60,11 @@ func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 		return nil, err
 	}
 
-	release, err := lock.Acquire(30 * time.Second)
+	release, err := claim(c, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-
-	// Step 1: reap orphans first (M4), then the quota.
-	_, _ = GC(c, GCOptions{})
-	if _, err := registry.Load(opts.Name); err == nil {
-		return nil, errf(CodeInvalidName, "pick another name", "screen %s already exists", opts.Name)
-	}
-	if cfg.MaxPerSession > 0 {
-		recs, _ := registry.List()
-		n := 0
-		for _, r := range recs {
-			if sameOwner(r.Owner, opts.Owner) {
-				n++
-			}
-		}
-		if n >= cfg.MaxPerSession {
-			return nil, errf(CodeLimit, "destroy a screen you no longer need, or raise screen.max_per_session in config.toml", "this session already holds %d screen(s), its limit", n)
-		}
-	}
 
 	// Step 2: the mirror's workspace, and the reason when there is none.
 	wsMirror, mirrorNote := 0, ""
@@ -194,6 +165,70 @@ func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 		notify.Send("Agent screen opened", body)
 	}
 	return rec, nil
+}
+
+// normalize names the screen and checks its size against the configuration.
+func normalize(c *Ctx, opts *CreateOptions) error {
+	cfg := c.Cfg
+	if opts.Name == "" {
+		opts.Name = NewName(cfg.OutputPrefix)
+	} else {
+		opts.Name = Prefixed(opts.Name, cfg.OutputPrefix)
+	}
+	if err := ValidateName(opts.Name); err != nil {
+		return err
+	}
+	if opts.Width <= 0 || opts.Height <= 0 {
+		opts.Width, opts.Height = cfg.DefaultWidth, cfg.DefaultHeight
+	}
+	if opts.Width < 320 || opts.Height < 240 || opts.Width > cfg.MaxWidth || opts.Height > cfg.MaxHeight {
+		return errf(CodeLimit, "screen.max_width / screen.max_height in config.toml", "size %dx%d is outside 320x240 .. %dx%d", opts.Width, opts.Height, cfg.MaxWidth, cfg.MaxHeight)
+	}
+	return nil
+}
+
+// Reserve starts the creation of a screen that is not a cage: it normalizes
+// opts, takes the global lock, reaps orphans and checks the name and the
+// quota. The caller releases the lock.
+func Reserve(c *Ctx, opts *CreateOptions) (func(), error) {
+	if err := normalize(c, opts); err != nil {
+		return nil, err
+	}
+	return claim(c, *opts)
+}
+
+// claim takes the global lock, reaps orphans first (M4), then checks the
+// name and the quota. On success the caller releases the lock.
+func claim(c *Ctx, opts CreateOptions) (func(), error) {
+	release, err := lock.Acquire(30 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkFree(c, opts); err != nil {
+		release()
+		return nil, err
+	}
+	return release, nil
+}
+
+func checkFree(c *Ctx, opts CreateOptions) error {
+	_, _ = GC(c, GCOptions{})
+	if _, err := registry.Load(opts.Name); err == nil {
+		return errf(CodeInvalidName, "pick another name", "screen %s already exists", opts.Name)
+	}
+	if limit := c.Cfg.MaxPerSession; limit > 0 {
+		recs, _ := registry.List()
+		n := 0
+		for _, r := range recs {
+			if sameOwner(r.Owner, opts.Owner) {
+				n++
+			}
+		}
+		if n >= limit {
+			return errf(CodeLimit, "destroy a screen you no longer need, or raise screen.max_per_session in config.toml", "this session already holds %d screen(s), its limit", n)
+		}
+	}
+	return nil
 }
 
 // startCage launches cage on the headless backend in the screen's scope,

@@ -24,6 +24,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/desktop"
 	"github.com/hexadecimil/hyprcage/internal/devtools"
+	"github.com/hexadecimil/hyprcage/internal/headless"
 	"github.com/hexadecimil/hyprcage/internal/perceive"
 	"github.com/hexadecimil/hyprcage/internal/record"
 	"github.com/hexadecimil/hyprcage/internal/registry"
@@ -52,6 +53,8 @@ type Server struct {
 	tables map[string]*perceive.Table
 	// devtools holds one DevTools session per screen instance (tableKey), guarded by mu.
 	devtools map[string]*devtools.Session
+	// browsers holds one headless Browser per headless screen instance (tableKey), guarded by mu.
+	browsers map[string]*headless.Browser
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -168,7 +171,8 @@ func (s *Server) hypr() (*screen.Ctx, error) {
 }
 
 // resolve finds the screen (empty = the session's only one), checks the
-// owner, touches the heartbeat and opens its Wayland connection on demand.
+// owner, touches the heartbeat and opens its Wayland connection, or the
+// Browser of a headless screen, on demand.
 func (s *Server) resolve(name string, withWL bool) (*registry.Screen, screen.Surface, error) {
 	c, err := s.hypr()
 	if err != nil {
@@ -185,6 +189,13 @@ func (s *Server) resolve(name string, withWL bool) (*registry.Screen, screen.Sur
 	_ = registry.Touch(rec.Name)
 	if !withWL {
 		return rec, nil, nil
+	}
+	if rec.Kind == screen.KindHeadless {
+		b, err := s.browserFor(rec)
+		if err != nil {
+			return nil, nil, err
+		}
+		return rec, b, nil
 	}
 	cl, err := screen.Open(rec)
 	if err != nil {
@@ -274,6 +285,7 @@ type createIn struct {
 	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; default hc-<random>"`
 	Size   string `json:"size,omitempty" jsonschema:"WxH in pixels, default 1280x800 (configurable); keep every side at or below 2000"`
 	Mirror *bool  `json:"mirror,omitempty" jsonschema:"open a mirror window on one of the human's workspaces so they can watch. Leave it out to follow the human's configuration, which is what they want by default. Pass true when they asked to see the work or when showing it is the point, false for a screen they have no reason to watch"`
+	Kind   string `json:"kind,omitempty" jsonschema:"cage (default on Linux): a compositor for any graphical app. headless (the only kind elsewhere): one headless Chrome with no window, driven over DevTools; use browser_open, snapshot, act, click, type, key, screenshot and the devtools_ tools. It has no mirror, no app_launch, no clipboard and no recording"`
 }
 
 type mirrorIn struct {
@@ -463,7 +475,7 @@ func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 
 func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
-	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
+	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. With kind headless it is one windowless Chrome driven over DevTools instead (the only kind off Linux). The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
 	tool(s, srv, "mirror", "Open (open=true, default) or close (open=false) the human's mirror window for a screen, without touching the screen. Use it when the human asks to watch, or to stop showing a screen.", s.mirror)
@@ -501,7 +513,22 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 			return nil, fmt.Errorf("size must be WxH, got %q", in.Size)
 		}
 	}
-	rec, err := screen.Create(c, screen.CreateOptions{Name: in.Name, Width: w, Height: h, Mirror: in.Mirror, Owner: session.Current().Owner()})
+	kind, err := screenKind(in.Kind)
+	if err != nil {
+		return nil, err
+	}
+	opts := screen.CreateOptions{Name: in.Name, Width: w, Height: h, Mirror: in.Mirror, Owner: session.Current().Owner()}
+	if kind == screen.KindHeadless {
+		rec, err := s.createHeadless(c, opts)
+		if err != nil {
+			return nil, err
+		}
+		return textResult(map[string]any{
+			"screen": rec.Name, "kind": kind, "width": rec.Width, "height": rec.Height, "mirror_note": rec.MirrorNote,
+			"note": "coordinates are page pixels; open a page with browser_open, call screen_destroy when done",
+		}), nil
+	}
+	rec, err := screen.Create(c, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -536,6 +563,7 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 	screen.CloseConn(rec.Name)
 	s.dropTable(rec)
 	s.dropDevtools(rec)
+	s.dropBrowser(rec)
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}
@@ -553,6 +581,7 @@ func (s *Server) screenList(in listIn) (*mcp.CallToolResult, error) {
 		Width   int    `json:"width"`
 		Height  int    `json:"height"`
 		State   string `json:"state"`
+		Kind    string `json:"kind,omitempty"`
 		Mine    bool   `json:"mine"`
 		Alive   bool   `json:"alive"`
 		Mirror  int    `json:"workspace_mirror"`
@@ -565,7 +594,7 @@ func (s *Server) screenList(in listIn) (*mcp.CallToolResult, error) {
 			continue
 		}
 		hb, _ := registry.Heartbeat(r.Name)
-		rows = append(rows, row{r.Name, r.Width, r.Height, r.State, mine, session.IsAlive(r.Owner, hb, s.cfg.SessionGrace), r.WorkspaceMirror, r.CreatedAt.Format(time.RFC3339)})
+		rows = append(rows, row{r.Name, r.Width, r.Height, r.State, r.Kind, mine, session.IsAlive(r.Owner, hb, s.cfg.SessionGrace), r.WorkspaceMirror, r.CreatedAt.Format(time.RFC3339)})
 	}
 	return textResult(rows), nil
 }
@@ -579,6 +608,9 @@ func (s *Server) appLaunch(in launchIn) (*mcp.CallToolResult, error) {
 	}
 	rec, _, err := s.resolve(in.Screen, false)
 	if err != nil {
+		return nil, err
+	}
+	if err := screen.RefuseHeadless(rec, "app_launch"); err != nil {
 		return nil, err
 	}
 	wait := int(s.cfg.WindowTimeout / time.Millisecond)

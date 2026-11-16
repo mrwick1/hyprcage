@@ -7,6 +7,8 @@ package proc
 import (
 	"os"
 	"os/exec"
+	"runtime"
+	"strconv"
 	"syscall"
 )
 
@@ -28,4 +30,14 @@ func Kill(pid int, sig syscall.Signal) error {
 		return p.Release()
 	}
 	return p.Kill()
+}
+
+// KillTree kills pid and its children. Without a process group, only
+// Windows reaches the children, through taskkill.
+func KillTree(pid int) {
+	if runtime.GOOS == "windows" {
+		_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
+		return
+	}
+	_ = Kill(pid, syscall.SIGKILL)
 }
