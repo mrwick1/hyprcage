@@ -4,7 +4,6 @@ package mcpserver
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,12 +94,12 @@ func (s *Server) recordTimeline(e audit.Entry, res *mcp.CallToolResult) {
 		if e.Tool == "browser_console" || e.Tool == "browser_network" {
 			payload["native_diagnostics"] = textResultText(res)
 		}
-		if e.Tool == "browser_act" {
+		if res.StructuredContent != nil {
 			raw, _ := json.Marshal(res.StructuredContent)
 			var native map[string]any
 			_ = json.Unmarshal(raw, &native)
 			summary := map[string]any{}
-			for _, key := range []string{"action_status", "page_status", "verification"} {
+			for _, key := range []string{"action_status", "page_status", "verification", "ok", "result_source"} {
 				if v, ok := native[key]; ok {
 					summary[key] = v
 				}
@@ -141,14 +140,6 @@ func (s *Server) recordTimeline(e audit.Entry, res *mcp.CallToolResult) {
 	if err != nil && res != nil {
 		res.Content = append(res.Content, &mcp.TextContent{Text: "Task evidence could not be saved. The tool result is unchanged; task_timeline may be incomplete."})
 	}
-}
-func textResultText(res *mcp.CallToolResult) string {
-	for _, c := range res.Content {
-		if t, ok := c.(*mcp.TextContent); ok {
-			return t.Text
-		}
-	}
-	return ""
 }
 func (s *Server) failureState(ctx context.Context, e audit.Entry) (*task.Event, task.SourceState) {
 	unavailable := task.SourceState{Status: "unavailable", Note: "failure page state could not be read"}
@@ -213,7 +204,7 @@ type timelineIn struct {
 }
 
 func (s *Server) registerTimeline(srv *mcp.Server) {
-	addContext(srv, "task_timeline", "Read a local task failure timeline with bounded pagination, evidence gaps and source availability. Collects buffered browser diagnostics and process log excerpts now; tool outcomes and failure page excerpts are retained when calls return. Sequence is collection order, not proof of causality. Does not upload anything.", func(ctx context.Context, in timelineIn) (*mcp.CallToolResult, []audit.Option, error) {
+	addContext(srv, "task_timeline", "Read a local task failure timeline with bounded pagination, evidence gaps and source availability. Collects native-app diagnostics and process log excerpts; Bare diagnostic excerpts come from explicit browser_console/browser_network calls; tool outcomes and failure page excerpts are retained when calls return. Sequence is collection order, not proof of causality. Does not upload anything.", func(ctx context.Context, in timelineIn) (*mcp.CallToolResult, []audit.Option, error) {
 		r, e := s.taskTimeline(ctx, in)
 		return r, nil, e
 	}, s)
@@ -285,23 +276,7 @@ func (s *Server) taskTimeline(ctx context.Context, in timelineIn) (*mcp.CallTool
 					s.mu.Unlock()
 					continue
 				}
-				sources[source] = task.SourceState{Status: "partial", Note: "native text excerpts; structured request cursors are unavailable"}
-				for _, tool := range []string{"network", "console"} {
-					args := map[string]any{"session": name, "since_last": false, "max": 50}
-					if tool == "network" {
-						args["failed_only"] = false
-					} else {
-						args["level"] = "all"
-					}
-					reply, e := b.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
-					if e != nil || reply == nil || reply.IsError {
-						sources[source] = task.SourceState{Status: "unavailable", Note: "native Bare diagnostics unavailable"}
-						continue
-					}
-					text := textResultText(reply)
-					digest := sha256.Sum256([]byte(text))
-					events = append(events, task.Event{ID: fmt.Sprintf("%s:%x", tool, digest), Source: source, Kind: "browser_" + tool + "_excerpt", Data: eventData(map[string]any{"text": text})})
-				}
+				sources[source] = task.SourceState{Status: "partial", Note: "diagnostic excerpts are retained only from explicit browser_console/browser_network calls; timeline reads do not consume native cursors"}
 				s.mu.Unlock()
 				continue
 			}
