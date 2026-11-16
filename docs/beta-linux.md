@@ -20,7 +20,7 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/beta/install.sh | OFFSTAGE_VERSION=v0.11.0-beta.2 bash -s -- --agents none
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/beta/install.sh | OFFSTAGE_VERSION=v0.11.0-beta.3 bash -s -- --agents none
 ```
 
 The installer installs the packages, puts the binary in `~/.local/bin`, and

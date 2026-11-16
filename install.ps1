@@ -103,6 +103,8 @@ function Test-Tools {
   $chrome = (Have 'chrome.exe') -or @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA |
     Where-Object { $_ } | ForEach-Object { Join-Path $_ 'Google\Chrome\Application\chrome.exe' } | Where-Object { Test-Path $_ }).Count
   if (-not $chrome) { Warn 'Chrome not found: offstage drives Chrome. Install it from https://www.google.com/chrome' }
+  # A winget install in this shell does not update its PATH: read the saved one.
+  $env:Path = @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User'), $env:Path) -join ';'
   if (-not (Have 'ffmpeg')) { Warn 'ffmpeg not found: recording needs it. Install it with  winget install ffmpeg' }
 }
 

@@ -47,6 +47,8 @@ func runDoctor(e *Env) int {
 	case err != nil:
 		add("config", "fail", err.Error())
 		cfg = config.Default()
+	case cfg.Loaded && runtime.GOOS != "linux":
+		add("config", "ok", fmt.Sprintf("%s (screens %dx%d, %d screens per session)", cfg.Path, cfg.DefaultWidth, cfg.DefaultHeight, cfg.MaxPerSession))
 	case cfg.Loaded:
 		add("config", "ok", fmt.Sprintf("%s (screens %dx%d, mirrors on workspaces %d-%d by %s, %d screens per session)", cfg.Path, cfg.DefaultWidth, cfg.DefaultHeight, cfg.MirrorMin, cfg.MirrorMax, cfg.MirrorGroup, cfg.MaxPerSession))
 	default:
