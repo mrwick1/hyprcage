@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/cdp"
@@ -50,6 +51,7 @@ type Browser struct {
 	loaded      chan string   // session ids of Page.loadEventFired
 	exited      chan struct{} // closes when Chrome has been reaped; nil after Attach
 	closeOnce   sync.Once
+	cast        atomic.Pointer[Screencast] // the running screencast; not under mu, because onEvent reads it
 
 	mu             sync.Mutex // guards everything below, and serialises input
 	session        string
@@ -128,6 +130,7 @@ func Start(ctx context.Context, o Options) (*Browser, error) {
 // Attach drives a Chrome that Start launched, maybe in another process: pid
 // is its process id, port its DevTools port, and w and h the size Start
 // gave it. Close kills that Chrome, as it does for a Browser from Start.
+// Detach leaves it running.
 func Attach(ctx context.Context, port, pid, w, h int) (*Browser, error) {
 	b := &Browser{pid: pid, port: port, width: w, height: h,
 		loaded: make(chan string, 16), ids: map[string]uint32{}, targets: map[uint32]string{}}
@@ -212,6 +215,11 @@ func (b *Browser) attachTo(ctx context.Context, targetID string) error {
 
 // onEvent runs on the read loop: it must not block.
 func (b *Browser) onEvent(e cdp.Event) {
+	if e.Method == "Page.screencastFrame" {
+		if c := b.cast.Load(); c != nil {
+			c.onFrame(e)
+		}
+	}
 	if e.Method == "Page.loadEventFired" {
 		select {
 		case b.loaded <- e.SessionID:
@@ -239,6 +247,15 @@ func (b *Browser) Close() error {
 		b.removeProfile()
 	})
 	return nil
+}
+
+// Detach closes the DevTools connection and leaves Chrome running: for a
+// process that only watches a screen it does not own.
+func (b *Browser) Detach() error {
+	if c := b.cast.Load(); c != nil {
+		c.Stop()
+	}
+	return b.conn.Close()
 }
 
 // removeProfile deletes a profile dir that Start created. Chrome may

@@ -49,6 +49,7 @@ func TestStartFailureLeavesLog(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	t.Setenv("XDG_STATE_HOME", dir)
+	stubFFmpeg(t)
 	exe := filepath.Join(dir, "fake")
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\necho boom-startup >&2\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
@@ -93,6 +94,7 @@ func TestStartPassesOwnerAndStripsScreen(t *testing.T) {
 	lockedFn = func() bool { return false }
 	defer func() { lockedFn = old }()
 	envOut := filepath.Join(dir, "env")
+	stubFFmpeg(t)
 	exe := filepath.Join(dir, "fake")
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\nenv > "+envOut+"\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
@@ -160,5 +162,26 @@ func TestStopSession(t *testing.T) {
 	}
 	if alive(cmd.Process.Pid) {
 		t.Error("the recorder still runs")
+	}
+}
+
+// stubFFmpeg lets Start run on a machine without ffmpeg: the tests that call
+// it use a fake recorder.
+func stubFFmpeg(t *testing.T) {
+	old := lookPath
+	lookPath = func(string) (string, error) { return "ffmpeg", nil }
+	t.Cleanup(func() { lookPath = old })
+}
+
+func TestStartNeedsFFmpeg(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", dir)
+	old := lookPath
+	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	defer func() { lookPath = old }()
+	_, err := Start("never-run", "hc-t", true, registry.Owner{}, config.Fallback(), image.Rectangle{})
+	var se *screen.Error
+	if !errors.As(err, &se) || se.Code != screen.CodeFFmpeg || se.Hint == "" {
+		t.Fatalf("want ffmpeg_missing with a hint, got %v", err)
 	}
 }

@@ -33,6 +33,7 @@ const (
 	CodeWindowHidden Code = "window_hidden" // pointer input on a window of a hidden workspace
 	CodeNoAction     Code = "no_action"
 	CodeNotifydDown  Code = "notifyd_down"
+	CodeFFmpeg       Code = "ffmpeg_missing"
 	CodeAckRequired  Code = "ack_required" // a guarded action needs an ack argument that says why
 	// CodeUnsupportedKind: the tool does not apply to this kind of screen
 	// (a headless browser has no compositor, windows, mirror or clipboard).
