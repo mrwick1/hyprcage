@@ -81,7 +81,7 @@ missing_packages() {
   local p c; for p in "${PACKAGES[@]}"; do
     c=${p#*:}  # the proof may hold colons: ldconfig:LIB
     case $c in
-      ldconfig:*) ldconfig -p 2>/dev/null | grep -q "${c#ldconfig:}" || echo "${p%%:*}" ;;
+      ldconfig:*) PATH=$PATH:/sbin:/usr/sbin ldconfig -p 2>/dev/null | grep -q "${c#ldconfig:}" || echo "${p%%:*}" ;;
       /*) [ -e "$c" ] || echo "${p%%:*}" ;;
       *) have "$c" || echo "${p%%:*}" ;;
     esac
