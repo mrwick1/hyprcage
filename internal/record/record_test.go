@@ -120,3 +120,53 @@ func TestLoopRejectsSizeChange(t *testing.T) {
 		t.Errorf("partial frame written: %d bytes for %d frames", buf.Len(), n)
 	}
 }
+
+// slowWriter takes d for each write, like an encoder that is slower than
+// the frame rate.
+type slowWriter struct{ d time.Duration }
+
+func (s slowWriter) Write(p []byte) (int, error) { time.Sleep(s.d); return len(p), nil }
+
+func TestLoopSlowEncoder(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	c := &fakeCap{img: img}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(time.Second); cancel() }()
+	start := time.Now()
+	// 50 fps needs a frame every 20 ms; the writer takes 30 ms.
+	if _, err := Loop(ctx, c, slowWriter{30 * time.Millisecond}, 50, time.Hour, 0, 0, nil, img); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 1100*time.Millisecond {
+		t.Errorf("Loop took %v to stop after a cancel at 1 s", d)
+	}
+	// One capture per write keeps the video moving.
+	if c.calls < 20 {
+		t.Errorf("%d captures in 1 s: the video froze on old images", c.calls)
+	}
+}
+
+// startWriter blocks its first write for d, like ffmpeg while it starts.
+type startWriter struct {
+	d    time.Duration
+	once bool
+}
+
+func (s *startWriter) Write(p []byte) (int, error) {
+	if !s.once {
+		s.once = true
+		time.Sleep(s.d)
+	}
+	return len(p), nil
+}
+
+func TestLoopKeepsFFmpegStart(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	n, err := Loop(context.Background(), &fakeCap{img: img}, &startWriter{d: 300 * time.Millisecond}, 20, 500*time.Millisecond, 0, 0, nil, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 9 || n > 12 {
+		t.Errorf("%d frames for 500 ms at 20 fps with a 300 ms ffmpeg start, want about 10", n)
+	}
+}

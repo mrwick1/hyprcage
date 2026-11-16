@@ -68,7 +68,8 @@ func quality(encoder string) []string {
 
 // Loop writes first, then one capture per frame period, to w until ctx
 // ends or max elapses. When a capture comes late, the previous image is
-// written again, so the video keeps real time. When idle is above zero, a
+// written again, so the video keeps real time, unless ffmpeg takes the
+// frames slower than the frame rate. When idle is above zero, a
 // pause in which less than threshold percent of the pixels change stays in
 // the video for idle at most, and the rest of it is cut. It returns the
 // number of frames written. A frame is always written whole. draw, when
@@ -89,6 +90,13 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.
 			if err := writeFrame(w, img); err != nil {
 				return written, err
 			}
+		}
+		// An encoder slower than the frame rate makes each catch-up longer
+		// than the last, so the captures and a stop wait longer and longer.
+		// Its lost time is cut instead, like a pause. The first frame waits
+		// for ffmpeg to start, and that wait stays in the video.
+		if behind := time.Since(start) - time.Duration(written)*period; written > 1 && behind > period {
+			start = start.Add(behind)
 		}
 		if time.Since(begin) >= max {
 			return written, nil
