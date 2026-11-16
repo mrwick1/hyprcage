@@ -344,5 +344,6 @@ case $mode in
     install_notifyd
     say "checking the installation"
     "$BIN_DIR/offstage" doctor || true
+    [ -s "${XDG_CONFIG_HOME:-$HOME/.config}/offstage/beta-key" ] || say "beta tester? store your beta key once:  $BIN_DIR/offstage report login"
     ;;
 esac

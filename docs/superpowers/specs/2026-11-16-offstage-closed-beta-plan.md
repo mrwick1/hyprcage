@@ -12,7 +12,7 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 
 1. Platforms: Linux and Windows run in the same beta. Linux ships first with the full tool set. Windows follows when B5 is done.
 2. Isolation on Windows: run spike A (loopback RDP) first. If spike A fails, ship the Windows beta on spike B (hidden desktop) and list its limits. The Windows beta ships in both cases.
-3. Testers: Joel on Linux. Aswin: platform to confirm. More known people later, under ten in total.
+3. Testers: Joel on Linux, Aswin on Windows. More known people later, under ten in total.
 4. Report target: the self-hosted Plane instance `plane.mrwick.dev` (Community edition 1.4.2). Testers get no Plane account. GitHub issues stay off.
 5. Filing path: a small relay on mrwick-server. Each tester has a beta key. Only the relay holds a Plane token.
 6. Reproduction: a report carries a replayable trace. A screenshot is supporting evidence only.
@@ -23,7 +23,7 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 | Tester | Platform | Setup |
 | --- | --- | --- |
 | Joel | Linux | Same as Arjun's ThinkPad E16 (`arjun-e16`): openSUSE Tumbleweed, Hyprland 0.56.2, AMD HawkPoint1 GPU (checked 2026-11-16). The README records openSUSE as verified with Hyprland 0.56.2. |
-| Aswin | to confirm | |
+| Aswin | Windows | Joins when the Windows build is ready (B5). |
 
 `arjun-e16` is the reference machine for Joel's track. A problem Joel reports is replayed there first.
 
@@ -152,7 +152,7 @@ Only Arjun sees Plane. Testers see only the state of their own reports through t
 - Linux desktop tools: window titles and notification bodies are cut to 40 characters. Notification app names stay.
 - Element tree values (text box contents, page text) are cut to 80 characters each.
 - Config `report.screenshots = false` turns off screenshots.
-- Config `report.confirm = true` is the default in week 1. `report_issue` then returns the bundle path and the report text first. The agent shows them to the human and files only after a yes.
+- Config `report.confirm` is `false` by default (decided 2026-11-16): `report_issue` sends at once. A tester who wants to see each report first sets it to `true`. `report_issue` then returns the report text and the file list first, and sends only on a second call with `confirmed: true`.
 
 Check: a unit test feeds a bundle with a home path, a host name, a token in a URL, a cookie and typed text, and asserts that none of them is in the output.
 
@@ -180,7 +180,7 @@ Beta keys:
 - Keys live in the vault as `offstage/beta-key-<tester>` in folder `agents`. Arjun sends each key to its tester.
 - Revoke a key: delete its line from `/srv/offstage-relay/secrets/keys` and restart the container.
 - Add a tester: generate a key, store it in the vault, and add `name $(offstage-relay hash <<< key)` to the keys file.
-- The tester stores the key with `offstage report login`. It goes to the OS credential store (Secret Service on Linux, Credential Manager on Windows), never to the config file.
+- The tester stores the key with `offstage report login`. It goes to the file `beta-key` next to the config file, readable by the user only (mode 0600). It never goes into `config.toml`. `OFFSTAGE_BETA_KEY` overrides the file. The OS credential store was dropped: a 0600 file is simpler and the key only files reports.
 
 Limits: 5 MB per bundle (the Plane attachment limit on this instance), 10 reports per key per day, 60 requests per key per hour.
 
@@ -219,14 +219,14 @@ Verified against Plane 1.4.2 on 2026-11-16: work items, comments, labels and the
 - Version: `v0.10.0-beta.N`, published as a GitHub pre-release. Linux and Windows assets come from the same tag once B5 is done.
 - `release.yml` builds the Windows `.exe` next to the Linux builds. To verify: the Windows build needs no cgo.
 - Linux: `install.sh` installs the pre-release, the packages through pacman or zypper, and `offstage-notifyd.service`, then runs `offstage report login`.
-- Windows: `install.ps1` downloads the pre-release, checks its SHA-256, places the binary in `%LOCALAPPDATA%\offstage\bin`, writes the config with `report.confirm = true`, and runs `offstage report login`.
+- Windows: `install.ps1` downloads the pre-release, checks its SHA-256, places the binary in `%LOCALAPPDATA%\offstage\bin`, writes the config, and runs `offstage report login`.
 - Plugin: testers install from a `beta` branch of the marketplace. To verify: Claude Code accepts a branch or ref for a plugin marketplace.
 - Windows launcher: `.mcp.json` must start a Windows launcher. To verify: how Claude Code on Windows runs a plugin MCP command, and if `${CLAUDE_PLUGIN_ROOT}` works there.
 - Tester guides: `docs/beta-linux.md` and `docs/beta-windows.md`. Each covers requirements, install, the beta key, how reports work, what is collected and how to turn reports off.
 
 ## B6: beta run
 
-- Week 1: Joel on Linux. `report.confirm = true`.
+- Week 1: Joel on Linux.
 - When B5 is done: the Windows tester joins.
 - A new beta build each week, or after each crash fix.
 - Exit criteria for a public release, per platform:
@@ -239,8 +239,8 @@ Verified against Plane 1.4.2 on 2026-11-16: work items, comments, labels and the
 
 - The relay is a public endpoint. Mitigation: hashed keys, rate limits, a size limit, server-side redaction, and no Plane data in its answers.
 - mrwick-server is down: reports wait on the tester's machine and go out on the next call.
-- Redaction misses something. Only Arjun sees Plane, but the bundle still leaves the tester's machine. Mitigation: the redaction test, `report.confirm = true` in week 1, and agent screens only for screenshots.
-- Linux desktop tools read the human's real windows and notifications. A report about them can carry private titles. Mitigation: titles and notification bodies are cut to 40 characters and the tester confirms in week 1.
+- Redaction misses something. Only Arjun sees Plane, but the bundle still leaves the tester's machine. Mitigation: the redaction tests on both sides, and agent screens only for screenshots.
+- Linux desktop tools read the human's real windows and notifications. A report about them can carry private titles. Mitigation: titles and notification bodies are cut to 40 characters.
 - Spike A needs a licence-breaking patch. Then Windows ships on spike B, with slow screenshots and no WinUI menus.
 - Replay depends on the app version and on the window layout. Stable targets reduce this. Some reports will still need the tester.
 - Agents file noise (app bugs, wrong arguments). Mitigation: the "when the agent files" rules, the fingerprint and the rate limit.
@@ -248,5 +248,4 @@ Verified against Plane 1.4.2 on 2026-11-16: work items, comments, labels and the
 
 ## Open questions for Arjun
 
-1. Aswin's platform: Linux or Windows.
-2. `report.confirm = true` for week 1 only, or for the whole beta.
+None at the moment.
