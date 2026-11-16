@@ -346,6 +346,7 @@ func TestNotifydDown(t *testing.T) {
 func TestShotResultPath(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LocalAppData", cache) // the cache directory on Windows
 	res := &screen.ShotResult{Data: []byte("png-bytes"), MIME: "image/png", Width: 4, Height: 3, Scale: 1}
 
 	inline, err := shotResult(res, "hc1", "")

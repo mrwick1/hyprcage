@@ -33,8 +33,12 @@ const (
 	CodeWindowHidden Code = "window_hidden" // pointer input on a window of a hidden workspace
 	CodeNoAction     Code = "no_action"
 	CodeNotifydDown  Code = "notifyd_down"
+	CodeFFmpeg       Code = "ffmpeg_missing"
 	CodeAckRequired  Code = "ack_required" // a guarded action needs an ack argument that says why
-	CodeInternal     Code = "internal"     // offstage itself failed, for example a panic in a tool
+	// CodeUnsupportedKind: the tool does not apply to this kind of screen
+	// (a headless browser has no compositor, windows, mirror or clipboard).
+	CodeUnsupportedKind Code = "unsupported_kind"
+	CodeInternal        Code = "internal" // offstage itself failed, for example a panic in a tool
 )
 
 // Error carries a code, a message and a hint for the caller.

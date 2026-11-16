@@ -7,7 +7,6 @@ import (
 
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/screen"
-	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Source reads the nodes of one screen.
@@ -40,7 +39,7 @@ var (
 )
 
 // shotOf returns the capture function of the screen that cl is connected to.
-func shotOf(cl *wl.Client) func(screen.ShotOptions) (*screen.ShotResult, error) {
+func shotOf(cl screen.Surface) func(screen.ShotOptions) (*screen.ShotResult, error) {
 	return func(o screen.ShotOptions) (*screen.ShotResult, error) { return screen.Shot(cl, o) }
 }
 
@@ -53,7 +52,7 @@ const noSourceHint = "launch the app with debug=true, or run offstage setup for 
 // auto tries CDP when rec.DebugPort > 0, the process recorded as its
 // owner still listens on it and it answers, then AT-SPI when
 // HasApps, then OCR when OCRData exists. It returns CodeNoSource otherwise.
-func Choose(ctx context.Context, rec *registry.Screen, cl *wl.Client, want string) (Source, error) {
+func Choose(ctx context.Context, rec *registry.Screen, cl screen.Surface, want string) (Source, error) {
 	ocrOK := func() bool { _, err := os.Stat(ocrData); return err == nil }
 	switch want {
 	case "cdp":

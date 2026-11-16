@@ -8,7 +8,7 @@
     {
       "name": "offstage",
       "source": "./",
-      "description": "A caged desktop for AI agents on Hyprland: hidden screens the agent drives by text refs (snapshot, act, find over CDP, AT-SPI or OCR), plus recording, clipboard and the human's windows."
+      "description": "A caged desktop for AI agents on Hyprland, and headless browser screens on Windows: hidden screens the agent drives by text refs (snapshot, act, find over CDP, AT-SPI or OCR), plus recording, clipboard and the human's windows."
     }
   ]
 }

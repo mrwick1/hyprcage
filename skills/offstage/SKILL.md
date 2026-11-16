@@ -29,6 +29,16 @@ is there and the screen could not be captured, often a machine too busy to
 answer in time. Retry once, then tell the human. Calling `setup` for it
 installs nothing and asks them for a password for nothing.
 
+## On Windows
+
+Windows has headless screens only. A screen there is one headless Chrome with no window, and the human's desktop is never touched. The MCP server lists only the tools that work there: if a tool in this file is not in your list, it does not exist on this system.
+
+- **Tools**: `screen_create`, `screen_destroy`, `screen_list`, `browser_open`, `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`, `move`, `wait`, `snapshot`, `act`, `find`, `read_page`, `watch`, `devtools_*`, `record_start` and `record_stop`.
+- **Flow**: `screen_create`, then `browser_open` with a URL, then `snapshot`, `act` and `find`. Coordinates are page pixels. Call `screen_destroy` when you are done.
+- **Not on Windows**: native apps (`app_launch`, `app_close`, `windows`), `mirror`, `batch`, `clipboard_*`, `read_selection`, `desktop_*`, `notify_*` and `setup`. For a native app, tell the human that this system cannot run it.
+- **Needs**: Chrome. Recording also needs ffmpeg: `winget install ffmpeg`.
+- **Paths**: the configuration is `%APPDATA%\offstage\config.toml`. The state is in `%LOCALAPPDATA%\offstage`. The `~/.config` and `~/.local` paths in this file are the Linux ones.
+
 ## How (MCP tools)
 
 1. `screen_create` → **one screen per application** (cage shows one app at a time), 1280x800 by default. Remember its name.

@@ -1,5 +1,6 @@
 // Package audit appends one JSON line per tool call to the action log,
-// $XDG_STATE_HOME/offstage/actions.jsonl (default ~/.local/state/offstage).
+// $XDG_STATE_HOME/offstage/actions.jsonl (default ~/.local/state/offstage,
+// %LOCALAPPDATA%\offstage on Windows).
 //
 // Every line has time and tool. The fields screen, args, error, ack, verdict
 // and target appear only when set, so a later field never changes the
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -63,6 +65,9 @@ var secret = map[string]bool{"text": true, "expression": true, "value": true, "d
 // Path returns the log file.
 func Path() string {
 	dir := os.Getenv("XDG_STATE_HOME")
+	if dir == "" && runtime.GOOS == "windows" {
+		dir = os.Getenv("LocalAppData")
+	}
 	if dir == "" {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".local", "state")

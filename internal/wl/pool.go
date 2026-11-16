@@ -3,7 +3,6 @@ package wl
 import (
 	"fmt"
 	"os"
-	"syscall"
 )
 
 // ShmPool is a memory file both compositors can map: cage's screencopy
@@ -41,7 +40,7 @@ func (p *ShmPool) Bytes() ([]byte, error) {
 	if p.mem != nil {
 		return p.mem, nil
 	}
-	mem, err := syscall.Mmap(p.Fd(), 0, p.size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	mem, err := mmapShared(p.Fd(), p.size)
 	if err != nil {
 		return nil, fmt.Errorf("wl: mapping the shared pool: %w", err)
 	}
@@ -53,7 +52,7 @@ func (p *ShmPool) Bytes() ([]byte, error) {
 // destroyed first.
 func (p *ShmPool) Close() error {
 	if p.mem != nil {
-		_ = syscall.Munmap(p.mem)
+		_ = munmap(p.mem)
 		p.mem = nil
 	}
 	return p.file.Close()

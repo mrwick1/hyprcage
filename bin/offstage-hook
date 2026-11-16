@@ -4,5 +4,8 @@
 # plugin can start before the MCP launcher has fetched the binary).
 bin=$(command -v offstage 2>/dev/null || true)
 [ -z "$bin" ] && [ -x "$HOME/.local/bin/offstage" ] && bin=$HOME/.local/bin/offstage
+# Git Bash on Windows: the user-level install of install.ps1.
+[ -z "$bin" ] && [ -n "${LOCALAPPDATA:-}" ] && [ -x "$(cygpath -u "$LOCALAPPDATA" 2>/dev/null)/offstage/bin/offstage.exe" ] \
+  && bin=$(cygpath -u "$LOCALAPPDATA")/offstage/bin/offstage.exe
 [ -n "$bin" ] || exit 0
 exec "$bin" "$@"

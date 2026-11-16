@@ -126,6 +126,9 @@ func (s *Server) browserOpen(in browserIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	if rec.Kind == screen.KindHeadless {
+		return s.headlessOpen(rec, in)
+	}
 	// Chrome starts on about:blank, so the session attaches before the page
 	// loads and sees its console messages and requests.
 	start := in.URL

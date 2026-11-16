@@ -48,7 +48,7 @@ type ShotResult struct {
 }
 
 // Shot captures the screen, crops, scales within the budget and encodes.
-func Shot(cl *wl.Client, o ShotOptions) (*ShotResult, error) {
+func Shot(cl Surface, o ShotOptions) (*ShotResult, error) {
 	img, err := cl.Capture(o.Cursor)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func inAny(rs []image.Rectangle, p image.Point) bool {
 // and reduced 8x, has had less than threshold percent of its pixels change
 // for stable (cahier F6). The default tolerates a blinking text cursor but
 // not a new line of text.
-func WaitStable(cl *wl.Client, stable, timeout time.Duration, threshold float64) error {
+func WaitStable(cl Surface, stable, timeout time.Duration, threshold float64) error {
 	if threshold <= 0 {
 		threshold = 0.02
 	}
@@ -252,7 +252,7 @@ func WaitStable(cl *wl.Client, stable, timeout time.Duration, threshold float64)
 // fullscreen: the id a caller noted at launch can already be stale. When the
 // id is unknown and the screen holds exactly one window, that one is closed,
 // which covers the whole of the case under a single-application kiosk.
-func CloseWindow(cl *wl.Client, id uint32) (uint32, error) {
+func CloseWindow(cl Surface, id uint32) (uint32, error) {
 	err := cl.CloseToplevel(id)
 	if err == nil {
 		return id, nil
@@ -268,7 +268,7 @@ func CloseWindow(cl *wl.Client, id uint32) (uint32, error) {
 }
 
 // WaitTitle returns once a window title matches re.
-func WaitTitle(cl *wl.Client, re *regexp.Regexp, timeout time.Duration) (*wl.Toplevel, error) {
+func WaitTitle(cl Surface, re *regexp.Regexp, timeout time.Duration) (*wl.Toplevel, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		tls, err := cl.Toplevels()

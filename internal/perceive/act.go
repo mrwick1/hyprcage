@@ -94,7 +94,7 @@ type inputter interface {
 	scroll(x, y int, direction string, amount int) error
 }
 
-type wlInput struct{ cl *wl.Client }
+type wlInput struct{ cl screen.Surface }
 
 func (w wlInput) click(x, y, count int) error {
 	return screen.Click(w.cl, x, y, wl.ButtonLeft, count, nil)
@@ -109,7 +109,7 @@ func (w wlInput) scroll(x, y int, direction string, amount int) error {
 // Act resolves the ref, reveals it when off screen, sends the input,
 // waits for the tree to settle, and returns the diff. The op "key" sends
 // the keys to the focused element: it does not click the node first.
-func Act(ctx context.Context, cl *wl.Client, src Source, t *Table, op ActOp) (Diff, error) {
+func Act(ctx context.Context, cl screen.Surface, src Source, t *Table, op ActOp) (Diff, error) {
 	return act(ctx, wlInput{cl}, src, t, op)
 }
 

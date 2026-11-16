@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/proc"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
 )
@@ -55,10 +56,10 @@ func killScreenProcesses(name string, sig syscall.Signal) {
 			cage = pid
 			continue
 		}
-		_ = syscall.Kill(pid, sig)
+		_ = proc.Kill(pid, sig)
 	}
 	if cage != 0 {
-		_ = syscall.Kill(cage, sig)
+		_ = proc.Kill(cage, sig)
 	}
 }
 
@@ -113,8 +114,11 @@ func ListenerPID(port int) (int, error) {
 
 // OwnsPort reports whether the process recorded as the owner of
 // rec.DebugPort still listens on it: same PID, same start time. It reads
-// only that process's fds.
+// only that process's fds. A headless screen owns its port while its Chrome runs.
 func OwnsPort(rec *registry.Screen) bool {
+	if rec.Kind == KindHeadless { // its Chrome owns the port while it runs
+		return rec.DebugPort > 0 && headlessAlive(rec)
+	}
 	if rec.DebugPID <= 0 || rec.DebugPIDStart == 0 {
 		return false
 	}
@@ -148,13 +152,13 @@ func killDebug(rec *registry.Screen) {
 			}
 		}
 	}
-	_ = syscall.Kill(rec.DebugPID, syscall.SIGTERM)
+	_ = proc.Kill(rec.DebugPID, syscall.SIGTERM)
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		if !alive() || zombie(rec.DebugPID) {
 			return
 		}
 	}
-	_ = syscall.Kill(rec.DebugPID, syscall.SIGKILL)
+	_ = proc.Kill(rec.DebugPID, syscall.SIGKILL)
 }
 
 // closeBrowser sends Browser.close to the DevTools port and reports whether

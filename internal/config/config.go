@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -136,9 +137,13 @@ func Default() Config {
 }
 
 // Path is the config file: $XDG_CONFIG_HOME/offstage/config.toml, that is
-// ~/.config/offstage/config.toml by default.
+// ~/.config/offstage/config.toml by default and %APPDATA%\offstage\config.toml
+// on Windows.
 func Path() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" && runtime.GOOS == "windows" {
+		base = os.Getenv("AppData")
+	}
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

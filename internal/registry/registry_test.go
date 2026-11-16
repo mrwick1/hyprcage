@@ -2,6 +2,9 @@ package registry
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -27,7 +30,7 @@ func TestSaveLoadListDelete(t *testing.T) {
 		t.Fatalf("List: %v, %v", l, err)
 	}
 	fi, _ := os.Stat(Path("hc-1a2b3c"))
-	if fi.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 { // Windows has no mode bits
 		t.Errorf("record perm %v, want 0600", fi.Mode().Perm())
 	}
 	if err := Delete("hc-1a2b3c"); err != nil {
@@ -68,4 +71,57 @@ func TestReadInner(t *testing.T) {
 	if err != nil || m["WAYLAND_DISPLAY"] != "wayland-2" || m["DISPLAY"] != ":3" {
 		t.Fatalf("ReadInner: %v, %v", m, err)
 	}
+}
+
+func TestDirDefault(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	if runtime.GOOS == "windows" {
+		base := t.TempDir()
+		t.Setenv("LocalAppData", base)
+		if got, want := Dir(), filepath.Join(base, "offstage", "run"); got != want {
+			t.Errorf("Dir() = %q, want %q", got, want)
+		}
+	}
+	rt := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", rt)
+	if got, want := Dir(), filepath.Join(rt, "offstage"); got != want {
+		t.Errorf("Dir() with XDG_RUNTIME_DIR = %q, want %q", got, want)
+	}
+}
+
+// A record is replaced while readers open it: Save must not fail.
+func TestSaveWhileReading(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if err := Save(&Screen{Name: "hc-a"}); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					if _, err := Load("hc-a"); err != nil {
+						t.Errorf("Load: %v", err)
+						return
+					}
+					_ = Touch("hc-a")
+					time.Sleep(time.Millisecond)
+				}
+			}
+		}()
+	}
+	for i := 0; i < 300; i++ {
+		if err := Save(&Screen{Name: "hc-a", Width: i}); err != nil {
+			t.Errorf("Save %d: %v", i, err)
+			break
+		}
+	}
+	close(stop)
+	wg.Wait()
 }

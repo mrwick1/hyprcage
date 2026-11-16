@@ -6,11 +6,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/proc"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/sysd"
 )
@@ -94,8 +95,13 @@ func gcSession(e *Env, sessionID string, after time.Duration) int {
 		after = time.Second
 	}
 	if err := sysd.ScheduleOnce(after, "", cmd); err != nil {
+		// Without systemd (Windows) nothing waits. A delayed gc is dropped:
+		// the next screen_create and the server's disconnect reap the screens.
+		if runtime.GOOS != "linux" && after > time.Second {
+			return ExitOK
+		}
 		c := exec.Command(cmd[0], cmd[1:]...)
-		c.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		proc.Detach(c)
 		if err := c.Start(); err != nil {
 			return e.errorf("%v", err)
 		}

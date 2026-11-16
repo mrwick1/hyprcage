@@ -51,7 +51,7 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 		hb, _ := registry.Heartbeat(rec.Name)
 		dead := !session.IsAlive(rec.Owner, hb, c.Cfg.SessionGrace)
 		// A screen whose cage crashed is useless whoever owns it: reap it too.
-		cageDead := rec.State == "ready" && rec.CagePID > 0 && !Alive(rec)
+		cageDead := rec.State == "ready" && (rec.CagePID > 0 || rec.Kind == KindHeadless) && !Alive(rec)
 		if opts.All || (opts.Session != "" && rec.Owner.SessionID == opts.Session) || dead || cageDead {
 			if err := Destroy(c, rec); err != nil {
 				rep.Errors = append(rep.Errors, rec.Name+": "+err.Error())

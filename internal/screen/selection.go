@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/registry"
-	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 const (
@@ -16,7 +15,10 @@ const (
 // ReadSelection copies the selection of the focused window of a screen
 // and returns it. It restores the earlier clipboard of the screen.
 // No selection returns "".
-func ReadSelection(rec *registry.Screen, cl *wl.Client) (string, error) {
+func ReadSelection(rec *registry.Screen, cl Surface) (string, error) {
+	if err := RefuseHeadless(rec, "read_selection"); err != nil {
+		return "", err
+	}
 	return readSelection(
 		func() (string, error) { return ClipboardGet(rec) },
 		func(s string) error { return ClipboardSet(rec, s) },

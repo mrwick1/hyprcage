@@ -7,13 +7,14 @@ LDFLAGS := -s -w -X github.com/hexadecimil/offstage/internal/version.Version=$(V
 build:
 > CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o offstage ./cmd/offstage
 
-# Release assets: one static binary per architecture and their checksums,
-# what install.sh and the plugin launcher download.
+# Release assets: one static binary per system and architecture, and their
+# checksums: what install.sh, install.ps1 and the plugin launchers download.
 dist:
 > rm -rf dist && mkdir -p dist
 > CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o dist/offstage-linux-amd64 ./cmd/offstage
 > CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o dist/offstage-linux-arm64 ./cmd/offstage
-> cd dist && sha256sum offstage-linux-amd64 offstage-linux-arm64 > SHA256SUMS
+> CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o dist/offstage-windows-amd64.exe ./cmd/offstage
+> cd dist && sha256sum offstage-linux-amd64 offstage-linux-arm64 offstage-windows-amd64.exe > SHA256SUMS
 
 vet:
 > go vet ./...

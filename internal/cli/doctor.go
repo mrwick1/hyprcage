@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/headless"
 	"github.com/hexadecimil/offstage/internal/hypr"
 	"github.com/hexadecimil/offstage/internal/perceive"
 	"github.com/hexadecimil/offstage/internal/registry"
@@ -49,6 +51,21 @@ func runDoctor(e *Env) int {
 		add("config", "ok", fmt.Sprintf("%s (screens %dx%d, mirrors on workspaces %d-%d by %s, %d screens per session)", cfg.Path, cfg.DefaultWidth, cfg.DefaultHeight, cfg.MirrorMin, cfg.MirrorMax, cfg.MirrorGroup, cfg.MaxPerSession))
 	default:
 		add("config", "ok", fmt.Sprintf("defaults (no %s, `offstage config` writes one)", cfg.Path))
+	}
+	if runtime.GOOS != "linux" {
+		// Off Linux a screen is one headless Chrome. The Hyprland, cage and
+		// desktop checks do not apply.
+		if p, err := headless.FindChrome(); err != nil {
+			add("chrome", "fail", err.Error())
+		} else {
+			add("chrome", "ok", p)
+		}
+		if p, err := exec.LookPath("ffmpeg"); err != nil {
+			add("ffmpeg", "warn", "not found: recording needs it; winget install ffmpeg")
+		} else {
+			add("ffmpeg", "ok", p)
+		}
+		return printChecks(e, checks, *asJSON)
 	}
 
 	if rt := os.Getenv("XDG_RUNTIME_DIR"); rt == "" {
@@ -150,7 +167,12 @@ func runDoctor(e *Env) int {
 	st, detail := notifydCheck()
 	add("notifyd", st, detail)
 
-	if *asJSON {
+	return printChecks(e, checks, *asJSON)
+}
+
+// printChecks prints the checks and returns ExitDependency when one failed.
+func printChecks(e *Env, checks []check, asJSON bool) int {
+	if asJSON {
 		return e.printJSON(checks)
 	}
 	worst := ExitOK

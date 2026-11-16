@@ -139,6 +139,14 @@ func runRecordChild(e *Env) int {
 		if err != nil {
 			return e.fail(err)
 		}
+		if rec.Kind == screen.KindHeadless {
+			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			if err := record.RunHeadless(ctx, target, rec.DebugPort, rec.DebugPID, rec.Width, rec.Height, out, cfg); err != nil {
+				return e.fail(err)
+			}
+			return ExitOK
+		}
 		display = rec.InnerDisplay
 		if display == "" {
 			inner, err := registry.ReadInner(target)

@@ -15,7 +15,6 @@ import (
 	"github.com/hexadecimil/offstage/internal/perceive"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/screen"
-	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 type snapIn struct {
@@ -102,7 +101,7 @@ func (s *Server) dropTable(rec *registry.Screen) { delete(s.tables, tableKey(rec
 
 // source resolves the screen and chooses a source: want, or the source of
 // the table's last read when want is empty. The caller closes it.
-func (s *Server) source(ctx context.Context, name, want string) (*wl.Client, perceive.Source, *perceive.Table, *registry.Screen, error) {
+func (s *Server) source(ctx context.Context, name, want string) (screen.Surface, perceive.Source, *perceive.Table, *registry.Screen, error) {
 	rec, cl, err := s.resolve(name, true)
 	if err != nil {
 		return nil, nil, nil, nil, err

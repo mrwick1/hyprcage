@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/hexadecimil/offstage/internal/wl"
 )
@@ -62,11 +61,11 @@ func renderNodeOf(p string) string {
 	if err != nil {
 		return ""
 	}
-	st, ok := fi.Sys().(*syscall.Stat_t)
+	rdev, ok := deviceNumber(fi)
 	if !ok || fi.Mode()&os.ModeCharDevice == 0 {
 		return ""
 	}
-	return renderNodeOfDev(uint64(st.Rdev))
+	return renderNodeOfDev(rdev)
 }
 
 // renderNodeOfDev finds the render node of the DRM device a character

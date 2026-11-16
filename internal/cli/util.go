@@ -20,7 +20,7 @@ func (e *Env) fail(err error) int {
 			return ExitScreen
 		case screen.CodeNotOwner:
 			return ExitNotOwner
-		case screen.CodeHyprland, screen.CodeCage, screen.CodeLocked, screen.CodeBrowserBusy, screen.CodeBrowserDown,
+		case screen.CodeHyprland, screen.CodeCage, screen.CodeFFmpeg, screen.CodeLocked, screen.CodeBrowserBusy, screen.CodeBrowserDown,
 			screen.CodeCDP, screen.CodeNoSource:
 			return ExitDependency
 		case screen.CodeAddress, screen.CodeUnsupported:

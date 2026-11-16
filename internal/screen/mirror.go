@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/proc"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/shellq"
@@ -72,6 +73,9 @@ func WriteMirror(name string, st MirrorState) error {
 // puts new windows. One mirror per screen: a second request while one runs
 // is a no-op.
 func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) error {
+	if err := RefuseHeadless(rec, "mirror"); err != nil {
+		return err
+	}
 	if _, alive := ReadMirror(rec.Name); alive {
 		return nil
 	}
@@ -99,7 +103,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 		}
 	} else {
 		p := exec.Command(argv[0], argv[1:]...)
-		p.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		proc.Detach(p)
 		if err := p.Start(); err != nil {
 			return err
 		}
@@ -123,7 +127,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 func StopMirror(name string) {
 	st, alive := ReadMirror(name)
 	if alive {
-		_ = syscall.Kill(st.PID, syscall.SIGTERM)
+		_ = proc.Kill(st.PID, syscall.SIGTERM)
 		deadline := time.Now().Add(time.Second)
 		for time.Now().Before(deadline) {
 			if !session.PIDAlive(st.PID, st.PIDStart) {

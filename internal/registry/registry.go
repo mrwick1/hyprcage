@@ -29,6 +29,10 @@ type Screen struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	State     string    `json:"state"` // starting, ready
+	// Kind is "headless" for a screen that is one headless Chrome driven
+	// over DevTools, and empty for a cage screen. A headless screen has no
+	// cage: DebugPort, DebugPID and DebugPIDStart name its Chrome.
+	Kind string `json:"kind,omitempty"`
 	// Version is the record format: 3 for a screen with its own headless
 	// output (cage on wlroots' headless backend). A record without one was
 	// written by a 0.1 or 0.2 offstage, whose screens were Hyprland outputs,
@@ -71,12 +75,13 @@ type Screen struct {
 	EmulatedOrigin *[2]int `json:"emulated_origin,omitempty"`
 }
 
-// Dir is the registry directory.
+// Dir is the registry directory: $XDG_RUNTIME_DIR/offstage when set, else
+// defaultDir, which depends on the system.
 func Dir() string {
 	if rt := os.Getenv("XDG_RUNTIME_DIR"); rt != "" {
 		return filepath.Join(rt, "offstage")
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("offstage-%d", os.Getuid()))
+	return defaultDir()
 }
 
 // EnsureDir creates the registry directory (0700) and returns it.
@@ -106,7 +111,8 @@ func Save(s *Screen) error {
 
 // Load reads one record.
 func Load(name string) (*Screen, error) {
-	data, err := os.ReadFile(Path(name))
+	var data []byte
+	err := retry(func() (err error) { data, err = os.ReadFile(Path(name)); return })
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
@@ -161,7 +167,8 @@ func Touch(name string) error {
 
 // Heartbeat returns the record's last heartbeat.
 func Heartbeat(name string) (time.Time, error) {
-	fi, err := os.Stat(Path(name))
+	var fi os.FileInfo
+	err := retry(func() (err error) { fi, err = os.Stat(Path(name)); return })
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -204,5 +211,5 @@ func WriteAtomic(path string, data []byte, perm os.FileMode) error {
 		os.Remove(tmpName)
 		return err
 	}
-	return os.Rename(tmpName, path)
+	return retry(func() error { return os.Rename(tmpName, path) })
 }

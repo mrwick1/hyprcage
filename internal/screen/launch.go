@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 
+	"github.com/hexadecimil/offstage/internal/proc"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/sysd"
 )
@@ -21,6 +21,9 @@ var launchSeq int
 func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv map[string]string) (int, string, error) {
 	if len(command) == 0 {
 		return 0, "", fmt.Errorf("empty command")
+	}
+	if err := RefuseHeadless(rec, "app_launch"); err != nil {
+		return 0, "", err
 	}
 	if rec.InnerDisplay == "" {
 		inner, err := registry.ReadInner(rec.Name)
@@ -84,7 +87,7 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = full
 	cmd.Dir = cwd
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	proc.Detach(cmd)
 	if f := appLog(rec.Name, launchSeq); f != nil {
 		cmd.Stdout, cmd.Stderr = f, f
 		defer f.Close()
