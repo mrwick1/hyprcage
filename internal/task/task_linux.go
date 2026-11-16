@@ -4,6 +4,7 @@
 package task
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -68,6 +69,9 @@ func save(t *Task) error {
 	return registry.WriteAtomic(filepath.Join(t.Directory, "manifest.json"), b, 0600)
 }
 func load(taskID string, owner registry.Owner) (*Task, func(), error) {
+	return loadContext(context.Background(), taskID, owner)
+}
+func loadContext(ctx context.Context, taskID string, owner registry.Owner) (*Task, func(), error) {
 	if !valid.MatchString(taskID) {
 		return nil, nil, fmt.Errorf("invalid task ID")
 	}
@@ -76,9 +80,27 @@ func load(taskID string, owner registry.Owner) (*Task, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		f.Close()
-		return nil, nil, err
+	for {
+		if err = ctx.Err(); err != nil {
+			f.Close()
+			return nil, nil, err
+		}
+		err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, unix.EWOULDBLOCK) {
+			f.Close()
+			return nil, nil, err
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			f.Close()
+			return nil, nil, ctx.Err()
+		case <-timer.C:
+		}
 	}
 	release := func() { _ = unix.Flock(int(f.Fd()), unix.LOCK_UN); f.Close() }
 	b, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
@@ -123,7 +145,12 @@ func Create(owner registry.Owner) (*Task, error) {
 // serviceState uses an unguessable unit name recorded before process creation.
 // Process exit results are persisted by the launcher when available.
 func serviceState(unit string) (string, *int, error) {
-	out, err := exec.Command("systemctl", "--user", "show", unit, "--property=LoadState,ActiveState,ExecMainCode,ExecMainStatus").Output()
+	return serviceStateContext(context.Background(), unit)
+}
+func serviceStateContext(ctx context.Context, unit string) (string, *int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "systemctl", "--user", "show", unit, "--property=LoadState,ActiveState,ExecMainCode,ExecMainStatus").Output()
 	if err != nil {
 		return "unknown", nil, err
 	}
@@ -146,7 +173,12 @@ func serviceState(unit string) (string, *int, error) {
 	return fields["ActiveState"], nil, nil
 }
 func Inspect(taskID string, owner registry.Owner) (*Task, error) {
-	t, release, err := load(taskID, owner)
+	return InspectContext(context.Background(), taskID, owner)
+}
+
+// InspectContext permits cancellation during lock acquisition and service queries.
+func InspectContext(ctx context.Context, taskID string, owner registry.Owner) (*Task, error) {
+	t, release, err := loadContext(ctx, taskID, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +192,10 @@ func Inspect(taskID string, owner registry.Owner) (*Task, error) {
 			if _, ok := collectors.Load(r.Unit); !ok && r.LogState == "collecting" {
 				r.LogState = "unavailable"
 			}
-			state, code, e := serviceState(r.Unit)
+			state, code, e := serviceStateContext(ctx, r.Unit)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			if state != "missing" || r.ExitCode == nil {
 				r.State = state
 				if code != nil {
