@@ -13,8 +13,8 @@ import (
 
 type reportIn struct {
 	Title     string `json:"title" jsonschema:"one line that names the offstage problem"`
-	Expected  string `json:"expected" jsonschema:"what the tool should have done"`
-	Actual    string `json:"actual" jsonschema:"what it did instead, with the error text"`
+	Expected  string `json:"expected,omitempty" jsonschema:"for a bug: what the tool should have done"`
+	Actual    string `json:"actual,omitempty" jsonschema:"for a bug: what it did instead, with the error text; for other types: the details"`
 	Screen    string `json:"screen,omitempty" jsonschema:"the agent screen it happened on; its tool calls, logs, element tree and a screenshot go into the report"`
 	Area      string `json:"area,omitempty" jsonschema:"crash, isolation-leak (a tool touched the human's desktop, cursor or focus), install or desktop"`
 	Type      string `json:"type,omitempty" jsonschema:"bug (default), doubt, suggestion or feedback"`
