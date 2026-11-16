@@ -75,6 +75,7 @@ func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
 	if err != nil {
 		return nil, screen.Errf(screen.CodeUnsupported, "run: offstage report login", "%v", err)
 	}
+	report.ClearCrashes(b.Crashes)
 	return textResult(map[string]string{"result": msg}), nil
 }
 

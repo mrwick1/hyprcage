@@ -14,8 +14,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -27,6 +29,7 @@ import (
 	"github.com/hexadecimil/offstage/internal/perceive"
 	"github.com/hexadecimil/offstage/internal/record"
 	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/report"
 	"github.com/hexadecimil/offstage/internal/screen"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/setup"
@@ -61,6 +64,11 @@ func Run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	defer report.CatchCrashes()()
+	if n := len(report.Crashes()); n > 0 {
+		note := fmt.Sprintf("Beta: offstage crashed earlier (%d crash file(s) in %s). Call report_issue with area crash, a title and what you were doing.", n, report.CrashDir())
+		crashNotice.Store(&note)
 	}
 	s := newServer(cfg)
 	s.adopt()
@@ -460,12 +468,29 @@ func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 // of its calls from it.
 var recorded func(audit.Entry)
 
+// safely runs a handler and turns a panic into an internal error. The crash
+// file it writes goes into the next report with area crash.
+func safely[In any](name string, h func(In) (*mcp.CallToolResult, []audit.Option, error), in In) (res *mcp.CallToolResult, opts []audit.Option, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			p := report.RecordPanic(name, v, debug.Stack())
+			res, opts = nil, nil
+			err = screen.Errf(screen.CodeInternal, "call report_issue with area crash", "offstage panicked in %s: %v (crash file %s)", name, v, p)
+		}
+	}()
+	return h(in)
+}
+
+// crashNotice tells the agent, in the first result of this server, that
+// crash files from earlier servers wait for a report.
+var crashNotice atomic.Pointer[string]
+
 // add registers a handler and writes its audit line with the options it
 // returns.
 func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error)) {
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			res, opts, err := h(in)
+			res, opts, err := safely(name, h, in)
 			failed := err
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")
@@ -479,6 +504,11 @@ func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolRe
 			}
 			if err != nil {
 				return nil, nil, err
+			}
+			if res != nil && !res.IsError {
+				if n := crashNotice.Swap(nil); n != nil {
+					res.Content = append(res.Content, &mcp.TextContent{Text: *n})
+				}
 			}
 			return res, nil, nil
 		})

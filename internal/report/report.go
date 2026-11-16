@@ -62,6 +62,9 @@ type Bundle struct {
 	Meta  relay.Meta
 	Zip   []byte
 	Files []string // names inside the zip, for the preview
+	// Crashes are the crash files in the bundle. Remove them with
+	// ClearCrashes once the report is sent or queued.
+	Crashes []string
 }
 
 // Build collects and redacts a bundle.
@@ -83,6 +86,21 @@ func Build(r Request) (*Bundle, error) {
 	for name, data := range r.Extra {
 		files[name] = data
 	}
+	var crashes []string
+	fingerprint := Fingerprint(trace)
+	if r.Area == "crash" {
+		for _, p := range Crashes() {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			files["crashes/"+filepath.Base(p)] = data
+			crashes = append(crashes, p)
+			if fp := crashFingerprint(string(data)); fp != "" {
+				fingerprint = fp
+			}
+		}
+	}
 	kind := "agent"
 	if r.Manual {
 		kind = "manual"
@@ -92,7 +110,7 @@ func Build(r Request) (*Bundle, error) {
 		Platform:    runtime.GOOS,
 		Kind:        kind,
 		Area:        r.Area,
-		Fingerprint: Fingerprint(trace),
+		Fingerprint: fingerprint,
 		Version:     version.Version,
 		OS:          osName(),
 		Body:        body(r, trace),
@@ -108,7 +126,7 @@ func Build(r Request) (*Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Bundle{Meta: m, Zip: z, Files: names}, nil
+	return &Bundle{Meta: m, Zip: z, Files: names, Crashes: crashes}, nil
 }
 
 // scrubber returns the redaction for this machine: internal/redact, then

@@ -77,6 +77,7 @@ func runReport(e *Env) int {
 	if err != nil {
 		return e.errorf("%v", err)
 	}
+	report.ClearCrashes(b.Crashes)
 	fmt.Fprintln(e.Stdout, res)
 	return ExitOK
 }
