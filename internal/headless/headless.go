@@ -100,6 +100,10 @@ func Start(ctx context.Context, o Options) (*Browser, error) {
 		}
 		b.profile, b.ownsProfile = d, true
 	}
+	if err := seedProfile(b.profile); err != nil {
+		b.removeProfile()
+		return nil, err
+	}
 	b.port = o.Port
 	if b.port == 0 {
 		p, err := screen.FreePort()
