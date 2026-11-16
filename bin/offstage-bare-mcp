@@ -6,6 +6,8 @@
 # problem reports through offstage's report_issue.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
+# The plugin's version pins the offstage release, as in offstage-mcp.
+want=v$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json" | head -1)
 find_bin() {
   local d
   for d in "${OFFSTAGE_BIN_DIR:-$HOME/.local/bin}" "$(dirname "$(command -v offstage 2>/dev/null || echo /)")"; do
@@ -16,7 +18,7 @@ find_bin() {
 bin=$(find_bin || true)
 if [ -z "$bin" ]; then
   echo "bare: first run, installing bare-mcp and bare-drive" >&2
-  OFFSTAGE_FROM_SOURCE=${OFFSTAGE_FROM_SOURCE:-0} bash "$root/install.sh" --binary-only >&2 \
+  OFFSTAGE_VERSION=${OFFSTAGE_VERSION:-$want} OFFSTAGE_FROM_SOURCE=${OFFSTAGE_FROM_SOURCE:-0} bash "$root/install.sh" --binary-only >&2 \
     || { echo "bare: could not install; from a terminal: bash $root/install.sh" >&2; exit 1; }
   bin=$(find_bin || true)
   [ -n "$bin" ] || { echo "bare: bare-mcp still not found after installing" >&2; exit 1; }
