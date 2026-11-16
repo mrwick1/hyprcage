@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/hexadecimil/offstage/v0.1.0/install
 **From source** (Go ≥ 1.24)
 
 ```
-git clone https://github.com/hexadecimil/offstage && cd offstage
+git clone https://github.com/mrwick1/offstage && cd offstage
 make build && install -Dm755 offstage ~/.local/bin/offstage
 offstage setup && offstage config && offstage doctor
 ```
