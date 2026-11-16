@@ -29,6 +29,9 @@ type GCReport struct {
 // offstage-<screen>-mirror-<pid>-<n>.scope. Leaving it out would make gc
 // read the whole suffix as part of the screen name, find no record under
 // that name, and stop a unit that is doing its job.
+// Task process services have their own lifecycle and must not enter screen GC.
+var taskServiceRE = regexp.MustCompile(`^offstage-task-[0-9a-f]{32}-process-[0-9a-f]{32}\.service$`)
+
 var roleSuffixRE = regexp.MustCompile(`-(app|mirror)-\d+(-\d+)?$`)
 
 // GC implements cahier §5.3 M4: screens of dead sessions, then units and
@@ -95,7 +98,7 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 // or offstage-gc-<name>.timer.
 func orphanScreenName(unit string) string {
 	base := strings.TrimPrefix(unit, "offstage-")
-	if base == unit || unit == "offstage-notifyd.service" { // the notification log belongs to no screen
+	if base == unit || unit == "offstage-notifyd.service" || taskServiceRE.MatchString(unit) { // the notification log belongs to no screen
 		return ""
 	}
 	if i := strings.LastIndex(base, "."); i >= 0 {
