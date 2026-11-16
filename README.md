@@ -60,6 +60,37 @@ make build && install -Dm755 hyprcage ~/.local/bin/hyprcage
 hyprcage setup && hyprcage config && hyprcage doctor
 ```
 
+## Windows
+
+Windows is supported in a smaller form. A screen there is one headless
+Chrome that the agent drives over DevTools. It has no window, so your desktop
+is never touched.
+
+Install from PowerShell. It needs no admin rights and changes no system
+setting:
+
+```
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/hexadecimil/hyprcage/main/install.ps1)))
+```
+
+The script puts `hyprcage.exe` in `%LOCALAPPDATA%\hyprcage\bin`, writes the
+configuration to `%APPDATA%\hyprcage` and registers the MCP server with Claude
+Code and Codex. Options go after the script block, for example `-Agents none`,
+`-BinaryOnly` or `-Uninstall`. `HYPRCAGE_VERSION=v0.9.0` pins a release. The
+Claude Code plugin also works: its launcher runs the same script.
+
+- **Needs**: Windows 11 and Chrome. Recording also needs ffmpeg:
+  `winget install ffmpeg`.
+- **Tools**: `screen_create`, `screen_destroy`, `screen_list`, `browser_open`,
+  `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`,
+  `move`, `wait`, `snapshot`, `act`, `find`, `read_page`, `watch`,
+  `devtools_*`, `record_start` and `record_stop`.
+- **Not yet**: native apps, `mirror`, `clipboard_*`, `desktop_*` and
+  `notify_*`. The server does not list them.
+- **Claude Code plugin hooks**: the hooks run through Git Bash. Without Git
+  Bash, Claude Code runs them in PowerShell, where they fail and the session
+  goes on. The screens then close only when the MCP server stops.
+
 ## Agents
 
 | Agent | Tools | Skill | Screens of a finished session |

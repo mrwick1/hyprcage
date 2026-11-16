@@ -94,6 +94,11 @@ func gcSession(e *Env, sessionID string, after time.Duration) int {
 		after = time.Second
 	}
 	if err := sysd.ScheduleOnce(after, "", cmd); err != nil {
+		// Without systemd (Windows) nothing waits. A delayed gc is dropped:
+		// the next screen_create and the server's disconnect reap the screens.
+		if after > time.Second {
+			return ExitOK
+		}
 		c := exec.Command(cmd[0], cmd[1:]...)
 		proc.Detach(c)
 		if err := c.Start(); err != nil {
