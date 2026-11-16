@@ -10,18 +10,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/desktop"
+	"github.com/hexadecimil/hyprcage/internal/headless"
 	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/session"
 	"github.com/hexadecimil/hyprcage/internal/wl"
 )
+
+// lookPath finds ffmpeg; tests replace it.
+var lookPath = exec.LookPath
 
 // Desktop is the target name of the human's own screen.
 const Desktop = desktop.Name
@@ -130,6 +135,13 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 	if s, err := Load(target); err == nil {
 		return s, screen.Errf(screen.CodeRecording, "record_stop first", "%s is already recording to %s", target, s.Path)
 	}
+	if _, err := lookPath("ffmpeg"); err != nil {
+		hint := "run `hyprcage setup` (or the setup tool): it installs ffmpeg"
+		if runtime.GOOS == "windows" {
+			hint = "install it with `winget install ffmpeg`, then open a new terminal so that PATH has it"
+		}
+		return State{}, screen.Errf(screen.CodeFFmpeg, hint, "ffmpeg not found in PATH")
+	}
 	if !isScreen && lockedFn() {
 		return State{}, screen.Errf(screen.CodeLocked, "wait until the human unlocks", "the desktop is locked")
 	}
@@ -185,14 +197,14 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 	return State{}, screen.Errf(screen.CodeCapture, "see "+logPath, "the recorder of %s did not start", target)
 }
 
-// Stop sends SIGTERM to target's recorder and waits until ffmpeg has
-// written the file.
+// Stop asks target's recorder to stop (requestStop) and waits until ffmpeg
+// has written the file.
 func Stop(target string) (State, error) {
 	s, err := Load(target)
 	if err != nil {
 		return s, err
 	}
-	_ = proc.Kill(s.PID, syscall.SIGTERM)
+	requestStop(s)
 	for i := 0; i < 150 && alive(s.PID); i++ {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -205,7 +217,6 @@ func Stop(target string) (State, error) {
 // RunChild is the body of `hyprcage _record`: capture display, pipe the
 // frames to ffmpeg, stop on ctx, max or a capture error.
 func RunChild(ctx context.Context, target, display, out string, crop image.Rectangle, cfg config.Config) error {
-	_ = os.MkdirAll(screen.LogDir(), 0o700)
 	cl, err := wl.ConnectCapture(display)
 	if err != nil {
 		return err
@@ -214,7 +225,31 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 	// ponytail: the capture connection binds the first wl_output, so on a
 	// desktop with several monitors only one is recorded; add an output
 	// choice when a second monitor is in use.
-	first, err := cl.Capture(true)
+	return run(ctx, target, cl, true, out, crop, cfg)
+}
+
+// RunHeadless is RunChild for a headless screen: it attaches to the
+// screen's Chrome and records its screencast. Chrome keeps running when the
+// recorder ends. The page is the whole frame, so there is no crop.
+func RunHeadless(ctx context.Context, target string, port, pid, w, h int, out string, cfg config.Config) error {
+	b, err := headless.Attach(ctx, port, pid, w, h)
+	if err != nil {
+		return err
+	}
+	defer b.Detach()
+	cast, err := b.StartScreencast()
+	if err != nil {
+		return err
+	}
+	defer cast.Stop()
+	return run(ctx, target, cast, false, out, image.Rectangle{}, cfg)
+}
+
+// run pipes the frames of c to ffmpeg. pointer says that the screen notes
+// its pointer input (screen.InputPath) for the rings of the clicks.
+func run(ctx context.Context, target string, c Capturer, pointer bool, out string, crop image.Rectangle, cfg config.Config) error {
+	_ = os.MkdirAll(screen.LogDir(), 0o700)
+	first, err := c.Capture(true)
 	if err != nil {
 		return err
 	}
@@ -246,10 +281,15 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 		return err
 	}
 	defer os.Remove(StatePath(target))
-	ck := &clicks{path: screen.InputPath(target)}
-	_ = os.Remove(ck.path) // the input of an earlier recording
-	defer os.Remove(ck.path)
-	_, loopErr := Loop(ctx, cl, stdin, cfg.RecordFPS, cfg.RecordMax, cfg.RecordIdle, cfg.StableThreshold, ck.draw, first)
+	ctx = watchStop(ctx, target)
+	var draw func(*image.RGBA) bool
+	if pointer {
+		ck := &clicks{path: screen.InputPath(target)}
+		_ = os.Remove(ck.path) // the input of an earlier recording
+		defer os.Remove(ck.path)
+		draw = ck.draw
+	}
+	_, loopErr := Loop(ctx, c, stdin, cfg.RecordFPS, cfg.RecordMax, cfg.RecordIdle, cfg.StableThreshold, draw, first)
 	_ = stdin.Close()
 	ffErr := ff.Wait()
 	return errors.Join(ignoreClosedPipe(loopErr), ffErr)
