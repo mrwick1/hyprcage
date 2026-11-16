@@ -48,18 +48,6 @@ func mustCall(t *testing.T, cs *mcp.ClientSession, name string, args map[string]
 	return res
 }
 
-// chromeProcs lists the processes whose command line holds profile.
-func chromeProcs(profile string) []string {
-	var found []string
-	dirs, _ := filepath.Glob("/proc/[0-9]*/cmdline")
-	for _, f := range dirs {
-		if b, err := os.ReadFile(f); err == nil && strings.Contains(string(b), profile) {
-			found = append(found, filepath.Base(filepath.Dir(f)))
-		}
-	}
-	return found
-}
-
 func requireChrome(t *testing.T) {
 	t.Helper()
 	if _, err := headless.FindChrome(); err != nil {

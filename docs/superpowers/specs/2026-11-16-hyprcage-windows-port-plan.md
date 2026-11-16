@@ -123,6 +123,7 @@ Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 s
 - `sysd` replacement: a Job Object per screen, so closing the job ends every process. A detached safety-timer process replaces the systemd timer.
 - `config`: Windows default path `%APPDATA%\hyprcage\config.toml`.
 - Check: unit tests run on Windows in the VM (`go test ./...`).
+- Deferred: the Job Object and the safety-timer process. v1 kills with `taskkill /T /F`, which walks the tree from Chrome's main pid. When Chrome's main process dies first, its children keep no link to that pid and the tree is lost. A Job Object closes this gap and stays on the list for after v1.
 
 ### Phase 4: headless browser screen on Windows
 
