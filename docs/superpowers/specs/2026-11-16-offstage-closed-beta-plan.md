@@ -127,8 +127,9 @@ Do not file when the app under test has the bug, when the arguments were wrong, 
 A screenshot shows the end state. It does not show how to get there. The bundle carries what a developer needs to run the same steps again:
 
 - Trace: every tool call on the screen since `screen_create`, in order, with arguments, result, error code and duration. The source is `actions.jsonl`. The audit log already drops typed text.
-- Stable targets: for each `act`, `click` or `drag` that used a ref or a point, the trace also stores the role, the name and the ancestor path of the element under it. Replay finds the element by these, not by a ref or a pixel, so a different window position does not break it.
-- Placeholders: typed text becomes `<text:N chars>`. Replay types a string of the same length. A tester can mark a field as safe, and then the real text goes in.
+- Stable targets: for each `act`, `click`, `double_click`, `move`, `scroll` or `drag` that used a ref or a point, the audit line also stores the role, the name and the centre of the element under it, from the last snapshot. Replay takes a snapshot, finds the element by role and name, and uses its new ref or moves the point by the same offset. A different window position does not break it. The ancestor path is not stored: role and name must match one element only, or the step fails with `stale_ref`.
+- Placeholders: typed text becomes `text_len` (also `value_len` and `data_len`). Replay types the same number of `x` characters. A printable key becomes `<char>`, and replay presses `x`. A way to mark a field as safe is not built.
+- App launch: the arguments of `app_launch` stay in the audit log after `redact.Text`. Before this change, the log kept the program name only. Replay needs the arguments.
 - State around the failure: the element tree (UIA or CDP) before and after the failing step, and the window list with titles, classes, process names and bounds.
 - App identity: executable name, version, and for Chrome the version and the URL without its query and fragment.
 - Environment: build version, Windows build and edition, isolation model, GPU name, VM or real hardware, display scale, screen size.
@@ -140,6 +141,7 @@ Replay result:
 - Same error code or same failed verification at the same step: the report gets the label `reproduced`.
 - A different result: `needs-repro`. The bundle and the replay log go to the developer.
 - Replay runs in the Windows test VM. A T3 scheduled task can run it for each new report. Decide after week 1.
+- Linux: `offstage replay <bundle.zip | queue dir | trace.jsonl>` is built. It never replays the desktop screen, `desktop_*`, `notify_*`, `setup`, `report_issue` or `devtools_eval`. It keeps the pause between steps up to `--pace` (default 2s), and destroys its screens unless `--keep` is set. It prints `reproduced` when the last failed call of the trace fails again with the same error code.
 
 ### Privacy
 
@@ -148,6 +150,7 @@ Only Arjun sees Plane. Testers see only the state of their own reports through t
 - Replace the home directory with `~`. Replace the user name and the host name with `<user>` and `<host>`.
 - Drop environment variables, tokens, cookies, and URL query strings and fragments.
 - Drop the text of `type`, `clipboard_set` and `devtools_eval` arguments. Keep the length.
+- Element names of stable targets stay in the trace. They pass the same rules.
 - Screenshots and element trees come from agent screens only. Never from the human's desktop.
 - Linux desktop tools: window titles and notification bodies are cut to 40 characters. Notification app names stay.
 - Element tree values (text box contents, page text) are cut to 80 characters each.
