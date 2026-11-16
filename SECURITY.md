@@ -1,6 +1,6 @@
 # Security
 
-What hyprcage isolates, and what it does not.
+What offstage isolates, and what it does not.
 
 ## What it does
 
@@ -19,19 +19,19 @@ What hyprcage isolates, and what it does not.
 2. **The graphical isolation is one environment variable deep.** The
    application sees `$XDG_RUNTIME_DIR` and can connect to the human's own
    compositor socket (`wayland-N`, Hyprland's `.socket.sock`) and inject
-   input there, despite hyprcage removing `HYPRLAND_INSTANCE_SIGNATURE` from
+   input there, despite offstage removing `HYPRLAND_INSTANCE_SIGNATURE` from
    its environment. Only a real sandbox (bubblewrap, a mount namespace hiding
    `$XDG_RUNTIME_DIR` except cage's socket) would prevent that. It is out of
    scope for now.
 3. **State is shared within the user.** The registry
-   (`$XDG_RUNTIME_DIR/hyprcage`) and cage's socket are readable by every
+   (`$XDG_RUNTIME_DIR/offstage`) and cage's socket are readable by every
    process of the user, including the agent's applications: an agent can list
    the screens of other sessions and could capture or inject into any cage.
    Ownership checks (`not_owner`) protect against mistakes, not against a
    malicious agent with a shell.
 
 If you need to contain an agent, contain the agent: run it in a VM or a
-container, and give it hyprcage inside.
+container, and give it offstage inside.
 
 ## What the installer and the plugin do
 
@@ -43,17 +43,17 @@ container, and give it hyprcage inside.
 - Root is used for one thing: the package install of cage, ffmpeg and
   wl-clipboard (`pacman -S` or `zypper install`), through `sudo`
   when a terminal is there or through `pkexec`, which opens your desktop's
-  own authentication dialog. Nothing else runs as root, and `hyprcage setup`
+  own authentication dialog. Nothing else runs as root, and `offstage setup`
   prints the exact command if you prefer to run it yourself.
-- `hyprcage` and everything it starts run as your user. The plugin adds a
+- `offstage` and everything it starts run as your user. The plugin adds a
   SessionStart and a SessionEnd hook that only record the session and
   schedule the cleanup of its screens.
 
 ## The audit log
 
-hyprcage appends one JSON line per tool call to
-`$XDG_STATE_HOME/hyprcage/actions.jsonl` (default
-`~/.local/state/hyprcage/actions.jsonl`). The file has mode 0600. The log
+offstage appends one JSON line per tool call to
+`$XDG_STATE_HOME/offstage/actions.jsonl` (default
+`~/.local/state/offstage/actions.jsonl`). The file has mode 0600. The log
 never records typed or pasted text, script text, environment values, command
 arguments, URL queries or printable keys. It records the `ack` reason that
 the caller gives for a guarded action. Do not put a secret in an `ack`.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/proc"
 )
 
 // requestStop makes the recorder end: SIGTERM ends its context.

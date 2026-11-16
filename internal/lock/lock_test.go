@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 func TestTryLockExcludesAnotherHandle(t *testing.T) {

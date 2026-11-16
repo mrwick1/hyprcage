@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // fakeSurface is a screen.Surface that records the calls it gets.

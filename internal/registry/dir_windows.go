@@ -9,13 +9,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// defaultDir is %LOCALAPPDATA%\hyprcage\run, which the login session does not clear.
+// defaultDir is %LOCALAPPDATA%\offstage\run, which the login session does not clear.
 func defaultDir() string {
 	base := os.Getenv("LocalAppData")
 	if base == "" {
 		base = os.TempDir()
 	}
-	return filepath.Join(base, "hyprcage", "run")
+	return filepath.Join(base, "offstage", "run")
 }
 
 // retry runs f again for up to a second while another process holds the

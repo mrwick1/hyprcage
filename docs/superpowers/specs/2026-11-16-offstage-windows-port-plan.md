@@ -1,4 +1,4 @@
-# hyprcage on Windows: port plan
+# offstage on Windows: port plan
 
 Date: 2026-11-16
 Status: draft, for review
@@ -6,7 +6,7 @@ Base branch: `main` (at `ebceb52`)
 
 ## Goal
 
-An agent on Windows gets a screen of its own. The agent launches applications on that screen, reads the screen as text, and acts on it. The human's cursor, focus and windows stay untouched. The same plugin, `hyprcage@hyprcage-mrwick1`, serves Linux and Windows.
+An agent on Windows gets a screen of its own. The agent launches applications on that screen, reads the screen as text, and acts on it. The human's cursor, focus and windows stay untouched. The same plugin, `offstage@offstage-mrwick1`, serves Linux and Windows.
 
 ## Decisions (2026-11-16)
 
@@ -53,7 +53,7 @@ Each spike is a small Go program in `tests/windows/spike-<name>/`. It is not par
 1. Chrome with `--remote-debugging-port` opens a page on the agent screen. A capture shows the page, not a black frame. Run once with GPU on and once with `--disable-gpu`.
 2. Notepad and one WinUI or UWP app (Settings or Calculator) render in a capture.
 3. A click and typed text reach the app on the agent screen. The human's cursor position and foreground window stay the same, measured before and after with `GetCursorPos` and `GetForegroundWindow`.
-4. UI Automation reads the element tree of an app on the agent screen from the hyprcage process.
+4. UI Automation reads the element tree of an app on the agent screen from the offstage process.
 5. Two agent screens run at the same time and stay apart.
 6. Closing the agent screen ends all its processes.
 7. The capture of one frame takes less than 200 ms at 1280x800.
@@ -61,7 +61,7 @@ Each spike is a small Go program in `tests/windows/spike-<name>/`. It is not par
 
 ### Spike A: second session over loopback RDP
 
-A local account per agent screen (or one shared agent account) logs on through RDP to `127.0.0.2`. The session has its own desktop, cursor and focus. hyprcage starts a small helper inside that session. The helper captures with Windows.Graphics.Capture or DXGI desktop duplication, injects input with `SendInput`, and reads UIA. It talks to hyprcage over a named pipe.
+A local account per agent screen (or one shared agent account) logs on through RDP to `127.0.0.2`. The session has its own desktop, cursor and focus. offstage starts a small helper inside that session. The helper captures with Windows.Graphics.Capture or DXGI desktop duplication, injects input with `SendInput`, and reads UIA. It talks to offstage over a named pipe.
 
 To verify:
 
@@ -117,11 +117,11 @@ Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 s
 
 ### Phase 3: platform services on Windows
 
-- `registry`: state in `%LOCALAPPDATA%\hyprcage`.
+- `registry`: state in `%LOCALAPPDATA%\offstage`.
 - `session`: process liveness through `OpenProcess`.
 - `lock`: `LockFileEx`.
 - `sysd` replacement: a Job Object per screen, so closing the job ends every process. A detached safety-timer process replaces the systemd timer.
-- `config`: Windows default path `%APPDATA%\hyprcage\config.toml`.
+- `config`: Windows default path `%APPDATA%\offstage\config.toml`.
 - Check: unit tests run on Windows in the VM (`go test ./...`).
 - Deferred: the Job Object and the safety-timer process. v1 kills with `taskkill /T /F`, which walks the tree from Chrome's main pid. When Chrome's main process dies first, its children keep no link to that pid and the tree is lost. A Job Object closes this gap and stays on the list for after v1.
 
@@ -145,15 +145,15 @@ Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 s
 ### Phase 6: recording
 
 - `record_start` uses `Page.startScreencast` and acknowledges each frame. A recorder repeats the last frame to keep a fixed frame rate, because frames come only on repaint.
-- Encoding: ffmpeg reads the frames on a pipe. To verify: whether hyprcage bundles ffmpeg on Windows or asks the user to install it.
+- Encoding: ffmpeg reads the frames on a pipe. To verify: whether offstage bundles ffmpeg on Windows or asks the user to install it.
 - Check: a 10 s recording of a page with motion has the expected duration and frame rate.
 
 ### Phase 7: plugin and install
 
-- `bin/hyprcage-mcp` gets a Windows launcher (`hyprcage-mcp.cmd` or a PowerShell script). `.mcp.json` picks the launcher per platform. To verify: how Claude Code on Windows resolves a plugin MCP command.
+- `bin/offstage-mcp` gets a Windows launcher (`offstage-mcp.cmd` or a PowerShell script). `.mcp.json` picks the launcher per platform. To verify: how Claude Code on Windows resolves a plugin MCP command.
 - `install.ps1`: download the Windows release, register agents, write config.
-- The release workflow builds `hyprcage-windows-amd64.exe`.
-- `skills/hyprcage/SKILL.md` names the tools that Windows does not have yet.
+- The release workflow builds `offstage-windows-amd64.exe`.
+- `skills/offstage/SKILL.md` names the tools that Windows does not have yet.
 - Session hooks close screens when a Claude Code session ends, as on Linux. To verify: hooks run on Windows with the same JSON input.
 
 ### After v1
@@ -170,7 +170,7 @@ Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 s
 - Headless Chrome can differ from a windowed Chrome: some sites detect headless mode and block or change the page.
 - v1 drives only web pages. An agent task that needs a native app fails on Windows until the hidden desktop lands.
 - A Windows VM hides GPU problems. A real machine is needed before release.
-- The name "hyprcage" means Hyprland. A Windows release under that name may confuse users. The name stays until v1 works.
+- The name "offstage" means Hyprland. A Windows release under that name may confuse users. The name stays until v1 works.
 - `wl` and `screen` are large and well tested. The seam in phase 2 must not change Linux behavior. The Linux VM suite is the guard.
 
 ## Open questions for Arjun

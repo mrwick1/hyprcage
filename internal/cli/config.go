@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/offstage/internal/config"
 )
 
 // runConfig puts the configuration file in place, every key at its default,

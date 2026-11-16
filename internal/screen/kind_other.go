@@ -5,7 +5,7 @@ package screen
 import (
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/proc"
 )
 
 // pidAlive only tests that pid exists: start times need /proc on Linux and

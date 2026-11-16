@@ -78,13 +78,13 @@ func TestDirDefault(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		base := t.TempDir()
 		t.Setenv("LocalAppData", base)
-		if got, want := Dir(), filepath.Join(base, "hyprcage", "run"); got != want {
+		if got, want := Dir(), filepath.Join(base, "offstage", "run"); got != want {
 			t.Errorf("Dir() = %q, want %q", got, want)
 		}
 	}
 	rt := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", rt)
-	if got, want := Dir(), filepath.Join(rt, "hyprcage"); got != want {
+	if got, want := Dir(), filepath.Join(rt, "offstage"); got != want {
 		t.Errorf("Dir() with XDG_RUNTIME_DIR = %q, want %q", got, want)
 	}
 }

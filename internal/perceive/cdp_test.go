@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/coder/websocket"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // fakeCaller answers from per-session trees and boxes. Session "S-<id>"

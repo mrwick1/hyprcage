@@ -44,7 +44,7 @@ func TestRemoveProfilesKeepsNamedProfile(t *testing.T) {
 	t.Setenv("TMPDIR", tmp)
 	t.Setenv("TMP", tmp) // the temp directory on Windows
 	t.Setenv("XDG_DATA_HOME", data)
-	named := filepath.Join(data, "hyprcage", "profiles", "hc-chrome-hc-a-123")
+	named := filepath.Join(data, "offstage", "profiles", "hc-chrome-hc-a-123")
 	if err := os.MkdirAll(named, 0o700); err != nil {
 		t.Fatal(err)
 	}

@@ -20,10 +20,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
-	"github.com/hexadecimil/hyprcage/internal/proc"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Options configure Start. Zero values pick the defaults.
@@ -94,7 +94,7 @@ func Start(ctx context.Context, o Options) (*Browser, error) {
 	b := &Browser{width: o.Width, height: o.Height, profile: o.ProfileDir,
 		loaded: make(chan string, 16), ids: map[string]uint32{}, targets: map[uint32]string{}}
 	if b.profile == "" {
-		d, err := os.MkdirTemp("", "hyprcage-headless-")
+		d, err := os.MkdirTemp("", "offstage-headless-")
 		if err != nil {
 			return nil, err
 		}

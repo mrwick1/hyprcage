@@ -38,6 +38,7 @@ const (
 	// CodeUnsupportedKind: the tool does not apply to this kind of screen
 	// (a headless browser has no compositor, windows, mirror or clipboard).
 	CodeUnsupportedKind Code = "unsupported_kind"
+	CodeInternal     Code = "internal"     // offstage itself failed, for example a panic in a tool
 )
 
 // Error carries a code, a message and a hint for the caller.

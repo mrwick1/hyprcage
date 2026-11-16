@@ -1,7 +1,7 @@
-# hyprcage on Windows: spike rulings
+# offstage on Windows: spike rulings
 
 Date: 2026-11-16
-Plan: `2026-11-16-hyprcage-windows-port-plan.md`
+Plan: `2026-11-16-offstage-windows-port-plan.md`
 
 ## Spike B: hidden desktop
 
@@ -26,7 +26,7 @@ The spike creates the desktop `hc-spike-b` with `CreateDesktopW`. It starts Chro
 
 - A screen is a set of windows, not one framebuffer. A screenshot composes the windows from `PrintWindow` at their positions.
 - Input goes to a window, not to a seat. `click` maps a point to the window under it and its child, then posts mouse messages with client coordinates. Apps that read raw input or check the foreground window may ignore posted messages. This needs a test per app class.
-- hyprcage starts every Chrome with the three occlusion flags.
+- offstage starts every Chrome with the three occlusion flags.
 - Browsers use CDP for capture and input, as `browser_open` already does on Linux.
 - WinUI and XAML content does not capture with `PrintWindow`. Hypothesis: Windows.Graphics.Capture of a window on a hidden desktop also fails, because DWM does not compose that desktop. To verify.
 
@@ -45,7 +45,7 @@ Setup: the same VM, Windows 11 Pro 26H2. The console user `Quickemu` is signed i
 
 ### Ruling
 
-Spike A fails check 8. A Windows 11 client edition allows one interactive session at a time. A second session needs a patched `termsrv.dll` (for example RDP Wrapper). That breaks the license terms and breaks on Windows updates, so hyprcage does not use it. Checks 1 to 7 were not run, because no second session started.
+Spike A fails check 8. A Windows 11 client edition allows one interactive session at a time. A second session needs a patched `termsrv.dll` (for example RDP Wrapper). That breaks the license terms and breaks on Windows updates, so offstage does not use it. Checks 1 to 7 were not run, because no second session started.
 
 ## Decision
 

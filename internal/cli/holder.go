@@ -7,9 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // runHolder is cage's child process (cahier §4.1): it publishes cage's
@@ -17,7 +17,7 @@ import (
 // child exits, so this process is the screen's point of voluntary death.
 func runHolder(e *Env) int {
 	if len(e.Args) != 1 {
-		return e.errorf("usage: hyprcage _holder <screen>")
+		return e.errorf("usage: offstage _holder <screen>")
 	}
 	name := e.Args[0]
 	if err := screen.ValidateName(name); err != nil {
@@ -38,7 +38,7 @@ func runHolder(e *Env) int {
 	}
 	// The seat keeps a pointer and a keyboard for as long as the screen
 	// lives. Virtual devices belong to the client that made them, and every
-	// hyprcage command is a client that comes and goes: without this, the
+	// offstage command is a client that comes and goes: without this, the
 	// seat's capabilities would appear and vanish under the applications,
 	// which re-bind their input on every change and drop the keys sent in
 	// between. Holding them here makes the seat steady.

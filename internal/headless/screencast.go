@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/cdp"
 )
 
 // Screencast gives the latest frame of the page that Chrome pushes with

@@ -9,8 +9,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/perceive"
 )
 
 // guardServer serves a Server that the test can seed, over an in-memory transport.
@@ -65,7 +65,7 @@ func TestGuardAckRunsTheActionAndLogsIt(t *testing.T) {
 	if out := call(t, cs, "desktop_key", args); strings.Contains(out, "ack_required") {
 		t.Fatalf("ack did not unblock: %s", out)
 	}
-	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hyprcage", "actions.jsonl"))
+	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "offstage", "actions.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}

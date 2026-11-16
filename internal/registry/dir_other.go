@@ -9,7 +9,7 @@ import (
 )
 
 func defaultDir() string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("hyprcage-%d", os.Getuid()))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("offstage-%d", os.Getuid()))
 }
 
 // retry runs f once: another process never blocks a file here.

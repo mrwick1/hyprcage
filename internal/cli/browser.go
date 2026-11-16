@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"github.com/hexadecimil/hyprcage/internal/browser"
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/browser"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 func runBrowser(e *Env) int {
@@ -14,7 +14,7 @@ func runBrowser(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() > 2 {
-		return e.errorf("usage: hyprcage browser [--profile name] [screen] [url]")
+		return e.errorf("usage: offstage browser [--profile name] [screen] [url]")
 	}
 	cfg, err := config.Load()
 	if err != nil {

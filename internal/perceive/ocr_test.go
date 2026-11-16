@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func fixtureTSV(t *testing.T) []byte {

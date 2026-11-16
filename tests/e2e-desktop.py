@@ -3,13 +3,13 @@
 
 The script starts a nested Hyprland with tests/nested-hypr.sh and re-runs
 itself under dbus-run-session. In that isolated session bus it starts
-swaync (on the nested instance), `hyprcage notifyd` and `hyprcage mcp`, and
+swaync (on the nested instance), `offstage notifyd` and `offstage mcp`, and
 drives the MCP server step by step. Before and after every step it reads the
 active workspace and the cursor position of the human's instance: any change
 fails the run (success criterion 6). It never dispatches to the human's
 instance and never sends a notification to the human's session bus.
 
-    HC=/path/to/hyprcage python3 tests/e2e-desktop.py
+    HC=/path/to/offstage python3 tests/e2e-desktop.py
 """
 import json
 import os
@@ -20,7 +20,7 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HC = os.environ.get("HC", "hyprcage")
+HC = os.environ.get("HC", "offstage")
 CHILD = "HC_E2E_CHILD"
 
 
@@ -51,7 +51,7 @@ def parent():
             # Everything in the isolated session (swaync, a D-Bus activated
             # service, the apps) draws on the nested instance only.
             "WAYLAND_DISPLAY": sock,
-            "HYPRCAGE_DESKTOP_INSTANCE": sig,
+            "OFFSTAGE_DESKTOP_INSTANCE": sig,
         })
         env.pop("DISPLAY", None)
         # The isolated bus daemon and the services it starts write logs to
@@ -169,7 +169,7 @@ def child():
     sig = os.environ[CHILD]
     tmp = tempfile.mkdtemp(prefix="hc-e2e-desktop.")
     notify_file = f"{tmp}/notifications.jsonl"
-    env = dict(os.environ, HC_E2E_TMP=tmp, HYPRCAGE_NOTIFY_FILE=notify_file, XDG_STATE_HOME=f"{tmp}/state")
+    env = dict(os.environ, HC_E2E_TMP=tmp, OFFSTAGE_NOTIFY_FILE=notify_file, XDG_STATE_HOME=f"{tmp}/state")
     bus = os.environ["DBUS_SESSION_BUS_ADDRESS"]
     procs = []
     results = []
@@ -403,7 +403,7 @@ def child():
             t = state["thunar"]
             root = os.path.dirname(HERE)
             r = subprocess.run(["go", "test", "-count=1", "-run", "TestLiveCapture", "-v", "./internal/desktop"], cwd=root,
-                               env=dict(os.environ, HYPRCAGE_LIVE_WINDOW=t), capture_output=True, text=True, timeout=300)
+                               env=dict(os.environ, OFFSTAGE_LIVE_WINDOW=t), capture_output=True, text=True, timeout=300)
             lines = [l.split("live_test.go:")[1].strip() for l in r.stdout.splitlines() if "CAPTURE" in l or "frame" in l and "live_test" in l]
             need(r.returncode == 0 and any("CAPTURE window" in l for l in lines), f"go test: {r.stdout[-400:]} {r.stderr[-200:]}")
 
@@ -497,9 +497,9 @@ def child():
             t = state["thunar"]
             # A second server with "home" as a destructive word, to see a keyword
             # block on a real AT-SPI label. The first server keeps the defaults.
-            os.makedirs(f"{tmp}/guard-cfg/hyprcage")
+            os.makedirs(f"{tmp}/guard-cfg/offstage")
             os.makedirs(f"{tmp}/guard2")
-            with open(f"{tmp}/guard-cfg/hyprcage/config.toml", "w") as f:
+            with open(f"{tmp}/guard-cfg/offstage/config.toml", "w") as f:
                 f.write('[guard]\nkeywords = ["home"]\n')
             m2 = MCP(dict(env, XDG_CONFIG_HOME=f"{tmp}/guard-cfg", HC_E2E_TMP=f"{tmp}/guard2"))
             try:
@@ -525,7 +525,7 @@ def child():
                     break
                 time.sleep(0.25)
             need(not client(t), "Thunar is still open after ctrl+w with ack")
-            log = open(f"{tmp}/state/hyprcage/actions.jsonl").read()
+            log = open(f"{tmp}/state/offstage/actions.jsonl").read()
             for reason in ("e2e: opening Home", "e2e: closing the test window"):
                 need(f'"ack":"{reason}"' in log, f"audit log lacks the ack {reason!r}")
             need('"error":"ack_required"' in log, "audit log lacks the blocked calls")

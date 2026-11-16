@@ -1,5 +1,5 @@
 // Package config holds the settings of cahier §6.3: built-in defaults,
-// overridden by ~/.config/hyprcage/config.toml when that file exists.
+// overridden by ~/.config/offstage/config.toml when that file exists.
 package config
 
 import (
@@ -30,6 +30,13 @@ type Guard struct {
 	Combos   []string // blocked key combinations
 }
 
+// Report is the [report] table: where beta reports go and what they carry.
+type Report struct {
+	URL         string // the beta relay
+	Confirm     bool   // report_issue shows the report and sends it only on a second call with confirmed
+	Screenshots bool   // a report carries a screenshot and the element tree of the agent screen
+}
+
 // Config is the effective configuration. It holds slices, so compare it
 // with reflect.DeepEqual, not ==.
 type Config struct {
@@ -48,7 +55,7 @@ type Config struct {
 	ProtectedMin  int
 	ProtectedMax  int
 	Notify        bool
-	Renderer      string // cage renderer: auto, gles or pixman (HYPRCAGE_RENDERER wins)
+	Renderer      string // cage renderer: auto, gles or pixman (OFFSTAGE_RENDERER wins)
 	RenderDevice  string // DRM render node cage renders on, empty to detect
 	MirrorFPS     int    // ceiling on the mirror's frame rate
 	// MirrorGroup says what shares a mirror workspace: "session" puts every
@@ -78,6 +85,7 @@ type Config struct {
 
 	Verify bool // actions on an agent screen return a verdict unless the call passes verify:false
 	Guard  Guard
+	Report Report
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -124,11 +132,12 @@ func Default() Config {
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
 			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
 		},
+		Report: Report{URL: "https://beta.mrwick.dev", Screenshots: true},
 	}
 }
 
-// Path is the config file: $XDG_CONFIG_HOME/hyprcage/config.toml, that is
-// ~/.config/hyprcage/config.toml by default and %APPDATA%\hyprcage\config.toml
+// Path is the config file: $XDG_CONFIG_HOME/offstage/config.toml, that is
+// ~/.config/offstage/config.toml by default and %APPDATA%\offstage\config.toml
 // on Windows.
 func Path() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
@@ -142,7 +151,7 @@ func Path() string {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "hyprcage", "config.toml")
+	return filepath.Join(base, "offstage", "config.toml")
 }
 
 // Load returns the defaults overridden by the config file when it exists.
@@ -174,7 +183,7 @@ func LoadFile(path string) (Config, error) {
 func Fallback() Config {
 	cfg, err := Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "hyprcage: %v; using the defaults\n", err)
+		fmt.Fprintf(os.Stderr, "offstage: %v; using the defaults\n", err)
 		d := Default()
 		d.Path = cfg.Path
 		return d
@@ -230,6 +239,11 @@ type file struct {
 		Keywords []string `toml:"keywords"`
 		Combos   []string `toml:"combos"`
 	} `toml:"guard"`
+	Report struct {
+		URL         *string `toml:"url"`
+		Confirm     *bool   `toml:"confirm"`
+		Screenshots *bool   `toml:"screenshots"`
+	} `toml:"report"`
 }
 
 // Apply overrides cfg with the TOML text and validates the result.
@@ -325,6 +339,15 @@ func Apply(cfg *Config, text string) error {
 	if f.Guard.Combos != nil {
 		cfg.Guard.Combos = f.Guard.Combos
 	}
+	if f.Report.URL != nil {
+		cfg.Report.URL = strings.TrimRight(strings.TrimSpace(*f.Report.URL), "/")
+	}
+	if f.Report.Confirm != nil {
+		cfg.Report.Confirm = *f.Report.Confirm
+	}
+	if f.Report.Screenshots != nil {
+		cfg.Report.Screenshots = *f.Report.Screenshots
+	}
 	return cfg.Validate()
 }
 
@@ -392,6 +415,9 @@ func (c Config) Validate() error {
 				return fmt.Errorf("guard.%s: an entry is empty", key)
 			}
 		}
+	}
+	if !strings.HasPrefix(c.Report.URL, "https://") && !strings.HasPrefix(c.Report.URL, "http://127.0.0.1") && !strings.HasPrefix(c.Report.URL, "http://localhost") {
+		return fmt.Errorf("report.url: %q must be https (or http on localhost)", c.Report.URL)
 	}
 	return nil
 }

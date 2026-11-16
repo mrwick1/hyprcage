@@ -1,4 +1,4 @@
-// Package mcpserver exposes hyprcage as an MCP server on stdio (cahier §6.2):
+// Package mcpserver exposes offstage as an MCP server on stdio (cahier §6.2):
 // one process per agent session, blocked on stdin, no Hyprland or Wayland
 // connection until a screen exists (N1).
 package mcpserver
@@ -14,35 +14,39 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/audit"
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/devtools"
-	"github.com/hexadecimil/hyprcage/internal/headless"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/record"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/setup"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
-	"github.com/hexadecimil/hyprcage/internal/version"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/audit"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/devtools"
+	"github.com/hexadecimil/offstage/internal/headless"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/record"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/report"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/version"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
-const instructions = `hyprcage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
+const instructions = `offstage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
 Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
 Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then snapshot / act / find; devtools_eval, devtools_console, devtools_network, devtools_trace, devtools_heap and devtools_audit (Lighthouse) read page internals of any screen launched with DevTools; devtools_emulate makes its pages a phone or tablet, or throttles network and CPU. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
-The human's desktop: pass screen "desktop" (plus window, an address from desktop_windows) to screenshot, snapshot, find, act, click, double_click, move, scroll, drag and app_launch; coordinates are global logical pixels. act tries AT-SPI first (no cursor, no focus change), then CDP, then the real pointer, which is put back after each action. Only desktop_workspace changes the human's view; a pointer action on a hidden window refuses with window_hidden. desktop_windows, desktop_focus, desktop_move, desktop_type and desktop_key act on single windows (each key briefly takes the human's focus). notify_list, notify_wait and notify_act read and act on the human's notifications of the last 48 hours. Every desktop tool refuses while the session is locked; prefer an agent screen whenever the task allows it.`
+The human's desktop: pass screen "desktop" (plus window, an address from desktop_windows) to screenshot, snapshot, find, act, click, double_click, move, scroll, drag and app_launch; coordinates are global logical pixels. act tries AT-SPI first (no cursor, no focus change), then CDP, then the real pointer, which is put back after each action. Only desktop_workspace changes the human's view; a pointer action on a hidden window refuses with window_hidden. desktop_windows, desktop_focus, desktop_move, desktop_type and desktop_key act on single windows (each key briefly takes the human's focus). notify_list, notify_wait and notify_act read and act on the human's notifications of the last 48 hours. Every desktop tool refuses while the session is locked; prefer an agent screen whenever the task allows it.
+Beta: when offstage itself misbehaves (an error your arguments did not cause, a success that did not happen, a touch on the human's desktop, cursor or focus, a crash), call report_issue once per problem with the screen. Not for bugs in the app under test, wrong arguments, or a guard block.`
 
 // Server holds the per-session state.
 type Server struct {
@@ -63,6 +67,11 @@ func Run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	defer report.CatchCrashes()()
+	if n := len(report.Crashes()); n > 0 {
+		note := fmt.Sprintf("Beta: offstage crashed earlier (%d crash file(s) in %s). Call report_issue with area crash, a title and what you were doing.", n, report.CrashDir())
+		crashNotice.Store(&note)
 	}
 	s := newServer(cfg)
 	s.adopt()
@@ -87,7 +96,7 @@ func (s *Server) mcpServer() *mcp.Server {
 	if goos != "linux" {
 		text = instructionsOffLinux
 	}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "hyprcage", Version: version.Version},
+	srv := mcp.NewServer(&mcp.Implementation{Name: "offstage", Version: version.Version},
 		&mcp.ServerOptions{Instructions: text})
 	s.register(srv)
 	return srv
@@ -247,7 +256,7 @@ func shotResult(res *screen.ShotResult, name, path string) (*mcp.CallToolResult,
 		if err != nil {
 			dir = os.TempDir()
 		}
-		path = filepath.Join(dir, "hyprcage", "shots", fmt.Sprintf("%s-%s.%s", name, time.Now().Format("20060102-150405"), ext))
+		path = filepath.Join(dir, "offstage", "shots", fmt.Sprintf("%s-%s.%s", name, time.Now().Format("20060102-150405"), ext))
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
@@ -328,7 +337,7 @@ type shotIn struct {
 	Cursor   *bool        `json:"cursor,omitempty" jsonschema:"draw the pointer (default true)"`
 	SettleMs int          `json:"settle_ms,omitempty" jsonschema:"wait this long before capturing, for a toast or an animation to settle (default 0)"`
 	Window   string       `json:"window,omitempty" jsonschema:"screen desktop only: capture this window (address from desktop_windows), on any workspace"`
-	Path     string       `json:"path,omitempty" jsonschema:"write the image to this file and return the path as text, with no inline image; auto picks <cache dir>/hyprcage/shots/<screen>-<time>.png"`
+	Path     string       `json:"path,omitempty" jsonschema:"write the image to this file and return the path as text, with no inline image; auto picks <cache dir>/offstage/shots/<screen>-<time>.png"`
 }
 
 type clickIn struct {
@@ -445,12 +454,19 @@ type batchResult struct {
 
 type handler[In any] func(in In) (*mcp.CallToolResult, error)
 
-// tool wraps a handler: serialised, errors become isError results.
+// tool wraps a handler: serialised, errors become isError results. Before
+// a pointer action or act, it reads the target from the last snapshot for
+// the audit log.
 func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) {
-	unlocked(srv, name, desc, func(in In) (*mcp.CallToolResult, error) {
+	add(srv, name, desc, func(in In) (*mcp.CallToolResult, []audit.Option, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		return h(in)
+		var opts []audit.Option
+		if t := s.targets(name, in); t != nil {
+			opts = append(opts, audit.WithTarget(t))
+		}
+		res, err := h(in)
+		return res, opts, err
 	})
 }
 
@@ -458,30 +474,67 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 // handler that touches no Server state may use it, for example a long wait
 // on a file.
 func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
+	add(srv, name, desc, func(in In) (*mcp.CallToolResult, []audit.Option, error) {
+		res, err := h(in)
+		return res, nil, err
+	})
+}
+
+// recorded, when set, receives each audit line. A replay reads the outcome
+// of its calls from it.
+var recorded func(audit.Entry)
+
+// safely runs a handler and turns a panic into an internal error. The crash
+// file it writes goes into the next report with area crash.
+func safely[In any](name string, h func(In) (*mcp.CallToolResult, []audit.Option, error), in In) (res *mcp.CallToolResult, opts []audit.Option, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			p := report.RecordPanic(name, v, debug.Stack())
+			res, opts = nil, nil
+			err = screen.Errf(screen.CodeInternal, "call report_issue with area crash", "offstage panicked in %s: %v (crash file %s)", name, v, p)
+		}
+	}()
+	return h(in)
+}
+
+// crashNotice tells the agent, in the first result of this server, that
+// crash files from earlier servers wait for a report.
+var crashNotice atomic.Pointer[string]
+
+// add registers a handler and writes its audit line with the options it
+// returns.
+func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error)) {
 	if !available(name) {
 		return
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			res, err := h(in)
+			res, opts, err := safely(name, h, in)
 			failed := err
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")
 			}
-			var opts []audit.Option
 			if v := takeVerdict(res); v != nil {
 				opts = append(opts, audit.WithVerdict(v))
 			}
-			audit.Record(name, in, failed, opts...)
+			e := audit.Record(name, in, failed, opts...)
+			if recorded != nil {
+				recorded(e)
+			}
 			if err != nil {
 				return nil, nil, err
+			}
+			if res != nil && !res.IsError {
+				if n := crashNotice.Swap(nil); n != nil {
+					res.Content = append(res.Content, &mcp.TextContent{Text: *n})
+				}
 			}
 			return res, nil, nil
 		})
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
+	tool(s, srv, "setup", "Install what offstage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
 	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. With kind headless it is one windowless Chrome driven over DevTools instead (the only kind off Linux). The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
@@ -501,6 +554,7 @@ func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "batch", "Run several actions in one call; stops at the first error. Verify: "+verifyDoc, s.batch)
 	s.registerFork(srv)
 	s.registerPerceive(srv)
+	s.registerReport(srv)
 	s.registerWatch(srv)
 }
 

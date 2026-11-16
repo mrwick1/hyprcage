@@ -10,12 +10,12 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/browser"
-	"github.com/hexadecimil/hyprcage/internal/headless"
-	"github.com/hexadecimil/hyprcage/internal/notify"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/browser"
+	"github.com/hexadecimil/offstage/internal/headless"
+	"github.com/hexadecimil/offstage/internal/notify"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 // screenKind returns the kind that screen_create makes: what the caller
@@ -109,7 +109,7 @@ func (s *Server) browserFor(rec *registry.Screen) (*headless.Browser, error) {
 	defer cancel()
 	b, err := headless.Attach(ctx, rec.DebugPort, rec.DebugPID, rec.Width, rec.Height)
 	if err != nil {
-		return nil, screen.Errf(screen.CodeCDP, "hyprcage destroy "+rec.Name, "cannot reach the browser of screen %s: %v", rec.Name, err)
+		return nil, screen.Errf(screen.CodeCDP, "offstage destroy "+rec.Name, "cannot reach the browser of screen %s: %v", rec.Name, err)
 	}
 	s.cacheBrowser(rec, b)
 	return b, nil

@@ -1,4 +1,4 @@
-// Package cli implements the hyprcage command line (cahier §6.1). Every MCP
+// Package cli implements the offstage command line (cahier §6.1). Every MCP
 // tool has a CLI twin here so that everything the agent can do, a human can
 // do by hand in a terminal.
 package cli
@@ -9,7 +9,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/version"
+	"github.com/hexadecimil/offstage/internal/version"
 )
 
 // Exit codes (cahier §6.1).
@@ -72,6 +72,8 @@ func init() {
 		{"browser", "open the agent's Chrome with DevTools on a screen", runBrowser, false},
 		{"profile", "list or remove the saved browser profiles (list, rm <name>)", runProfile, false},
 		{"notifyd", "keep 48 hours of desktop notifications (run by a user unit)", runNotifyd, false},
+		{"report", "send a beta report about an offstage problem (login, flush, status)", runReport, false},
+		{"replay", "run the trace of a beta report again on new screens", runReplay, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},
@@ -98,13 +100,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return c.run(e)
 		}
 	}
-	fmt.Fprintf(stderr, "hyprcage: unknown command %q\n\n", name)
+	fmt.Fprintf(stderr, "offstage: unknown command %q\n\n", name)
 	usage(stderr)
 	return ExitUsage
 }
 
 func usage(w io.Writer) {
-	fmt.Fprintf(w, "hyprcage %s: a caged desktop for AI agents on Hyprland\n\nUsage: hyprcage <command> [options]\n\nCommands:\n", version.Version)
+	fmt.Fprintf(w, "offstage %s: a caged desktop for AI agents on Hyprland\n\nUsage: offstage <command> [options]\n\nCommands:\n", version.Version)
 	for _, c := range commands {
 		if c.hidden {
 			continue
@@ -126,7 +128,7 @@ func runVersion(e *Env) int {
 
 // errorf prints a usage-level error and returns ExitUsage.
 func (e *Env) errorf(format string, a ...any) int {
-	fmt.Fprintf(e.Stderr, "hyprcage: "+format+"\n", a...)
+	fmt.Fprintf(e.Stderr, "offstage: "+format+"\n", a...)
 	return ExitUsage
 }
 
@@ -138,7 +140,7 @@ func (e *Env) flags(name string) *flag.FlagSet {
 }
 
 // parse parses e.Args with options accepted anywhere, before or after the
-// positional arguments (`hyprcage click hc-1 640 400 --button right`), which
+// positional arguments (`offstage click hc-1 640 400 --button right`), which
 // the flag package alone does not do. A bare "--" ends option parsing.
 func (e *Env) parse(fs *flag.FlagSet) error {
 	var opts, pos []string

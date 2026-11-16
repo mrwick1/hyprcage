@@ -15,11 +15,11 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/proc"
-	"github.com/hexadecimil/hyprcage/internal/record"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/record"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 const motionPage = `<!doctype html><title>m</title><body style="margin:0;background:#fff">
@@ -27,7 +27,7 @@ const motionPage = `<!doctype html><title>m</title><body style="margin:0;backgro
 <div style="position:absolute;top:300px;width:200px;height:200px;background:#c00;animation:m 1s linear infinite alternate"></div>`
 
 // recordSetup makes a headless screen that shows motionPage, and a server
-// whose recorder is the hyprcage binary, at 20 frames per second.
+// whose recorder is the offstage binary, at 20 frames per second.
 func recordSetup(t *testing.T) (cs *mcp.ClientSession, rec *registry.Screen) {
 	t.Helper()
 	requireChrome(t)
@@ -36,12 +36,12 @@ func recordSetup(t *testing.T) (cs *mcp.ClientSession, rec *registry.Screen) {
 			t.Skip("no " + tool)
 		}
 	}
-	// The recorder is `hyprcage _record`, and the test binary is not it.
-	// HYPRCAGE_TEST_BIN names a prebuilt one, for a machine without Go.
-	exe := os.Getenv("HYPRCAGE_TEST_BIN")
+	// The recorder is `offstage _record`, and the test binary is not it.
+	// OFFSTAGE_TEST_BIN names a prebuilt one, for a machine without Go.
+	exe := os.Getenv("OFFSTAGE_TEST_BIN")
 	if exe == "" {
-		exe = filepath.Join(t.TempDir(), "hyprcage")
-		if out, err := exec.Command("go", "build", "-o", exe, "github.com/hexadecimil/hyprcage/cmd/hyprcage").CombinedOutput(); err != nil {
+		exe = filepath.Join(t.TempDir(), "offstage")
+		if out, err := exec.Command("go", "build", "-o", exe, "github.com/hexadecimil/offstage/cmd/offstage").CombinedOutput(); err != nil {
 			t.Fatalf("go build: %v\n%s", err, out)
 		}
 	}
@@ -52,11 +52,11 @@ func recordSetup(t *testing.T) (cs *mcp.ClientSession, rec *registry.Screen) {
 	// The recorder reads its frame rate from the config file.
 	recDir, cfgDir := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", cfgDir)
-	if err := os.MkdirAll(filepath.Join(cfgDir, "hyprcage"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(cfgDir, "offstage"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	conf := fmt.Sprintf("[record]\ndir = %q\nfps = 20\n", recDir)
-	if err := os.WriteFile(filepath.Join(cfgDir, "hyprcage", "config.toml"), []byte(conf), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(cfgDir, "offstage", "config.toml"), []byte(conf), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, cs = guardServer(t, func(c *config.Config) { c.RecordDir, c.RecordFPS = recDir, 20 })

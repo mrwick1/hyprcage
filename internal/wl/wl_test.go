@@ -926,8 +926,8 @@ func TestMissingInputProtocols(t *testing.T) {
 // TestProbeLive is the only test that talks to the user's own compositor, and
 // only when asked: it binds nothing and merely lists the globals.
 func TestProbeLive(t *testing.T) {
-	if os.Getenv("HYPRCAGE_WL_PROBE") != "1" {
-		t.Skip("set HYPRCAGE_WL_PROBE=1 to probe the running compositor")
+	if os.Getenv("OFFSTAGE_WL_PROBE") != "1" {
+		t.Skip("set OFFSTAGE_WL_PROBE=1 to probe the running compositor")
 	}
 	globals, err := Probe(os.Getenv("WAYLAND_DISPLAY"))
 	if err != nil {

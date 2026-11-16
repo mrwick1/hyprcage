@@ -3,8 +3,8 @@ package screen
 import (
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/proc"
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 // The kinds of screen. A cage screen has the empty Kind in its record.

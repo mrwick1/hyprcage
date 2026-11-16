@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 // Target is what a desktop snapshot reads: one window, or every visible one.
@@ -67,7 +67,7 @@ func ChooseDesktop(ctx context.Context, c *desktop.Conn, t Target, want string) 
 		return newDesktopATSPI(ctx, t.Windows, t.Named)
 	case "ocr":
 		if !ocrOK() {
-			return nil, screen.Errf(screen.CodeNoSource, "run hyprcage setup", "no OCR data at %s", ocrData)
+			return nil, screen.Errf(screen.CodeNoSource, "run offstage setup", "no OCR data at %s", ocrData)
 		}
 		return ocr(), nil
 	case "auto":
@@ -90,7 +90,7 @@ func ChooseDesktop(ctx context.Context, c *desktop.Conn, t Target, want string) 
 		if ocrOK() {
 			return ocr(), nil
 		}
-		return nil, screen.Errf(screen.CodeNoSource, "run hyprcage setup for OCR", "the desktop windows have no DevTools answer, no AT-SPI application and no OCR data%s", cdpNote)
+		return nil, screen.Errf(screen.CodeNoSource, "run offstage setup for OCR", "the desktop windows have no DevTools answer, no AT-SPI application and no OCR data%s", cdpNote)
 	}
 	return nil, fmt.Errorf("unknown source %q (auto, cdp, atspi, ocr)", want)
 }

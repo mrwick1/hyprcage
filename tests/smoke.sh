@@ -2,9 +2,9 @@
 # Smoke test of the fork on a live Hyprland session: a screen, the agent
 # Chrome, input, recording (also through destroy), clipboard, teardown.
 # Assumes the default screen size (1280x800): the click aims at its center.
-# It reads the DevTools port from `hyprcage browser`.
+# It reads the DevTools port from `offstage browser`.
 set -euo pipefail
-HC=${HC:-hyprcage}
+HC=${HC:-offstage}
 S=hc-smoke
 page="" out="" out2="" port=""
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -50,7 +50,7 @@ frames2=$(ffprobe -v error -count_frames -select_streams v -show_entries stream=
 [ "${frames2:-0}" -ge 1 ] || fail "recording cut by destroy has $frames2 frames"
 
 # Environ files are binary, so grep needs -a.
-left=$(grep -la "HYPRCAGE_SCREEN=$S" /proc/[0-9]*/environ 2>/dev/null | wc -l || true)
+left=$(grep -la "OFFSTAGE_SCREEN=$S" /proc/[0-9]*/environ 2>/dev/null | wc -l || true)
 [ "$left" -eq 0 ] || fail "$left processes of $S remain"
 curl -sf --max-time 1 http://127.0.0.1:$port/json/version >/dev/null && fail "Chrome outlived its screen"
 echo "SMOKE OK"

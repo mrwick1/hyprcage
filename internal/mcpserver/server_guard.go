@@ -1,11 +1,13 @@
 package mcpserver
 
 import (
+	"encoding/json"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/guard"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/audit"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/guard"
+	"github.com/hexadecimil/offstage/internal/perceive"
 )
 
 // labelRadius is how far from a click the guard looks for the element that
@@ -112,4 +114,51 @@ func (s *Server) windowClass(address string) string {
 		}
 	}
 	return ""
+}
+
+// targets returns the elements of the last snapshot that a pointer action
+// or act aims at, nil for other tools or when no snapshot knows the screen.
+// The audit log keeps them so that a replay can find the elements again.
+func (s *Server) targets(tool string, in any) []audit.Target {
+	switch tool {
+	case "act", "click", "double_click", "move", "scroll", "drag":
+	default:
+		return nil
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		return nil
+	}
+	var a struct {
+		Screen, Window, Ref  string
+		X, Y, X1, Y1, X2, Y2 int
+	}
+	if json.Unmarshal(b, &a) != nil {
+		return nil
+	}
+	t := s.guardTable(guardCall{Screen: a.Screen, Window: a.Window})
+	if t == nil {
+		return nil
+	}
+	of := func(n perceive.Node, ok bool) audit.Target {
+		if !ok {
+			return audit.Target{}
+		}
+		return audit.Target{Role: n.Role, Name: n.Name, X: n.X, Y: n.Y}
+	}
+	var out []audit.Target
+	switch {
+	case tool == "act":
+		out = []audit.Target{of(t.Lookup(a.Ref))}
+	case tool == "drag":
+		out = []audit.Target{of(t.NodeAt(a.X1, a.Y1, labelRadius)), of(t.NodeAt(a.X2, a.Y2, labelRadius))}
+	default:
+		out = []audit.Target{of(t.NodeAt(a.X, a.Y, labelRadius))}
+	}
+	for _, x := range out {
+		if x.Role != "" {
+			return out
+		}
+	}
+	return nil
 }

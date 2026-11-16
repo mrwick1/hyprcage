@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // CDP modifier bits.

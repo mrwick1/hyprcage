@@ -3,7 +3,7 @@
 // Spike: drive headless Chrome on Windows through CDP only, with no
 // desktop. It checks input (click, text, Enter), a CDP screenshot and a
 // screencast. Run it from SSH (session 0) and from the interactive
-// session. See docs/superpowers/specs/2026-11-16-hyprcage-windows-spike-rulings.md.
+// session. See docs/superpowers/specs/2026-11-16-offstage-windows-spike-rulings.md.
 package main
 
 import (
@@ -21,7 +21,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/cdp"
 )
 
 const page = `<!doctype html><title>spike</title>

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start or stop a nested Hyprland on the hidden special workspace
-# special:hyprcage-e2e of the human's Hyprland. The desktop tests point
-# HYPRCAGE_DESKTOP_INSTANCE at it, so they never touch the human's screens.
+# special:offstage-e2e of the human's Hyprland. The desktop tests point
+# OFFSTAGE_DESKTOP_INSTANCE at it, so they never touch the human's screens.
 #
 #   tests/nested-hypr.sh start        prints the signature of the new instance
 #   tests/nested-hypr.sh stop <sig>   exits that instance
@@ -21,9 +21,9 @@ EOF
 	cmd="env -u HYPRLAND_INSTANCE_SIGNATURE Hyprland -c $dir/hyprland.conf"
 	before=$(ls "$base")
 	if hyprctl eval 'return 1' >/dev/null 2>&1; then
-		hyprctl eval "hl.exec_cmd(\"$cmd\", { workspace = \"special:hyprcage-e2e silent\", no_initial_focus = true })" >/dev/null
+		hyprctl eval "hl.exec_cmd(\"$cmd\", { workspace = \"special:offstage-e2e silent\", no_initial_focus = true })" >/dev/null
 	else
-		hyprctl dispatch exec "[workspace special:hyprcage-e2e silent; noinitialfocus] $cmd" >/dev/null
+		hyprctl dispatch exec "[workspace special:offstage-e2e silent; noinitialfocus] $cmd" >/dev/null
 	fi
 	for _ in $(seq 50); do
 		sig=$(comm -13 <(echo "$before" | sort) <(ls "$base" | sort) | head -1)

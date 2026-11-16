@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 // innerEnv points a client at the screen's cage and tags it with the
@@ -15,12 +15,12 @@ func innerEnv(rec *registry.Screen, base []string) []string {
 	var env []string
 	for _, kv := range base {
 		k, _, _ := strings.Cut(kv, "=")
-		if k == "WAYLAND_DISPLAY" || k == "WAYLAND_SOCKET" || k == "HYPRLAND_INSTANCE_SIGNATURE" || k == "HYPRCAGE_SCREEN" {
+		if k == "WAYLAND_DISPLAY" || k == "WAYLAND_SOCKET" || k == "HYPRLAND_INSTANCE_SIGNATURE" || k == "OFFSTAGE_SCREEN" {
 			continue
 		}
 		env = append(env, kv)
 	}
-	return append(env, "WAYLAND_DISPLAY="+rec.InnerDisplay, "HYPRCAGE_SCREEN="+rec.Name)
+	return append(env, "WAYLAND_DISPLAY="+rec.InnerDisplay, "OFFSTAGE_SCREEN="+rec.Name)
 }
 
 func withInner(rec *registry.Screen) error {
@@ -51,7 +51,7 @@ func ClipboardSet(rec *registry.Screen, text string) error {
 	cmd.Stdin = strings.NewReader(text)
 	// A file, not a pipe: the forked wl-copy keeps its stderr open, and
 	// Wait would block on a pipe until the clipboard is replaced.
-	errFile, err := os.CreateTemp("", "hyprcage-wl-copy-*")
+	errFile, err := os.CreateTemp("", "offstage-wl-copy-*")
 	if err != nil {
 		return errf(CodeCapture, "", "%v", err)
 	}

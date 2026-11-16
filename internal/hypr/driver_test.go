@@ -29,8 +29,8 @@ func TestLuaExecCode(t *testing.T) {
 }
 
 func TestClassicExecCommand(t *testing.T) {
-	got := classicExecCommand("hyprcage _mirror hc-1", ExecRules{Workspace: "6 silent", Fullscreen: true, NoInitialFocus: true, NoAnim: true})
-	want := "dispatch exec [workspace 6 silent; fullscreen; no_initial_focus; no_anim] hyprcage _mirror hc-1"
+	got := classicExecCommand("offstage _mirror hc-1", ExecRules{Workspace: "6 silent", Fullscreen: true, NoInitialFocus: true, NoAnim: true})
+	want := "dispatch exec [workspace 6 silent; fullscreen; no_initial_focus; no_anim] offstage _mirror hc-1"
 	if got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
 	}

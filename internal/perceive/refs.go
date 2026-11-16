@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Table gives each node Key a stable ref and keeps the last snapshot.
@@ -116,6 +116,17 @@ func (t *Table) Lookup(ref string) (Node, bool) {
 	defer t.mu.Unlock()
 	n, ok := t.last[ref]
 	return n, ok
+}
+
+// Nodes returns the nodes of the last snapshot.
+func (t *Table) Nodes() []Node {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]Node, 0, len(t.last))
+	for _, n := range t.last {
+		out = append(out, n)
+	}
+	return out
 }
 
 // ReResolve looks in fresh for exactly one node with old.Role and old.Name.

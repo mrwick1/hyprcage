@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // conns caches one Wayland connection per screen. wl.Client is not safe for
@@ -39,7 +39,7 @@ func Open(rec *registry.Screen) (*wl.Client, error) {
 	}
 	cl, err := wl.Connect(rec.InnerDisplay)
 	if err != nil {
-		return nil, errf(CodeDead, "hyprcage destroy "+rec.Name, "cannot connect to cage of %s: %v", rec.Name, err)
+		return nil, errf(CodeDead, "offstage destroy "+rec.Name, "cannot connect to cage of %s: %v", rec.Name, err)
 	}
 	if missing := cl.Missing(); len(missing) > 0 {
 		cl.Close()

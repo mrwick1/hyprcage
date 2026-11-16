@@ -3,11 +3,11 @@ package screen
 import (
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 const (
-	selectionSentinel = "\x00hyprcage-no-selection\x00"
+	selectionSentinel = "\x00offstage-no-selection\x00"
 	selectionPolls    = 20
 	selectionPollGap  = 50 * time.Millisecond
 )

@@ -22,16 +22,16 @@ func Available() bool {
 }
 
 // unitSafe turns a screen name into a unit-name fragment: dashes would make
-// systemd create one intermediate slice per segment (hyprcage-hc.slice…),
+// systemd create one intermediate slice per segment (offstage-hc.slice…),
 // so they become underscores, which never occur in screen names.
 func unitSafe(screen string) string { return strings.ReplaceAll(screen, "-", "_") }
 
 // ScreenFromUnit reverses unitSafe on a fragment extracted from a unit name.
 func ScreenFromUnit(fragment string) string { return strings.ReplaceAll(fragment, "_", "-") }
 
-func SliceName(screen string) string      { return "hyprcage-" + unitSafe(screen) + ".slice" }
-func UnitName(screen, role string) string { return "hyprcage-" + unitSafe(screen) + "-" + role }
-func GCTimerName(screen string) string    { return "hyprcage-gc-" + unitSafe(screen) }
+func SliceName(screen string) string      { return "offstage-" + unitSafe(screen) + ".slice" }
+func UnitName(screen, role string) string { return "offstage-" + unitSafe(screen) + "-" + role }
+func GCTimerName(screen string) string    { return "offstage-gc-" + unitSafe(screen) }
 
 // ScopeArgs builds the argv that runs cmd in a transient scope of the
 // screen's slice with a 3 s stop timeout (the inherited default is 90 s).
@@ -64,7 +64,7 @@ func StopUnit(unit string) error { return run("systemctl", "--user", "stop", uni
 // the applications first, so that they see their SIGTERM before their
 // compositor is gone, then the mirrors, then cage, then the slice itself.
 func StopScreen(screen string) {
-	units, _ := ListUnits("hyprcage-" + unitSafe(screen) + "-*")
+	units, _ := ListUnits("offstage-" + unitSafe(screen) + "-*")
 	for _, want := range []string{"-app-", "-mirror", "-cage"} {
 		for _, u := range units {
 			if strings.Contains(u, want) {
@@ -73,7 +73,7 @@ func StopScreen(screen string) {
 		}
 	}
 	_ = StopUnit(SliceName(screen))
-	ResetFailed("hyprcage-" + unitSafe(screen) + "-*")
+	ResetFailed("offstage-" + unitSafe(screen) + "-*")
 	ResetFailed(SliceName(screen))
 }
 
@@ -117,7 +117,7 @@ func active(unit string) bool {
 	return strings.TrimSpace(string(out)) == "active"
 }
 
-// ListUnits returns the unit names matching a glob such as "hyprcage-*".
+// ListUnits returns the unit names matching a glob such as "offstage-*".
 func ListUnits(pattern string) ([]string, error) {
 	out, err := exec.Command("systemctl", "--user", "list-units", "--all", "--plain", "--no-legend", pattern).Output()
 	if err != nil {

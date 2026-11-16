@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func lines(t *testing.T) []map[string]any {
@@ -33,13 +33,13 @@ func lines(t *testing.T) []map[string]any {
 
 func TestPathUsesStateHome(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/s")
-	if got, want := Path(), filepath.Join("/s", "hyprcage", "actions.jsonl"); got != want {
+	if got, want := Path(), filepath.Join("/s", "offstage", "actions.jsonl"); got != want {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 	if runtime.GOOS == "windows" {
 		t.Setenv("XDG_STATE_HOME", "")
 		t.Setenv("LocalAppData", `C:\Users\a\AppData\Local`)
-		if got, want := Path(), `C:\Users\a\AppData\Local\hyprcage\actions.jsonl`; got != want {
+		if got, want := Path(), `C:\Users\a\AppData\Local\offstage\actions.jsonl`; got != want {
 			t.Fatalf("got %s, want %s", got, want)
 		}
 	}
@@ -85,6 +85,9 @@ func TestNeverLogsTypedText(t *testing.T) {
 	if !strings.Contains(string(raw), `"Return"`) {
 		t.Fatal("keys must stay in the log")
 	}
+	if got := lines(t)[0]["args"].(map[string]any)["text_len"]; got != float64(len(secret)) {
+		t.Fatalf("text_len %v, want %d", got, len(secret))
+	}
 }
 
 func TestFailureLogsErrorCode(t *testing.T) {
@@ -101,6 +104,20 @@ func TestVerdictAndAckAreLiftedWhenPresent(t *testing.T) {
 	l := lines(t)[0]
 	if l["ack"] != "closing the dialog" || l["verdict"] != "changed" {
 		t.Fatalf("got %v", l)
+	}
+}
+
+func TestTargetIsLoggedWhenSet(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	Record("click", map[string]any{"x": 5}, nil, WithTarget([]Target{{Role: "button", Name: "Save", X: 4, Y: 6}}))
+	Record("click", map[string]any{"x": 5}, nil)
+	ls := lines(t)
+	tg, _ := json.Marshal(ls[0]["target"])
+	if string(tg) != `[{"name":"Save","role":"button","x":4,"y":6}]` {
+		t.Fatalf("target %s", tg)
+	}
+	if _, ok := ls[1]["target"]; ok {
+		t.Fatal("target must be absent when unset")
 	}
 }
 
@@ -126,7 +143,7 @@ func TestRecordKeepsSecretsOutOfTheLog(t *testing.T) {
 	if strings.Contains(string(raw), "SECRET") {
 		t.Fatalf("a secret reached the log: %s", raw)
 	}
-	for _, want := range []string{`"command":["curl"]`, `"env":["API_KEY","LANG"]`, `https://example.org/a`, `"Return"`, `"ctrl+l"`, `"F5"`} {
+	for _, want := range []string{`"command":["curl","--header","Authorization: Bearer`, `"env":["API_KEY","LANG"]`, `https://example.org/a`, `"Return"`, `"ctrl+l"`, `"F5"`} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("log lacks %s: %s", want, raw)
 		}

@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/hexadecimil/hyprcage/internal/browser"
+	"github.com/hexadecimil/offstage/internal/browser"
 )
 
 func runProfile(e *Env) int {
@@ -15,7 +15,7 @@ func runProfile(e *Env) int {
 	switch fs.Arg(0) {
 	case "list":
 		if fs.NArg() != 1 {
-			return e.errorf("usage: hyprcage profile list [--json]")
+			return e.errorf("usage: offstage profile list [--json]")
 		}
 		ps, err := browser.ListProfiles()
 		if err != nil {
@@ -36,13 +36,13 @@ func runProfile(e *Env) int {
 		}
 	case "rm":
 		if fs.NArg() != 2 {
-			return e.errorf("usage: hyprcage profile rm <name>")
+			return e.errorf("usage: offstage profile rm <name>")
 		}
 		if err := browser.RemoveProfile(fs.Arg(1)); err != nil {
 			return e.fail(err)
 		}
 	default:
-		return e.errorf("usage: hyprcage profile list|rm <name>")
+		return e.errorf("usage: offstage profile list|rm <name>")
 	}
 	return ExitOK
 }

@@ -1,4 +1,4 @@
-module github.com/hexadecimil/hyprcage
+module github.com/hexadecimil/offstage
 
 go 1.27
 

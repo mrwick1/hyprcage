@@ -11,7 +11,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 const thunarPID = 587021
@@ -383,11 +383,11 @@ func TestATSPIActErrors(t *testing.T) {
 }
 
 // TestATSPILive reads the real a11y bus. It runs only when
-// HYPRCAGE_LIVE_ATSPI names a screen that shows Thunar.
+// OFFSTAGE_LIVE_ATSPI names a screen that shows Thunar.
 func TestATSPILive(t *testing.T) {
-	name := os.Getenv("HYPRCAGE_LIVE_ATSPI")
+	name := os.Getenv("OFFSTAGE_LIVE_ATSPI")
 	if name == "" {
-		t.Skip("set HYPRCAGE_LIVE_ATSPI to a screen that shows Thunar")
+		t.Skip("set OFFSTAGE_LIVE_ATSPI to a screen that shows Thunar")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

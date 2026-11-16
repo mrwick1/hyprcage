@@ -1,9 +1,15 @@
-# hyprcage
+# offstage
 
 A caged desktop for AI agents on Hyprland.
 
+offstage was called hyprcage before 0.10. To move an existing install, remove
+the old plugin (`/plugin uninstall hyprcage@hyprcage-mrwick1`), install the new
+one (see below), and run `install.sh` once. The installer removes the old
+binary, its agent registrations and its notification unit. On its first run,
+offstage moves the old config, state and browser profiles to the new name.
+
 When an agent needs a graphical application for itself, to test a UI, take
-screenshots or drive an app, it should not do it on your desktop. hyprcage
+screenshots or drive an app, it should not do it on your desktop. offstage
 gives it a screen of its own: a [cage](https://github.com/cage-kiosk/cage)
 compositor with its own output and its own seat, in memory. Hyprland never
 learns that screen exists, so your monitors, workspaces, focus and cursor
@@ -15,11 +21,13 @@ any other MCP client.
 
 ## Install
 
+Closed-beta testers on Linux: read [docs/beta-linux.md](docs/beta-linux.md).
+
 **Claude Code**
 
 ```
-/plugin marketplace add mrwick1/hyprcage
-/plugin install hyprcage@hyprcage-mrwick1
+/plugin marketplace add mrwick1/offstage
+/plugin install offstage@offstage-mrwick1
 ```
 
 The plugin fetches its binary on first start. If cage is missing, the agent
@@ -28,36 +36,36 @@ asks for it through a password dialog the first time it needs a screen.
 **Terminal**
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/hyprcage/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | bash
 ```
 
-Installs cage, the latest release, and registers hyprcage with every agent
+Installs cage, the latest release, and registers offstage with every agent
 found on the machine. Options come after `bash -s --`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/hyprcage/main/install.sh | bash -s -- --agents codex,cursor
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | bash -s -- --agents codex,cursor
 ```
 
 | Option | Effect |
 |---|---|
 | `--agents claude,codex,gemini,cursor,windsurf,opencode` | register only these agents (default: every agent found) |
 | `--agents none` | register no agent |
-| `--uninstall` | remove the binary, the registrations, hyprcage's state and its configuration |
-| `HYPRCAGE_VERSION=v0.1.0` | install that release instead of the latest |
-| `HYPRCAGE_FROM_SOURCE=1` | build with Go instead of downloading |
+| `--uninstall` | remove the binary, the registrations, offstage's state and its configuration |
+| `OFFSTAGE_VERSION=v0.1.0` | install that release instead of the latest |
+| `OFFSTAGE_FROM_SOURCE=1` | build with Go instead of downloading |
 
 To pin the script itself to a version as well, fetch it from the tag:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hexadecimil/hyprcage/v0.1.0/install.sh | HYPRCAGE_VERSION=v0.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/v0.1.0/install.sh | OFFSTAGE_VERSION=v0.1.0 bash
 ```
 
 **From source** (Go ≥ 1.24)
 
 ```
-git clone https://github.com/hexadecimil/hyprcage && cd hyprcage
-make build && install -Dm755 hyprcage ~/.local/bin/hyprcage
-hyprcage setup && hyprcage config && hyprcage doctor
+git clone https://github.com/mrwick1/offstage && cd offstage
+make build && install -Dm755 offstage ~/.local/bin/offstage
+offstage setup && offstage config && offstage doctor
 ```
 
 ## Windows
@@ -70,13 +78,13 @@ Install from PowerShell. It needs no admin rights and changes no system
 setting:
 
 ```
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/hexadecimil/hyprcage/main/install.ps1)))
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/hexadecimil/offstage/main/install.ps1)))
 ```
 
-The script puts `hyprcage.exe` in `%LOCALAPPDATA%\hyprcage\bin`, writes the
-configuration to `%APPDATA%\hyprcage` and registers the MCP server with Claude
+The script puts `offstage.exe` in `%LOCALAPPDATA%\offstage\bin`, writes the
+configuration to `%APPDATA%\offstage` and registers the MCP server with Claude
 Code and Codex. Options go after the script block, for example `-Agents none`,
-`-BinaryOnly` or `-Uninstall`. `HYPRCAGE_VERSION=v0.9.0` pins a release. The
+`-BinaryOnly` or `-Uninstall`. `OFFSTAGE_VERSION=v0.9.0` pins a release. The
 Claude Code plugin also works: its launcher runs the same script.
 
 - **Needs**: Windows 11 and Chrome. Recording also needs ffmpeg:
@@ -101,9 +109,9 @@ Claude Code plugin also works: its launcher runs the same script.
 | Gemini CLI | `gemini mcp add` | | closed by the safety timer |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/skills` | closed by the safety timer |
 | OpenCode | `~/.config/opencode/opencode.json` | `~/.config/opencode/skills` | closed by the safety timer |
-| Any MCP client | `hyprcage mcp` on stdio | `skills/hyprcage/SKILL.md` | closed by the safety timer |
+| Any MCP client | `offstage mcp` on stdio | `skills/offstage/SKILL.md` | closed by the safety timer |
 
-The installer registers hyprcage with every agent it finds. To choose,
+The installer registers offstage with every agent it finds. To choose,
 `install.sh --agents codex,cursor` limits it to those, and `--agents none`
 skips the step. Only the Claude Code plugin carries session hooks, which
 close an agent's screens the moment its session ends. Elsewhere, the safety
@@ -118,7 +126,7 @@ application per screen, and to close it when done.
 
 `screenshot` returns the image inline. With `path`, it writes the image to that
 file and returns the path as text, so the image stays out of the agent's
-context. `path: "auto"` writes `<cache dir>/hyprcage/shots/<screen>-<time>.png`.
+context. `path: "auto"` writes `<cache dir>/offstage/shots/<screen>-<time>.png`.
 
 The agent reads a screen as text before it looks at an image. `snapshot`
 lists the elements of the screen, one per line, with a ref, a role, a name
@@ -127,9 +135,9 @@ on a ref and returns what changed. `find` waits for an element by name or
 value. The text comes from the first source that answers: the DevTools
 protocol (CDP), then AT-SPI, then OCR with tesseract. The first line of a
 snapshot names the source. For CDP, launch a Chromium or Electron app with
-`app_launch` and `debug: true`: hyprcage opens a DevTools port on 127.0.0.1
-for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `hyprcage setup`.
-`hyprcage doctor` checks both.
+`app_launch` and `debug: true`: offstage opens a DevTools port on 127.0.0.1
+for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `offstage setup`.
+`offstage doctor` checks both.
 
 The `devtools_audit` tool runs Lighthouse against the Chrome that `browser_open`
 started. It needs Node.js: it runs `npx -y lighthouse@13.5.0` and installs nothing else.
@@ -141,8 +149,8 @@ A screen normally opens a mirror window on one of your spare workspaces, 6
 to 9 by default. Switch to it with your usual workspace binding to watch the
 agent live. Nothing you do there reaches the agent: the mirror shows the
 screen and relays nothing back, so clicking or typing in it does nothing.
-`hyprcage mirror <screen>` opens or closes that window at any time. Every
-tool has a command-line twin: `hyprcage create`, `launch`, `shot`, `click`,
+`offstage mirror <screen>` opens or closes that window at any time. Every
+tool has a command-line twin: `offstage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
 
@@ -151,17 +159,17 @@ tool has a command-line twin: `hyprcage create`, `launch`, `shot`, `click`,
 `browser_open` starts Chrome on a throwaway profile that `screen_destroy`
 deletes. Pass `profile: "<name>"` to keep the profile instead. The name
 matches `^[a-z0-9-]{1,40}$`. The profile lives in
-`~/.local/share/hyprcage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
-with mode 700. `screen_destroy` and `hyprcage gc` never delete it. A later
+`~/.local/share/offstage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
+with mode 700. `screen_destroy` and `offstage gc` never delete it. A later
 `browser_open` with the same name starts with the same cookies, logins and
-local storage, and session cookies too: hyprcage sets Chrome's "continue where you left off" option in a saved profile, because Chrome drops session cookies at exit otherwise. One screen at a time can use a profile: a second
+local storage, and session cookies too: offstage sets Chrome's "continue where you left off" option in a saved profile, because Chrome drops session cookies at exit otherwise. One screen at a time can use a profile: a second
 `browser_open` on a profile in use fails with `browser_running`, because a
 second Chrome on the same user data directory would hand its work to the
 first one and exit.
 
-The CLI twin is `hyprcage browser --profile <name> [screen] [url]`.
-`hyprcage profile list` shows the saved profiles and which are in use.
-`hyprcage profile rm <name>` deletes one, and refuses while a screen uses it.
+The CLI twin is `offstage browser --profile <name> [screen] [url]`.
+`offstage profile list` shows the saved profiles and which are in use.
+`offstage profile rm <name>` deletes one, and refuses while a screen uses it.
 
 Any agent session on this machine can open any named profile. Profiles are shared by design, because one user runs them all.
 
@@ -178,11 +186,11 @@ its own, with an output only it can see, so Hyprland never learns of it and
 your monitors, workspaces, focus and cursor are never touched. You watch a
 screen through the mirror, an ordinary window on one of your workspaces.
 
-The installer writes `~/.config/hyprcage/config.toml` with every key at its
-default, so changing a setting is editing a line. `hyprcage config` writes
+The installer writes `~/.config/offstage/config.toml` with every key at its
+default, so changing a setting is editing a line. `offstage config` writes
 it again if it is missing and never touches one that exists. The file is
 read by every command, so a change applies to the next screen or mirror
-without restarting anything. A key hyprcage does not know, or a value out of
+without restarting anything. A key offstage does not know, or a value out of
 range, makes it refuse the whole file rather than run on the defaults in
 silence.
 
@@ -233,8 +241,8 @@ every screen opens its window unless the agent has a reason not to, for
 instance a long batch you never asked to watch. With `mirror = false` no
 screen opens one unless the agent judges that this one is worth showing you.
 Agents are told to leave the choice to you unless you said something about
-watching. When a screen has no mirror, `hyprcage list` gives the reason in
-`mirror_note`, and `hyprcage mirror <screen>` opens one at any time (with
+watching. When a screen has no mirror, `offstage list` gives the reason in
+`mirror_note`, and `offstage mirror <screen>` opens one at any time (with
 `-close` to take it away). A mirror opened later gets a workspace from the
 same pool, and when the pool is empty the request is refused rather than
 the window opened on the workspace you are looking at. The window keeps the
@@ -261,7 +269,7 @@ their own profile, or with yours closed.
 
 ## Security
 
-hyprcage isolates the agent from your graphical session, not from your
+offstage isolates the agent from your graphical session, not from your
 system: applications in a cage run as you. See [SECURITY.md](SECURITY.md).
 
 ## Development
@@ -273,8 +281,8 @@ system: applications in a cage run as you. See [SECURITY.md](SECURITY.md).
 
 MIT
 
-## Fork additions (mrwick1/hyprcage)
+## Fork additions (mrwick1/offstage)
 
-This fork adds recording (`record`), the agent's Chrome with DevTools (`browser`), the clipboard of a screen (`clip`), control of the human's own desktop (`screen: "desktop"` on the perception and pointer tools, `desktop_*`, and the `notify_*` tools with the `hyprcage-notifyd` user unit), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md` and `docs/superpowers/specs/2026-09-30-hyprcage-desktop-design.md`.
+This fork adds recording (`record`), the agent's Chrome with DevTools (`browser`), the clipboard of a screen (`clip`), control of the human's own desktop (`screen: "desktop"` on the perception and pointer tools, `desktop_*`, and the `notify_*` tools with the `offstage-notifyd` user unit), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md` and `docs/superpowers/specs/2026-09-30-hyprcage-desktop-design.md`.
 
-The fork is also verified on openSUSE Tumbleweed with Hyprland 0.56.2 (Lua configuration, one monitor at scale 1, `input:follow_mouse = 2`). On openSUSE, the fork's installer also installs `at-spi2-core`, because GTK does not pull it in there. The `tesseract-ocr` package 5.5.3-2.1 crashes when it exits. hyprcage keeps the output that tesseract writes before the crash. The verification record is at the end of `docs/superpowers/specs/2026-09-30-hyprcage-desktop-rulings.md`.
+The fork is also verified on openSUSE Tumbleweed with Hyprland 0.56.2 (Lua configuration, one monitor at scale 1, `input:follow_mouse = 2`). On openSUSE, the fork's installer also installs `at-spi2-core`, because GTK does not pull it in there. The `tesseract-ocr` package 5.5.3-2.1 crashes when it exits. offstage keeps the output that tesseract writes before the crash. The verification record is at the end of `docs/superpowers/specs/2026-09-30-hyprcage-desktop-rulings.md`.

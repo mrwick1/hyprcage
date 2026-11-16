@@ -3,11 +3,11 @@
 # The VM was made with `quickget windows 11`. See README.md in this folder.
 set -euo pipefail
 
-dir=${HYPRCAGE_WINVM_DIR:-/data/vms}
+dir=${OFFSTAGE_WINVM_DIR:-/data/vms}
 name=windows-11-English-United-States
 vm=$dir/$name
 unit=winvm
-key=${HYPRCAGE_WINVM_KEY:-$HOME/.ssh/hyprcage-winvm}
+key=${OFFSTAGE_WINVM_KEY:-$HOME/.ssh/offstage-winvm}
 port=22220
 
 ssh_vm() {

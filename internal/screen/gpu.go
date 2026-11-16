@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // RenderDevice picks the DRM render node cage renders on, and says how it

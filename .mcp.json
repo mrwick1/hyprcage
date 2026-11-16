@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "hyprcage": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/bin/hyprcage-mcp"
+    "offstage": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/offstage-mcp"
     }
   }
 }

@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Action describes what a tool call is about to do.

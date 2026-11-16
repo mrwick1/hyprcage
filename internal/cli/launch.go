@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 type multiFlag []string
@@ -25,7 +25,7 @@ func runLaunch(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() < 2 {
-		return e.errorf("usage: hyprcage launch [--cwd D] [--env K=V]... [--debug] <screen> -- <command...>")
+		return e.errorf("usage: offstage launch [--cwd D] [--env K=V]... [--debug] <screen> -- <command...>")
 	}
 	cfg, err := config.Load()
 	if err != nil {

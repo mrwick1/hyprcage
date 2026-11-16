@@ -4,7 +4,7 @@
 # check that the diff shows the expected change. Every failure is reported by
 # step, and the script exits non-zero when any step failed.
 set -uo pipefail
-HC=${HC:-hyprcage}
+HC=${HC:-offstage}
 failed=0
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -43,7 +43,7 @@ row() {
 launch_code() {
   $HC launch -debug "$1" -- code --user-data-dir="$tmp/code" --extensions-dir="$tmp/code-ext" >/dev/null
 }
-# The same launch path as the other rows; `hyprcage browser` also gets a per-screen port.
+# The same launch path as the other rows; `offstage browser` also gets a per-screen port.
 launch_chrome() {
   $HC launch -debug "$1" -- ${CHROME:-google-chrome-stable} --ozone-platform=wayland \
     --user-data-dir="$tmp/chrome" --no-first-run --no-default-browser-check https://example.org >/dev/null

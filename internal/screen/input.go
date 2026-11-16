@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Gesture timings (cahier §4.4).

@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/setup"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
-	"github.com/hexadecimil/hyprcage/internal/version"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/version"
 )
 
 type check struct {
@@ -38,7 +38,7 @@ func runDoctor(e *Env) int {
 	var checks []check
 	add := func(name, status, detail string) { checks = append(checks, check{name, status, detail}) }
 	if exe, err := os.Executable(); err == nil {
-		add("hyprcage", "ok", version.Version+" ("+exe+")")
+		add("offstage", "ok", version.Version+" ("+exe+")")
 	}
 	cfg, err := config.Load()
 	switch {
@@ -48,7 +48,7 @@ func runDoctor(e *Env) int {
 	case cfg.Loaded:
 		add("config", "ok", fmt.Sprintf("%s (screens %dx%d, mirrors on workspaces %d-%d by %s, %d screens per session)", cfg.Path, cfg.DefaultWidth, cfg.DefaultHeight, cfg.MirrorMin, cfg.MirrorMax, cfg.MirrorGroup, cfg.MaxPerSession))
 	default:
-		add("config", "ok", fmt.Sprintf("defaults (no %s, `hyprcage config` writes one)", cfg.Path))
+		add("config", "ok", fmt.Sprintf("defaults (no %s, `offstage config` writes one)", cfg.Path))
 	}
 
 	if rt := os.Getenv("XDG_RUNTIME_DIR"); rt == "" {
@@ -66,7 +66,7 @@ func runDoctor(e *Env) int {
 		} else {
 			add("hyprland", "ok", v+" (instance "+inst.Signature+")")
 		}
-		add("config driver", "ok", inst.Driver().Mode()+" (override with HYPRCAGE_DRIVER=lua|classic)")
+		add("config driver", "ok", inst.Driver().Mode()+" (override with OFFSTAGE_DRIVER=lua|classic)")
 		if r := screen.KnownRenderer(cfg.Renderer); r != "" {
 			add("cage renderer", "ok", r+" (learnt by a previous screen, forget it with rm "+screen.RendererStatePath()+")")
 		} else {
@@ -86,7 +86,7 @@ func runDoctor(e *Env) int {
 			}
 		}
 		if len(orphans) > 0 {
-			add("orphan outputs", "warn", strings.Join(orphans, ", ")+" (run `hyprcage gc`)")
+			add("orphan outputs", "warn", strings.Join(orphans, ", ")+" (run `offstage gc`)")
 		} else {
 			add("orphan outputs", "ok", "none")
 		}
@@ -112,9 +112,9 @@ func runDoctor(e *Env) int {
 			add(bin, "ok", p)
 		}
 	}
-	tool("cage", "fail", "the agent's compositor; `hyprcage setup` installs it")
-	tool("ffmpeg", "warn", "recording needs it; `hyprcage setup` installs it")
-	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `hyprcage setup` installs it")
+	tool("cage", "fail", "the agent's compositor; `offstage setup` installs it")
+	tool("ffmpeg", "warn", "recording needs it; `offstage setup` installs it")
+	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `offstage setup` installs it")
 	if err := perceive.A11yBusOK(context.Background()); err != nil {
 		add("a11y bus", "warn", "unreachable, snapshot cannot read GTK/Qt apps through AT-SPI: "+err.Error())
 	} else {
@@ -127,18 +127,18 @@ func runDoctor(e *Env) int {
 			add("cdp "+r.Name, st, d)
 		}
 	}
-	tool("tesseract", "warn", "the OCR snapshot source needs it; `hyprcage setup` installs it")
+	tool("tesseract", "warn", "the OCR snapshot source needs it; `offstage setup` installs it")
 	if _, err := os.Stat(perceive.OCRData); err != nil {
-		add("ocr data", "warn", "no "+perceive.OCRData+"; run hyprcage setup")
+		add("ocr data", "warn", "no "+perceive.OCRData+"; run offstage setup")
 	} else {
 		add("ocr data", "ok", perceive.OCRData)
 	}
 
 	if len(setup.Missing()) > 0 {
 		if _, err := exec.LookPath("pkexec"); err == nil {
-			add("setup", "ok", "pkexec available: `hyprcage setup` will ask for your password in a dialog")
+			add("setup", "ok", "pkexec available: `offstage setup` will ask for your password in a dialog")
 		} else {
-			add("setup", "warn", "no pkexec: run `hyprcage setup` from a terminal, or "+setup.ManualCommand(setup.Missing()))
+			add("setup", "warn", "no pkexec: run `offstage setup` from a terminal, or "+setup.ManualCommand(setup.Missing()))
 		}
 	}
 	tool("notify-send", "warn", "optional, desktop notifications")
@@ -181,7 +181,7 @@ func notifydCheck() (string, string) {
 	out, _ := exec.Command("systemctl", "--user", "is-active", setup.NotifydUnit).Output()
 	state := strings.TrimSpace(string(out))
 	if state != "active" {
-		return "warn", setup.NotifydUnit + " " + state + "; notify_list and notify_wait need it: `hyprcage setup`, or systemctl --user start " + setup.NotifydUnit
+		return "warn", setup.NotifydUnit + " " + state + "; notify_list and notify_wait need it: `offstage setup`, or systemctl --user start " + setup.NotifydUnit
 	}
 	pid, _ := exec.Command("systemctl", "--user", "show", "-p", "MainPID", "--value", setup.NotifydUnit).Output()
 	status, _ := os.ReadFile("/proc/" + strings.TrimSpace(string(pid)) + "/status")

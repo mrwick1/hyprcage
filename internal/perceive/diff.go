@@ -3,7 +3,7 @@ package perceive
 import (
 	"image"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // FrameDiff is the change between two frames. Ratio is the fraction (0 to 1) of

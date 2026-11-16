@@ -3,7 +3,7 @@ package screen
 import (
 	"image"
 
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Surface is what the screen tools act on. A cage screen gives a

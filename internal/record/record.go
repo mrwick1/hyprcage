@@ -1,5 +1,5 @@
 // Package record turns a screen or the human's desktop into an MP4 file:
-// hyprcage captures frames through wlr-screencopy and pipes raw RGBA to
+// offstage captures frames through wlr-screencopy and pipes raw RGBA to
 // ffmpeg. wf-recorder is not used: on openSUSE it fails with a libavformat
 // symbol error.
 package record
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Capturer grabs one frame. *wl.Client satisfies it.

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func TestAssignStable(t *testing.T) {

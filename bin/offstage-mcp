@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MCP launcher shipped in the plugin (.mcp.json points here): finds hyprcage,
+# MCP launcher shipped in the plugin (.mcp.json points here): finds offstage,
 # installs it on the first run, updates it when the plugin moved to a newer
 # release, then serves MCP on stdio. The plugin's version pins the release,
 # so plugin and binary evolve together. A binary built from source ("dev")
@@ -8,8 +8,8 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 want=v$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$root/.claude-plugin/plugin.json" | head -1)
 find_bin() {
-  command -v hyprcage 2>/dev/null && return
-  [ -x "$HOME/.local/bin/hyprcage" ] && echo "$HOME/.local/bin/hyprcage"
+  command -v offstage 2>/dev/null && return
+  [ -x "$HOME/.local/bin/offstage" ] && echo "$HOME/.local/bin/offstage"
 }
 # A release tag older than the one the plugin pins.
 outdated() {
@@ -20,15 +20,15 @@ outdated() {
 }
 bin=$(find_bin || true)
 if [ -z "$bin" ]; then
-  echo "hyprcage: first run, installing the binary ($want)" >&2
+  echo "offstage: first run, installing the binary ($want)" >&2
 elif outdated "$bin"; then
-  echo "hyprcage: the plugin moved to $want, updating the binary" >&2
+  echo "offstage: the plugin moved to $want, updating the binary" >&2
   bin=
 fi
 if [ -z "$bin" ]; then
-  HYPRCAGE_VERSION=${HYPRCAGE_VERSION:-$want} bash "$root/install.sh" --binary-only \
-    || { echo "hyprcage: could not install the binary; from a terminal: bash $root/install.sh" >&2; exit 1; }
+  OFFSTAGE_VERSION=${OFFSTAGE_VERSION:-$want} bash "$root/install.sh" --binary-only \
+    || { echo "offstage: could not install the binary; from a terminal: bash $root/install.sh" >&2; exit 1; }
   bin=$(find_bin || true)
-  [ -n "$bin" ] || { echo "hyprcage: binary still not found after installing" >&2; exit 1; }
+  [ -n "$bin" ] || { echo "offstage: binary still not found after installing" >&2; exit 1; }
 fi
 exec "$bin" mcp

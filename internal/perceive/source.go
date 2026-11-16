@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Source reads the nodes of one screen.
@@ -46,7 +46,7 @@ func shotOf(cl screen.Surface) func(screen.ShotOptions) (*screen.ShotResult, err
 // foreignPortHint answers a DevTools port that another program took over.
 const foreignPortHint = "the DevTools port no longer belongs to this screen; relaunch the app with debug=true"
 
-const noSourceHint = "launch the app with debug=true, or run hyprcage setup for OCR"
+const noSourceHint = "launch the app with debug=true, or run offstage setup for OCR"
 
 // Choose picks the source. want is "auto", "cdp", "atspi" or "ocr".
 // auto tries CDP when rec.DebugPort > 0, the process recorded as its
@@ -67,7 +67,7 @@ func Choose(ctx context.Context, rec *registry.Screen, cl screen.Surface, want s
 		return newATSPI(ctx, rec.Name, rec.Width, rec.Height)
 	case "ocr":
 		if !ocrOK() {
-			return nil, screen.Errf(screen.CodeNoSource, "run hyprcage setup", "no OCR data at %s", ocrData)
+			return nil, screen.Errf(screen.CodeNoSource, "run offstage setup", "no OCR data at %s", ocrData)
 		}
 		return newOCR(shotOf(cl)), nil
 	case "auto":

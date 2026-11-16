@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/proc"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/shellq"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/proc"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/shellq"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 var mirrorSeq int
@@ -82,7 +82,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 	if c.Hypr != nil && rec.WorkspaceMirror == 0 {
 		ws := mirrorWorkspace(c, rec.Owner)
 		if ws == 0 {
-			return errf(CodeLimit, "close a mirror with `hyprcage mirror -close <screen>`",
+			return errf(CodeLimit, "close a mirror with `offstage mirror -close <screen>`",
 				"no workspace left for the mirror: %d to %d are all taken", c.Cfg.MirrorMin, c.Cfg.MirrorMax)
 		}
 		rec.WorkspaceMirror, rec.MirrorNote = ws, ""
@@ -91,7 +91,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 		}
 	}
 	mirrorSeq++
-	cmd := []string{"env", "HYPRCAGE_SCREEN=" + rec.Name, exe, "_mirror", rec.Name}
+	cmd := []string{"env", "OFFSTAGE_SCREEN=" + rec.Name, exe, "_mirror", rec.Name}
 	argv := cmd
 	if useSystemd {
 		argv = sysd.ScopeArgs(rec.Name, fmt.Sprintf("mirror-%d-%d", os.Getpid(), mirrorSeq), cmd)

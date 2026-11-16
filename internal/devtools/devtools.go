@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 const hint = "open the page with browser_open, or launch the app with debug=true"
@@ -663,7 +663,7 @@ func (s *Session) apply(ctx context.Context, sid string, e Emulation) error {
 }
 
 // evalGroup holds the objects an Eval keeps alive until it returns.
-const evalGroup = "hyprcage-eval"
+const evalGroup = "offstage-eval"
 
 type evalReply struct {
 	Result    remoteObject `json:"result"`
@@ -788,13 +788,13 @@ func (s *Session) StopTrace(ctx context.Context, path string) (int64, error) {
 }
 
 // DefaultPath is where an artifact goes when the caller names none:
-// ~/.cache/hyprcage/devtools/<screen>-<time>.<ext>.
+// ~/.cache/offstage/devtools/<screen>-<time>.<ext>.
 func DefaultPath(screenName, ext string) string {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		dir = os.TempDir()
 	}
-	return filepath.Join(dir, "hyprcage", "devtools", fmt.Sprintf("%s-%s.%s", screenName, time.Now().Format("20060102-150405"), ext))
+	return filepath.Join(dir, "offstage", "devtools", fmt.Sprintf("%s-%s.%s", screenName, time.Now().Format("20060102-150405"), ext))
 }
 
 func create(path string) (*os.File, error) {

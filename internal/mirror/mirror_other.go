@@ -2,7 +2,7 @@
 
 package mirror
 
-import "github.com/hexadecimil/hyprcage/internal/registry"
+import "github.com/hexadecimil/offstage/internal/registry"
 
 // Run does nothing but log: the mirror needs Wayland, so it needs Linux.
 func Run(rec *registry.Screen, opts Options) int {

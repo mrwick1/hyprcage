@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Several screens at once: independent cages, apps, mirrors and workspaces.
 set -uo pipefail
-H=$HOME/hyprcage
+H=$HOME/offstage
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls "$XDG_RUNTIME_DIR/hypr" | head -1)}
 OUT=$HOME/spikes; mkdir -p "$OUT"
@@ -16,8 +16,8 @@ trap 'kill %1 2>/dev/null' EXIT
 before=$(snap)
 # One workspace per mirror first (mirror.group = "screen"), then the default
 # grouping by session at the end.
-mkdir -p ~/.config/hyprcage; printf '[mirror]\ngroup = "screen"\n' > ~/.config/hyprcage/config.toml
-trap 'kill %1 2>/dev/null; rm -f ~/.config/hyprcage/config.toml' EXIT
+mkdir -p ~/.config/offstage; printf '[mirror]\ngroup = "screen"\n' > ~/.config/offstage/config.toml
+trap 'kill %1 2>/dev/null; rm -f ~/.config/offstage/config.toml' EXIT
 
 echo "== three screens, different sizes, each with a mirror on its own workspace"
 a=$($H create --json --name one --size 1280x800); an=$(echo "$a"|jq -r .name)
@@ -60,10 +60,10 @@ sleep 1
 { grep -q to-two /home/arch/two.out 2>/dev/null && ! grep -q to-one /home/arch/two.out 2>/dev/null; } && pass "screen two received only its own text" || fail "two.out: [$(cat /home/arch/two.out 2>/dev/null|tr '\n' ' ')]"
 
 echo "== three mirror windows, one per workspace"
-mws=$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]|sort')
+mws=$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]|sort')
 want=$(printf '%s\n%s\n%s\n' "$wa" "$wb" "$wc_" | sort -n | jq -cRs 'split("\n")|map(select(length>0)|tonumber)')
 [ "$mws" = "$want" ] && pass "mirror windows on workspaces $mws" || fail "mirror windows on $mws, want $want"
-[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.fullscreen]|unique')" = "[2]" ] && pass "each mirror fullscreen on its workspace" || fail "fullscreen states: $(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.fullscreen]')"
+[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.fullscreen]|unique')" = "[2]" ] && pass "each mirror fullscreen on its workspace" || fail "fullscreen states: $(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.fullscreen]')"
 [ "$(grep -acE '^monitor(added|removed)' "$EVLOG")" = 0 ] && pass "zero monitor events for three screens" || fail "monitor events appeared"
 [ "$before" = "$(snap)" ] && pass "the human's monitors never moved" || fail "human state changed: $(snap)"
 
@@ -73,7 +73,7 @@ $H destroy "$bn" >/dev/null; sleep 1
 [ "$(pgrep -fc '_mirror')" = 2 ] && pass "its mirror went with it, two left" || fail "$(pgrep -fc '_mirror') mirrors left"
 $H shot "$an" -o "$OUT/m-a2.png" >/dev/null && [ -s "$OUT/m-a2.png" ] && pass "the other screens still capture" || fail "a surviving screen broke"
 left=$(printf '%s\n%s\n' "$wa" "$wc_" | sort -n | jq -cRs 'split("\n")|map(select(length>0)|tonumber)')
-[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]|sort')" = "$left" ] && pass "the surviving mirrors kept their workspaces ($left)" || fail "mirrors moved"
+[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]|sort')" = "$left" ] && pass "the surviving mirrors kept their workspaces ($left)" || fail "mirrors moved"
 
 echo "== a new screen reuses the freed workspace"
 d=$($H create --json --name four --size 640x480); dn=$(echo "$d"|jq -r .name)
@@ -83,11 +83,11 @@ echo "== destroying the rest leaves nothing"
 for n in "$an" "$cn" "$dn"; do $H destroy "$n" >/dev/null; done; sleep 1
 [ -z "$(pgrep -x cage)" ] && pass "no cage left" || fail "cages left"
 [ -z "$(pgrep -f '_mirror')" ] && pass "no mirror left" || fail "mirrors left"
-[ -z "$(systemctl --user list-units --all --plain --no-legend 'hyprcage-*' | awk '{print $1}')" ] && pass "no unit left" || fail "units left"
+[ -z "$(systemctl --user list-units --all --plain --no-legend 'offstage-*' | awk '{print $1}')" ] && pass "no unit left" || fail "units left"
 [ "$before" = "$(snap)" ] && pass "the human's monitors are as they started" || fail "human state: $(snap)"
 
 echo "== mirror.group = session (the default): one workspace per session, mirrors tiled"
-rm -f ~/.config/hyprcage/config.toml
+rm -f ~/.config/offstage/config.toml
 export CLAUDE_CODE_SESSION_ID=session-one
 a=$($H create --json --name s1a); an=$(echo "$a"|jq -r .name)
 b=$($H create --json --name s1b --size 1024x640); bn=$(echo "$b"|jq -r .name)
@@ -95,25 +95,25 @@ c=$($H create --json --name s1c --size 800x600); cn=$(echo "$c"|jq -r .name)
 wa=$(echo "$a"|jq -r .ws_mirror); wb=$(echo "$b"|jq -r .ws_mirror); wc_=$(echo "$c"|jq -r .ws_mirror)
 { [ "$wa" = 6 ] && [ "$wb" = 6 ] && [ "$wc_" = 6 ]; } && pass "the session's three mirrors share workspace 6" || fail "session mirrors on $wa $wb $wc_"
 sleep 2
-mws=$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]')
+mws=$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]')
 [ "$mws" = "[6,6,6]" ] && pass "three mirror windows on workspace 6" || fail "mirror windows on $mws"
-[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.fullscreen]|unique')" = "[0]" ] && pass "tiled, none fullscreen" || fail "fullscreen states: $(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.fullscreen]')"
+[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.fullscreen]|unique')" = "[0]" ] && pass "tiled, none fullscreen" || fail "fullscreen states: $(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.fullscreen]')"
 # Another session gets a workspace of its own.
 d=$(CLAUDE_CODE_SESSION_ID=other-session $H create --json --name s2a); dn=$(echo "$d"|jq -r .name)
 [ "$(echo "$d"|jq -r .ws_mirror)" = 7 ] && pass "another session's mirror goes to workspace 7" || fail "other session got ws $(echo "$d"|jq -r .ws_mirror)"
 # A mirror opened later joins its session's workspace.
 $H mirror -close "$bn"; sleep 1; $H mirror "$bn"; sleep 2
-[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]|sort')" = "[6,6,6,7]" ] && pass "a reopened mirror rejoins workspace 6" || fail "windows on $(hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]|sort')"
+[ "$(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]|sort')" = "[6,6,6,7]" ] && pass "a reopened mirror rejoins workspace 6" || fail "windows on $(hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]|sort')"
 [ "$before" = "$(snap)" ] && pass "the human's monitors never moved" || fail "human state: $(snap)"
 for n in "$an" "$bn" "$cn"; do $H destroy "$n" >/dev/null; done; CLAUDE_CODE_SESSION_ID=other-session $H destroy "$dn" >/dev/null; sleep 1
 [ -z "$(pgrep -x cage)" ] && pass "no cage left" || fail "cages left"
 [ -z "$(pgrep -f '_mirror')" ] && pass "no mirror left" || fail "mirrors left"
 unset CLAUDE_CODE_SESSION_ID
 
-mws() { hyprctl -j clients | jq -c '[.[]|select(.class=="hyprcage-mirror")|.workspace.id]|sort'; }
+mws() { hyprctl -j clients | jq -c '[.[]|select(.class=="offstage-mirror")|.workspace.id]|sort'; }
 
 echo "== mirror.group = pack: mirrors of every session fill a workspace before the next"
-printf '[mirror]\ngroup = "pack"\nper_workspace = 2\n' > ~/.config/hyprcage/config.toml
+printf '[mirror]\ngroup = "pack"\nper_workspace = 2\n' > ~/.config/offstage/config.toml
 export CLAUDE_CODE_SESSION_ID=session-one
 a=$($H create --json --name p1a); an=$(echo "$a"|jq -r .name)
 b=$(CLAUDE_CODE_SESSION_ID=other-session $H create --json --name p2a); bn=$(echo "$b"|jq -r .name)
@@ -131,14 +131,14 @@ sleep 2
 for n in "$an" "$cn" "$dn"; do $H destroy "$n" >/dev/null; done; sleep 1
 
 echo "== mirror.per_workspace caps a session's workspace as well"
-printf '[mirror]\nper_workspace = 2\n' > ~/.config/hyprcage/config.toml
+printf '[mirror]\nper_workspace = 2\n' > ~/.config/offstage/config.toml
 a=$($H create --json --name c1a); an=$(echo "$a"|jq -r .name)
 b=$($H create --json --name c1b); bn=$(echo "$b"|jq -r .name)
 c=$($H create --json --name c1c); cn=$(echo "$c"|jq -r .name)
 ws3="$(echo "$a"|jq -r .ws_mirror) $(echo "$b"|jq -r .ws_mirror) $(echo "$c"|jq -r .ws_mirror)"
 [ "$ws3" = "6 6 7" ] && pass "a session's third mirror overflows to workspace 7" || fail "session mirrors on $ws3"
 for n in "$an" "$bn" "$cn"; do $H destroy "$n" >/dev/null; done; sleep 1
-rm -f ~/.config/hyprcage/config.toml
+rm -f ~/.config/offstage/config.toml
 [ -z "$(pgrep -x cage)" ] && pass "no cage left" || fail "cages left"
 [ -z "$(pgrep -f '_mirror')" ] && pass "no mirror left" || fail "mirrors left"
 [ "$before" = "$(snap)" ] && pass "the human's monitors never moved" || fail "human state: $(snap)"

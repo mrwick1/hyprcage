@@ -1,6 +1,6 @@
 //go:build windows
 
-// mcp-e2e drives `hyprcage mcp` over stdio as an agent does: it creates a
+// mcp-e2e drives `offstage mcp` over stdio as an agent does: it creates a
 // headless screen, opens a page, fills a form by ref, clicks, takes a
 // screenshot, records, and destroys the screen. It checks that the human's
 // cursor and foreground window stay the same. Run it in the Windows VM.
@@ -43,7 +43,7 @@ func human() string {
 }
 
 func main() {
-	exe := flag.String("hyprcage", `C:\hc\hyprcage.exe`, "hyprcage binary")
+	exe := flag.String("offstage", `C:\hc\offstage.exe`, "offstage binary")
 	flag.Parse()
 	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/next" {

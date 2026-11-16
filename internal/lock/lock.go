@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 // ErrBusy is returned when the lock could not be obtained in time.
-var ErrBusy = errors.New("hyprcage lock busy (another create, destroy or gc is running)")
+var ErrBusy = errors.New("offstage lock busy (another create, destroy or gc is running)")
 
 var (
 	mu    sync.Mutex

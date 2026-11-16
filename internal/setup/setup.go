@@ -1,4 +1,4 @@
-// Package setup installs what hyprcage needs on the machine, with the
+// Package setup installs what offstage needs on the machine, with the
 // human's authorisation: cage, the agent's compositor, and its helpers
 // (ffmpeg, wl-clipboard, tesseract with its English data), through the
 // distribution's package manager. Root is obtained the way a desktop
@@ -15,18 +15,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/contrib"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/contrib"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 // OCRData is the path of the English language data of tesseract.
 const OCRData = "/usr/share/tessdata/eng.traineddata"
 
-// Package is one package hyprcage needs. Binary in PATH, or File on disk
+// Package is one package offstage needs. Binary in PATH, or File on disk
 // when File is set, proves that the package is present.
 type Package struct{ Package, Binary, File string }
 
-// Packages lists what hyprcage needs.
+// Packages lists what offstage needs.
 var Packages = []Package{
 	{Package: "cage", Binary: "cage"},
 	{Package: "ffmpeg", Binary: "ffmpeg"},        // recording
@@ -187,7 +187,7 @@ func diff(all, still []string) []string {
 }
 
 // NotifydUnit is the name of the notification daemon's user unit.
-const NotifydUnit = "hyprcage-notifyd.service"
+const NotifydUnit = "offstage-notifyd.service"
 
 // Notifyd installs the notification daemon's user unit into
 // ~/.config/systemd/user and enables and starts it. Without a systemd user
@@ -225,5 +225,5 @@ func Notifyd() (string, error) {
 // binary of ExecStart.
 func notifydUnit(exe string) []byte {
 	q := `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%").Replace(exe) + `"`
-	return bytes.Replace(contrib.NotifydUnit, []byte("%h/.local/bin/hyprcage"), []byte(q), 1)
+	return bytes.Replace(contrib.NotifydUnit, []byte("%h/.local/bin/offstage"), []byte(q), 1)
 }

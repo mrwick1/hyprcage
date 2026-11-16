@@ -102,14 +102,14 @@ func TestApplyRejects(t *testing.T) {
 
 func TestPathHonoursXDG(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/x")
-	if got, want := Path(), filepath.Join("/tmp/x", "hyprcage", "config.toml"); got != want {
+	if got, want := Path(), filepath.Join("/tmp/x", "offstage", "config.toml"); got != want {
 		t.Errorf("Path() = %s, want %s", got, want)
 	}
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("AppData", `C:\Users\a\AppData\Roaming`)
-	want := filepath.Join(".config", "hyprcage", "config.toml")
+	want := filepath.Join(".config", "offstage", "config.toml")
 	if runtime.GOOS == "windows" {
-		want = filepath.Join(`C:\Users\a\AppData\Roaming`, "hyprcage", "config.toml")
+		want = filepath.Join(`C:\Users\a\AppData\Roaming`, "offstage", "config.toml")
 	}
 	if got := Path(); !strings.HasSuffix(got, want) {
 		t.Errorf("Path() = %s, want it to end with %s", got, want)

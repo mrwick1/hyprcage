@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/setup"
 )
 
 // runSetup installs cage with the human's authorisation
