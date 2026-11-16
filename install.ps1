@@ -16,13 +16,14 @@
 #   -Agents LIST             claude, codex, or none (default: every agent found)
 #   -NoBare                  do not install or register bare (or OFFSTAGE_NO_BARE=1)
 #   -BinaryOnly              step 1 only, bare included (what the plugin's launcher runs)
+#   -BareOnly                bare only (what the plugin's bare launcher runs)
 #   -Uninstall               remove the binary, the registrations and offstage's state
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the plugin's version, else the latest)
 #   OFFSTAGE_BIN_DIR=DIR     where offstage.exe goes (default %LOCALAPPDATA%\offstage\bin)
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests)
 #   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
 #   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
-param([string]$Agents = 'all', [switch]$BinaryOnly, [switch]$Uninstall, [switch]$NoBare)
+param([string]$Agents = 'all', [switch]$BinaryOnly, [switch]$Uninstall, [switch]$NoBare, [switch]$BareOnly)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Repo = if ($env:OFFSTAGE_REPO) { $env:OFFSTAGE_REPO } else { 'mrwick1/offstage' }
@@ -190,6 +191,7 @@ function Remove-All {
 
 try {
   if ($Uninstall) { Remove-All; return }
+  if ($BareOnly) { Install-Bare; return }
   Install-Binary
   Install-Bare
   Write-Config

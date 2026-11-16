@@ -7,8 +7,8 @@ setlocal
 set "root=%~dp0.."
 set "dir=%LOCALAPPDATA%\offstage\bin"
 if defined OFFSTAGE_BIN_DIR set "dir=%OFFSTAGE_BIN_DIR%"
-if not exist "%dir%\bare-mcp.exe" powershell -NoProfile -ExecutionPolicy Bypass -File "%root%\install.ps1" -BinaryOnly 1>&2
-if not exist "%dir%\bare-drive.exe" powershell -NoProfile -ExecutionPolicy Bypass -File "%root%\install.ps1" -BinaryOnly 1>&2
+if not exist "%dir%\bare-mcp.exe" powershell -NoProfile -ExecutionPolicy Bypass -File "%root%\install.ps1" -BareOnly 1>&2
+if not exist "%dir%\bare-drive.exe" powershell -NoProfile -ExecutionPolicy Bypass -File "%root%\install.ps1" -BareOnly 1>&2
 if not exist "%dir%\bare-mcp.exe" echo bare: could not install bare-mcp.exe; run install.ps1 from a terminal 1>&2
 if not exist "%dir%\bare-mcp.exe" exit /b 1
 set "BARE_MCP_REPORT=offstage"

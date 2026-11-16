@@ -27,6 +27,7 @@
 #                            claude, codex, gemini, cursor, windsurf, opencode,
 #                            or none (default: every agent found on the machine)
 #   --binary-only            step 2 only, bare included (what the plugin's launcher runs)
+#   --bare-only              bare only (what the plugin's bare launcher runs)
 #   --uninstall              remove the binary, the registrations and offstage's state
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the latest)
 #   OFFSTAGE_FROM_SOURCE=1|0 build with go (1) or download (0); default 1 in a
@@ -46,6 +47,9 @@ AGENTS=${OFFSTAGE_AGENTS:-all}
 # in install.ps1.
 BARE_VERSION=${OFFSTAGE_BARE_VERSION:-v0.1.0}
 BARE_REPO=mrwick1/bare
+# Its file marks a bare that this installer put in BIN_DIR. Uninstall removes
+# only that one.
+BARE_MARK_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/offstage
 # The checkout this script runs from. Piped from curl, BASH_SOURCE is empty
 # and there is no checkout: the current directory is never taken for one.
 SRC_DIR=""
@@ -189,6 +193,7 @@ _install_bare() {
   mkdir -p "$BIN_DIR"
   install -m 0755 "$tmp/$m" "$BIN_DIR/bare-mcp" || return 1
   install -m 0755 "$tmp/$d" "$BIN_DIR/bare-drive" || return 1
+  mkdir -p "$BARE_MARK_DIR" && : >"$BARE_MARK_DIR/bare-installed"
   say "installed bare-mcp and bare-drive in $BIN_DIR"
 }
 
@@ -399,8 +404,10 @@ uninstall() {
   say "removing offstage from the agents, the binary and offstage's state (the packages stay)"
   unregister_agents
   # Only when this installer put bare there: a bare of the user's own stays.
-  if [ -e "$BIN_DIR/bare-mcp" ]; then unregister_agents bare; fi
-  rm -f "$BIN_DIR/bare-mcp" "$BIN_DIR/bare-drive"
+  if [ -e "$BARE_MARK_DIR/bare-installed" ]; then
+    unregister_agents bare
+    rm -f "$BIN_DIR/bare-mcp" "$BIN_DIR/bare-drive"
+  fi
   systemctl --user disable --now offstage-notifyd.service >/dev/null 2>&1 || true
   rm -f "$UNIT_DIR/offstage-notifyd.service"
   if [ -x "$BIN_DIR/offstage" ]; then "$BIN_DIR/offstage" gc --all >/dev/null 2>&1 || true; fi
@@ -415,15 +422,17 @@ mode=install
 while [ $# -gt 0 ]; do
   case $1 in
     --binary-only) mode=binary ;;
+    --bare-only) mode=bare ;;
     --uninstall) mode=uninstall ;;
     --agents) shift; AGENTS=${1:-}; [ -n "$AGENTS" ] || die "--agents needs a list" ;;
     --agents=*) AGENTS=${1#--agents=} ;;
-    *) die "usage: install.sh [--agents LIST] [--binary-only | --uninstall]" ;;
+    *) die "usage: install.sh [--agents LIST] [--binary-only | --bare-only | --uninstall]" ;;
   esac
   shift
 done
 case $mode in
   binary) install_binary; install_bare; write_config ;;
+  bare) install_bare ;;
   uninstall) uninstall ;;
   install)
     [ "$(uname -s)" = Linux ] || die "offstage runs on Linux with Hyprland"
