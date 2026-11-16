@@ -1,8 +1,8 @@
 # offstage closed beta plan: Linux and Windows
 
 Date: 2026-11-16
-Status: draft, for review
-Depends on: the Windows port plan and the spike B rulings (`2026-11-16-hyprcage-windows-port-plan.md`, `2026-11-16-hyprcage-windows-spike-rulings.md`, on the local branch `docs/windows-port-plan`, not merged yet)
+Status: in progress. The Linux and Windows betas are released (`v0.11.0-beta.2`, 2026-11-16). See "Progress".
+Depends on: the Windows port plan and the spike rulings (`2026-11-16-offstage-windows-port-plan.md`, `2026-11-16-offstage-windows-spike-rulings.md`, merged in PR #39)
 
 ## Goal
 
@@ -23,7 +23,7 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 | Tester | Platform | Setup |
 | --- | --- | --- |
 | Joel | Linux | Same as Arjun's ThinkPad E16 (`arjun-e16`): openSUSE Tumbleweed, Hyprland 0.56.2, AMD HawkPoint1 GPU (checked 2026-11-16). The README records openSUSE as verified with Hyprland 0.56.2. |
-| Aswin | Windows | Joins when the Windows build is ready (B5). |
+| Aswin | Windows | Windows 11 is the only supported version. Got the setup prompt and the beta key on 2026-11-16. |
 
 `arjun-e16` is the reference machine for Joel's track. A problem Joel reports is replayed there first.
 
@@ -40,6 +40,34 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 | B3 | Windows | Port plan phases 5 and 6 (UIA, browser, DevTools) | Chrome e2e through `browser_open`, `snapshot`, `act` |
 | B5 | Windows | Packaging (port plan phase 7) and Windows beta release | Clean VM install from `install.ps1` to a working screen |
 | B6 | both | Beta run | Exit criteria below |
+
+### Progress
+
+Status on 2026-11-16:
+
+| Phase | State |
+| --- | --- |
+| R0 | Done. PRs #28 to #34. The repository is `mrwick1/offstage`. The Go module path is `github.com/hexadecimil/offstage`. |
+| B4 | Done. The relay runs at `https://beta.mrwick.dev`. Replay, crash capture, audit targets and typed-text placeholders are built (PRs #31, #32). |
+| L1 | Done. `v0.10.0-beta.1` and `v0.10.0-beta.2` were Linux only. `arjun-e16` runs the plugin from the `beta` branch. `install.sh` no longer stops when `claude mcp remove` fails under `set -e` (PR #36). |
+| B0 | Done. Spike A failed. Spike C (headless Chrome) set the v1 scope. See the rulings file. |
+| B1 to B3 | Done for the v1 scope: a headless Chrome screen, not native apps. PR #39. |
+| B5 | Done. `install.ps1`, `bin/offstage-mcp.cmd`, the Windows asset in `make dist`, and `docs/beta-windows.md` (PR #39). Release `v0.11.0-beta.1`. `v0.11.0-beta.2` adds the beta report rule to the Windows agent instructions (PR #41). |
+| B6 | Started 2026-11-16. Aswin received the setup prompt and his key that day. |
+
+Checks run for the Windows release:
+
+- Windows 11 Pro VM: `TestHeadlessTools` (every v1 tool on a headless screen), the headless end-to-end, gc and recording tests, and `tests/windows/mcp-e2e` against `offstage.exe mcp`.
+- Windows PowerShell 5.1: the install command from `docs/beta-windows.md` installs `v0.11.0-beta.2` from the public release. `offstage doctor` exits 0 with `chrome ok`.
+- Claude Code 2.1.325 in the VM: `claude plugin marketplace add mrwick1/offstage#beta` and `claude plugin install offstage@offstage-mrwick1` work. `claude mcp list` shows the plugin server as Connected.
+- Linux: `tests/e2e-desktop.py` on `arjun-e16` gives 13 passed, 0 failed, 1 skipped on the merged Windows branch and on `v0.10.0-beta.2`. The run needs an idle mouse: the check fails when a person moves the cursor.
+
+Not verified yet:
+
+- A real Windows machine. All Windows results come from the VM.
+- A tool call from a Claude Code session on Windows, and a report filed from Windows.
+- The plugin's first-run install of `offstage.exe` on Windows.
+- Windows 10.
 
 Order: R0, then B4 and L1 together, then the Windows phases. The Windows work does not block the Linux beta. B1 must keep the Linux suite green, because Joel runs Linux builds from the same branch.
 
@@ -219,12 +247,12 @@ Verified against Plane 1.4.2 on 2026-11-16: work items, comments, labels and the
 
 ## Releases
 
-- Version: `v0.10.0-beta.N`, published as a GitHub pre-release. Linux and Windows assets come from the same tag once B5 is done.
-- `release.yml` builds the Windows `.exe` next to the Linux builds. To verify: the Windows build needs no cgo.
+- Version: `v0.10.0-beta.N` for the Linux-only builds, `v0.11.0-beta.N` from the first Windows build. Each is a GitHub pre-release with the Linux and Windows assets from the same tag.
+- `release.yml` runs `make dist`, which builds `offstage-windows-amd64.exe` with `CGO_ENABLED=0` next to the Linux builds.
 - Linux: `install.sh` installs the pre-release, the packages through pacman or zypper, and `offstage-notifyd.service`, then runs `offstage report login`.
-- Windows: `install.ps1` downloads the pre-release, checks its SHA-256, places the binary in `%LOCALAPPDATA%\offstage\bin`, writes the config, and runs `offstage report login`.
-- Plugin: testers install from a `beta` branch of the marketplace. To verify: Claude Code accepts a branch or ref for a plugin marketplace.
-- Windows launcher: `.mcp.json` must start a Windows launcher. To verify: how Claude Code on Windows runs a plugin MCP command, and if `${CLAUDE_PLUGIN_ROOT}` works there.
+- Windows: `install.ps1` downloads the pre-release, checks its SHA-256, places the binary in `%LOCALAPPDATA%\offstage\bin` and writes the config. It does not add the binary to PATH and does not run `offstage report login`. `docs/beta-windows.md` covers both steps.
+- Plugin: testers install from the `beta` branch of the marketplace: `claude plugin marketplace add mrwick1/offstage#beta`. Verified on Linux and in the Windows VM. The `beta` branch points at the release commit.
+- Windows launcher: `.mcp.json` names the extensionless `${CLAUDE_PLUGIN_ROOT}/bin/offstage-mcp`. In the Windows VM, Claude Code starts it and the server connects. `bin/offstage-mcp.cmd` is next to it, and both answer an MCP `initialize` from `cmd.exe`. Which file Claude Code runs is not verified.
 - Tester guides: `docs/beta-linux.md` and `docs/beta-windows.md`. Each covers requirements, install, the beta key, how reports work, what is collected and how to turn reports off.
 
 ## B6: beta run

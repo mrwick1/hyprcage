@@ -1,7 +1,7 @@
 # offstage on Windows: port plan
 
 Date: 2026-11-16
-Status: draft, for review
+Status: v1 done. Merged in PR #39 on 2026-11-16 and released as `v0.11.0-beta.1`. The work after v1 is listed under "After v1".
 Base branch: `main` (at `ebceb52`)
 
 ## Goal
