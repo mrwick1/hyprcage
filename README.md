@@ -154,6 +154,10 @@ tool has a command-line twin: `offstage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
 
+### Task lifecycle (Linux)
+
+Use `task_create` to group a server process and screens. Launch the server with `task_launch`, and pass `task_id` to `screen_create`. Inspect state and log paths with `task_inspect`. Call `task_close` to stop the owned resources and retain their artifacts. Server launch requires user systemd. See [task lifecycle](docs/task-lifecycle.md) for limits and recovery behavior.
+
 ### Saved browser profiles
 
 `browser_open` starts Chrome on a throwaway profile that `screen_destroy`

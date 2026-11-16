@@ -40,6 +40,7 @@ import (
 )
 
 const instructions = `offstage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
+Task lifecycle (Linux): task_create -> task_launch for a non-graphical server; pass task_id to screen_create to associate its screen. task_inspect reads resources and artifacts; task_close stops only owned resources. task_launch requires user systemd. Close tasks explicitly.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
 Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
@@ -298,6 +299,7 @@ func (s *Server) afterAction(rec *registry.Screen, cl screen.Surface, want bool,
 // --- tool inputs ------------------------------------------------------------
 
 type createIn struct {
+	TaskID string `json:"task_id,omitempty" jsonschema:"optional Linux task owner; task_close also closes this screen"`
 	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; default hc-<random>"`
 	Size   string `json:"size,omitempty" jsonschema:"WxH in pixels, default 1280x800 (configurable); keep every side at or below 2000"`
 	Mirror *bool  `json:"mirror,omitempty" jsonschema:"open a mirror window on one of the human's workspaces so they can watch. Leave it out to follow the human's configuration, which is what they want by default. Pass true when they asked to see the work or when showing it is the point, false for a screen they have no reason to watch"`
@@ -561,11 +563,15 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerPerceive(srv)
 	s.registerReport(srv)
 	s.registerWatch(srv)
+	s.registerTasks(srv)
 }
 
 // --- handlers ---------------------------------------------------------------
 
 func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
+	if err := validateTask(in.TaskID); err != nil {
+		return nil, err
+	}
 	if desktop.IsDesktop(in.Name) {
 		return nil, screen.Errf(screen.CodeInvalidName, "choose another name", "%q is reserved for the human's desktop", in.Name)
 	}
@@ -589,6 +595,9 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := s.attachTask(in.TaskID, rec); err != nil {
+			return nil, err
+		}
 		return textResult(map[string]any{
 			"screen": rec.Name, "kind": kind, "width": rec.Width, "height": rec.Height, "mirror_note": rec.MirrorNote,
 			"note": "coordinates are page pixels; open a page with browser_open, call screen_destroy when done",
@@ -596,6 +605,9 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 	}
 	rec, err := screen.Create(c, opts)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.attachTask(in.TaskID, rec); err != nil {
 		return nil, err
 	}
 	out := map[string]any{

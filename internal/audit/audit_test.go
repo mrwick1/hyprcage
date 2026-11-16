@@ -154,3 +154,12 @@ func TestRecordKeepsSecretsOutOfTheLog(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskActionIdentity(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	first := Record("task_inspect", map[string]any{"task_id": "task-example"}, nil)
+	second := Record("task_inspect", map[string]any{"task_id": "task-example"}, nil)
+	if first.TaskID != "task-example" || first.ActionID == "" || first.ActionID == second.ActionID {
+		t.Fatal("missing task or unique action identity")
+	}
+}
