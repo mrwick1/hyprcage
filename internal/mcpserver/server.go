@@ -169,7 +169,7 @@ func (s *Server) hypr() (*screen.Ctx, error) {
 
 // resolve finds the screen (empty = the session's only one), checks the
 // owner, touches the heartbeat and opens its Wayland connection on demand.
-func (s *Server) resolve(name string, withWL bool) (*registry.Screen, *wl.Client, error) {
+func (s *Server) resolve(name string, withWL bool) (*registry.Screen, screen.Surface, error) {
 	c, err := s.hypr()
 	if err != nil {
 		return nil, nil, err
@@ -248,7 +248,7 @@ func shotResult(res *screen.ShotResult, name, path string) (*mcp.CallToolResult,
 
 // afterAction optionally appends a screenshot to an action's result.
 // v, when not nil, judges the action and adds its verdict to the result.
-func (s *Server) afterAction(rec *registry.Screen, cl *wl.Client, want bool, settleMs int, v *verifier) (*mcp.CallToolResult, error) {
+func (s *Server) afterAction(rec *registry.Screen, cl screen.Surface, want bool, settleMs int, v *verifier) (*mcp.CallToolResult, error) {
 	ver := v.finish(verifySettle)
 	if !want {
 		res := textResult(map[string]string{"status": "ok"})
@@ -916,7 +916,7 @@ func (s *Server) wait(in waitIn) (*mcp.CallToolResult, error) {
 	return s.doWait(cl, in.StableMs, in.Title, in.TimeoutMs)
 }
 
-func (s *Server) doWait(cl *wl.Client, stableMs int, title string, timeoutMs int) (*mcp.CallToolResult, error) {
+func (s *Server) doWait(cl screen.Surface, stableMs int, title string, timeoutMs int) (*mcp.CallToolResult, error) {
 	timeout := 5 * time.Second
 	if timeoutMs > 0 {
 		timeout = time.Duration(timeoutMs) * time.Millisecond
@@ -987,7 +987,7 @@ func (s *Server) batch(in batchIn) (*mcp.CallToolResult, error) {
 	return res, nil
 }
 
-func (s *Server) runAction(cl *wl.Client, a batchAction) error {
+func (s *Server) runAction(cl screen.Surface, a batchAction) error {
 	switch strings.ToLower(a.Op) {
 	case "click":
 		b, err := screen.ParseButton(a.Button)
