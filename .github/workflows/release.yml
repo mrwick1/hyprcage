@@ -24,3 +24,6 @@ jobs:
           files: dist/*
           body_path: notes.md
           generate_release_notes: true
+          # A tag with a suffix (v0.10.0-beta.1) is a pre-release, so
+          # releases/latest and install.sh keep the last stable build.
+          prerelease: ${{ contains(github.ref_name, '-') }}
