@@ -40,6 +40,7 @@ var (
 	validFingerprint = regexp.MustCompile(fingerprintRe)
 	validRef         = regexp.MustCompile(`^[A-Z]{1,10}-[0-9]{1,9}$`)
 	areas            = map[string]bool{"crash": true, "isolation-leak": true, "install": true, "desktop": true}
+	types            = map[string]bool{"bug": true, "doubt": true, "suggestion": true, "feedback": true}
 	textExt          = map[string]bool{".txt": true, ".json": true, ".jsonl": true, ".log": true, ".md": true, ".toml": true}
 )
 
@@ -49,6 +50,7 @@ type Meta struct {
 	Platform    string `json:"platform"`              // linux or windows
 	Kind        string `json:"kind"`                  // agent or manual
 	Area        string `json:"area,omitempty"`        // crash, isolation-leak, install, desktop
+	Type        string `json:"type,omitempty"`        // bug, doubt, suggestion, feedback; empty means bug
 	Fingerprint string `json:"fingerprint,omitempty"` // hex hash from the client
 	Version     string `json:"version"`
 	OS          string `json:"os"`
@@ -217,12 +219,12 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 		return
 	}
 	var ids []string
-	for _, name := range []string{map[string]string{"agent": "agent-report", "manual": "manual"}[m.Kind], m.Platform, m.Area} {
+	for _, name := range []string{map[string]string{"agent": "agent-report", "manual": "manual"}[m.Kind], m.Platform, m.Area, m.kindOfReport()} {
 		if id := labels[name]; id != "" {
 			ids = append(ids, id)
 		}
 	}
-	it, err := s.Plane.Create(m.Title, m.html(tester, false), ids)
+	it, err := s.Plane.Create(m.planeTitle(), m.html(tester, false), ids)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -287,6 +289,22 @@ func reply(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// kindOfReport is the report type; an old client sends none, which means bug.
+func (m *Meta) kindOfReport() string {
+	if m.Type == "" {
+		return "bug"
+	}
+	return m.Type
+}
+
+// planeTitle marks a report that is not a bug.
+func (m *Meta) planeTitle() string {
+	if t := m.kindOfReport(); t != "bug" {
+		return "[" + t + "] " + m.Title
+	}
+	return m.Title
+}
+
 func (m *Meta) check() string {
 	switch {
 	case strings.TrimSpace(m.Title) == "" || len(m.Title) > 200:
@@ -297,6 +315,8 @@ func (m *Meta) check() string {
 		return "kind must be agent or manual"
 	case m.Area != "" && !areas[m.Area]:
 		return "area must be crash, isolation-leak, install or desktop"
+	case m.Type != "" && !types[m.Type]:
+		return "type must be bug, doubt, suggestion or feedback"
 	case m.Fingerprint != "" && !validFingerprint.MatchString(m.Fingerprint):
 		return "fingerprint must be 8 to 64 lowercase hex characters"
 	case len(m.Body) > MaxBody:

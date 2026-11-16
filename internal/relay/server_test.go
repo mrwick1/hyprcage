@@ -27,7 +27,7 @@ func (f *fakePlane) handler(t *testing.T) http.Handler {
 	mux := http.NewServeMux()
 	base := "/api/v1/workspaces/ws/projects/p"
 	mux.HandleFunc(base+"/labels/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"results":[{"id":"l-agent","name":"agent-report"},{"id":"l-linux","name":"linux"},{"id":"l-crash","name":"crash"}]}`)
+		_, _ = io.WriteString(w, `{"results":[{"id":"l-agent","name":"agent-report"},{"id":"l-linux","name":"linux"},{"id":"l-crash","name":"crash"},{"id":"l-bug","name":"bug"},{"id":"l-doubt","name":"doubt"}]}`)
 	})
 	mux.HandleFunc(base+"/states/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{"results":[{"id":"s-new","name":"New"},{"id":"s-fixed","name":"Fixed in build"}]}`)
@@ -154,7 +154,7 @@ func TestFilesRedactedItemWithLabelsAndBundle(t *testing.T) {
 		t.Errorf("description not redacted or no tester: %s", desc)
 	}
 	labels, _ := json.Marshal(fp.created[0]["labels"])
-	if string(labels) != `["l-agent","l-linux","l-crash"]` {
+	if string(labels) != `["l-agent","l-linux","l-crash","l-bug"]` {
 		t.Errorf("labels %s", labels)
 	}
 	if len(fp.uploads) != 1 {
@@ -245,5 +245,29 @@ func TestStatusOnlyForOwnReports(t *testing.T) {
 	}
 	if code, _ := get("osk_aswin", "OFS-1"); code != 404 {
 		t.Errorf("other tester: code %d, want 404", code)
+	}
+}
+
+func TestTypeLabelTitleAndValidation(t *testing.T) {
+	s, fp := setup(t)
+	m := meta()
+	m.Area, m.Fingerprint, m.Type = "", "", "doubt"
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 {
+		t.Fatalf("doubt: code %d", code)
+	}
+	labels, _ := json.Marshal(fp.created[0]["labels"])
+	if string(labels) != `["l-agent","l-linux","l-doubt"]` || fp.created[0]["name"] != "[doubt] click did nothing" {
+		t.Errorf("labels %s, name %v", labels, fp.created[0]["name"])
+	}
+	m.Type = "suggestion" // no such label in the fake Plane: skipped, not an error
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 || fp.created[1]["name"] != "[suggestion] click did nothing" {
+		t.Errorf("suggestion: code %d, name %v", code, fp.created[1]["name"])
+	}
+	m.Type = "rant"
+	if code, out := post(t, s, "osk_joel", m, nil); code != 400 || !strings.Contains(out["error"].(string), "type must be") {
+		t.Errorf("bad type: code %d, out %v", code, out)
+	}
+	if len(fp.created) != 2 {
+		t.Error("a rejected type filed a work item")
 	}
 }

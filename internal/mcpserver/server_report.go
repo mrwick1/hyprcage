@@ -17,6 +17,7 @@ type reportIn struct {
 	Actual    string `json:"actual" jsonschema:"what it did instead, with the error text"`
 	Screen    string `json:"screen,omitempty" jsonschema:"the agent screen it happened on; its tool calls, logs, element tree and a screenshot go into the report"`
 	Area      string `json:"area,omitempty" jsonschema:"crash, isolation-leak (a tool touched the human's desktop, cursor or focus), install or desktop"`
+	Type      string `json:"type,omitempty" jsonschema:"bug (default), doubt, suggestion or feedback"`
 	Confirmed bool   `json:"confirmed,omitempty" jsonschema:"true only after the human saw the preview and agreed to send it"`
 }
 
@@ -30,7 +31,7 @@ func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
 	if desktop.IsDesktop(in.Screen) {
 		return nil, screen.Errf(screen.CodeUnsupported, "name the agent screen, or leave screen empty", "a report never reads the human's desktop")
 	}
-	req := report.Request{Title: in.Title, Expected: in.Expected, Actual: in.Actual, Area: in.Area, Extra: map[string][]byte{}}
+	req := report.Request{Title: in.Title, Expected: in.Expected, Actual: in.Actual, Area: in.Area, Type: in.Type, Extra: map[string][]byte{}}
 	if in.Screen != "" {
 		if rec, _, err := s.resolve(in.Screen, false); err == nil {
 			req.Screen = rec.Name

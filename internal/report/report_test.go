@@ -221,3 +221,33 @@ func TestFlushNeverSendsPreviews(t *testing.T) {
 		t.Errorf("flush sent %d previews", sent)
 	}
 }
+
+func TestBuildType(t *testing.T) {
+	root := home(t)
+	if err := os.MkdirAll(filepath.Join(root, "state", "offstage"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(audit.Path(), []byte(logText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	build := func(typ, expected string) *Bundle {
+		b, err := Build(Request{Title: "same title", Expected: expected, Type: typ})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	bug, bugDefault, doubt := build("", "x"), build("bug", "x"), build("doubt", "")
+	if bug.Meta.Type != "" || bugDefault.Meta.Type != "" || bug.Meta.Fingerprint != bugDefault.Meta.Fingerprint {
+		t.Errorf("bug meta %+v, explicit bug %+v", bug.Meta, bugDefault.Meta)
+	}
+	if doubt.Meta.Type != "doubt" || doubt.Meta.Fingerprint == "" || doubt.Meta.Fingerprint == bug.Meta.Fingerprint {
+		t.Errorf("doubt meta %+v, bug fingerprint %s", doubt.Meta, bug.Meta.Fingerprint)
+	}
+	if strings.Contains(doubt.Meta.Body, "Expected:") || !strings.Contains(doubt.Meta.Body, "Type: doubt") {
+		t.Errorf("doubt body:\n%s", doubt.Meta.Body)
+	}
+	if _, err := Build(Request{Title: "t", Type: "rant"}); err == nil {
+		t.Error("an unknown type was accepted")
+	}
+}

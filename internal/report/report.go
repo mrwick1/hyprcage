@@ -53,8 +53,18 @@ type Request struct {
 	Actual   string
 	Screen   string // the agent screen, empty when the problem is not tied to one
 	Area     string // crash, isolation-leak, install, desktop, or empty
+	Type     string // bug (or empty), doubt, suggestion or feedback
 	Manual   bool   // filed by a human, not by an agent
 	Extra    map[string][]byte
+}
+
+// reportType maps the default type to empty, so a bug looks the same as
+// it did before types existed.
+func reportType(t string) string {
+	if t == "bug" {
+		return ""
+	}
+	return t
 }
 
 // Bundle is a built report.
@@ -71,6 +81,11 @@ type Bundle struct {
 func Build(r Request) (*Bundle, error) {
 	if strings.TrimSpace(r.Title) == "" {
 		return nil, errors.New("a report needs a title")
+	}
+	switch r.Type {
+	case "", "bug", "doubt", "suggestion", "feedback":
+	default:
+		return nil, errors.New("type must be bug, doubt, suggestion or feedback")
 	}
 	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
 		return nil, fmt.Errorf("reports are for linux and windows, not %s", runtime.GOOS)
@@ -101,6 +116,10 @@ func Build(r Request) (*Bundle, error) {
 			}
 		}
 	}
+	if t := reportType(r.Type); t != "" && fingerprint != "" {
+		sum := sha256.Sum256([]byte(fingerprint + "|" + t))
+		fingerprint = hex.EncodeToString(sum[:8])
+	}
 	kind := "agent"
 	if r.Manual {
 		kind = "manual"
@@ -110,6 +129,7 @@ func Build(r Request) (*Bundle, error) {
 		Platform:    runtime.GOOS,
 		Kind:        kind,
 		Area:        r.Area,
+		Type:        reportType(r.Type),
 		Fingerprint: fingerprint,
 		Version:     version.Version,
 		OS:          osName(),
@@ -263,7 +283,15 @@ func Fingerprint(trace []audit.Entry) string {
 
 func body(r Request, trace []audit.Entry) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Expected:\n%s\n\nActual:\n%s\n", strings.TrimSpace(r.Expected), strings.TrimSpace(r.Actual))
+	if t := reportType(r.Type); t != "" {
+		fmt.Fprintf(&b, "Type: %s\n\n", t)
+	}
+	if reportType(r.Type) == "" || strings.TrimSpace(r.Expected) != "" {
+		fmt.Fprintf(&b, "Expected:\n%s\n\n", strings.TrimSpace(r.Expected))
+	}
+	if reportType(r.Type) == "" || strings.TrimSpace(r.Actual) != "" {
+		fmt.Fprintf(&b, "Actual:\n%s\n", strings.TrimSpace(r.Actual))
+	}
 	if r.Screen != "" {
 		fmt.Fprintf(&b, "\nScreen: %s\n", r.Screen)
 	}

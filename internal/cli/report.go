@@ -10,7 +10,7 @@ import (
 )
 
 const reportUsage = `usage: offstage report login            read your beta key from stdin and store it
-       offstage report --title T [--expected E] [--actual A] [--screen S] [--area A] [--dry-run]
+       offstage report --title T [--expected E] [--actual A] [--screen S] [--area A] [--type T] [--dry-run]
        offstage report flush            send the reports that could not be sent before
        offstage report status OFS-N     the state of a report you filed`
 
@@ -21,6 +21,7 @@ func runReport(e *Env) int {
 	actual := fs.String("actual", "", "what happened instead")
 	screenName := fs.String("screen", "", "the agent screen the problem happened on")
 	area := fs.String("area", "", "crash, isolation-leak, install or desktop")
+	typ := fs.String("type", "", "bug (default), doubt, suggestion or feedback")
 	dry := fs.Bool("dry-run", false, "build the bundle and print where it is, without sending it")
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
@@ -61,7 +62,7 @@ func runReport(e *Env) int {
 	if strings.TrimSpace(*title) == "" {
 		return e.errorf("%s", reportUsage)
 	}
-	b, err := report.Build(report.Request{Title: *title, Expected: *expected, Actual: *actual, Screen: *screenName, Area: *area, Manual: true})
+	b, err := report.Build(report.Request{Title: *title, Expected: *expected, Actual: *actual, Screen: *screenName, Area: *area, Type: *typ, Manual: true})
 	if err != nil {
 		return e.errorf("%v", err)
 	}
