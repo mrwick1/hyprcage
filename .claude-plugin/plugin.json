@@ -1,5 +1,5 @@
 {
   "name": "offstage",
-  "version": "0.10.0-beta.2",
+  "version": "0.11.0-beta.1",
   "description": "A caged desktop for AI agents on Hyprland, and headless browser screens on Windows: a virtual screen the agent drives by text refs without touching the human's desktop."
 }
