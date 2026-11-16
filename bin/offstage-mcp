@@ -15,7 +15,8 @@ find_bin() {
 outdated() {
   local have; have=$("$1" version 2>/dev/null | head -1) || return 1
   # A build from a checkout (git describe: vX.Y.Z-N-gHASH) is left alone.
-  case "$have" in *-g[0-9a-f]*) return 1 ;; v[0-9]*) ;; *) return 1 ;; esac
+  # "source" came from a plugin cache that install.sh took for a checkout.
+  case "$have" in *-g[0-9a-f]*) return 1 ;; v[0-9]* | source) ;; *) return 1 ;; esac
   [ "$have" != "$want" ] && [ "$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -1)" = "$have" ]
 }
 bin=$(find_bin || true)
@@ -26,7 +27,9 @@ elif outdated "$bin"; then
   bin=
 fi
 if [ -z "$bin" ]; then
-  OFFSTAGE_VERSION=${OFFSTAGE_VERSION:-$want} bash "$root/install.sh" --binary-only \
+  # The plugin cache has go.mod but is not a checkout: download the release.
+  OFFSTAGE_VERSION=${OFFSTAGE_VERSION:-$want} OFFSTAGE_FROM_SOURCE=${OFFSTAGE_FROM_SOURCE:-0} \
+    bash "$root/install.sh" --binary-only \
     || { echo "offstage: could not install the binary; from a terminal: bash $root/install.sh" >&2; exit 1; }
   bin=$(find_bin || true)
   [ -n "$bin" ] || { echo "offstage: binary still not found after installing" >&2; exit 1; }

@@ -32,7 +32,7 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`. Run this in PowerShell:
 
 ```
-$env:OFFSTAGE_VERSION = 'v0.11.0-beta.3'
+$env:OFFSTAGE_VERSION = 'v0.11.0-beta.4'
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/mrwick1/offstage/beta/install.ps1))) -Agents none
 ```
 
@@ -74,8 +74,16 @@ Then, in Claude Code:
 
 The plugin pins the beta build. Its launcher (`bin\offstage-mcp.cmd`) runs
 `install.ps1 -BinaryOnly` when the installed binary is not the pinned version.
-When a new beta comes out, run `/plugin marketplace update offstage-mrwick1`.
-On its next start, the plugin installs the new binary.
+
+Turn on auto-update once, so that new betas arrive by themselves. In Claude
+Code, run `/plugin`, open the **Marketplaces** tab, select `offstage-mrwick1`
+and select **Enable auto-update**. Claude Code then checks the marketplace
+in each session, a few minutes after your first message. When it finds a new
+beta, it shows `Plugin updated: offstage`. The next start of Claude Code loads
+the new plugin, and the plugin installs the matching offstage binary.
+
+To update at once instead, run `claude plugin update offstage@offstage-mrwick1`
+in a terminal, then restart Claude Code.
 
 ## Beta key
 
