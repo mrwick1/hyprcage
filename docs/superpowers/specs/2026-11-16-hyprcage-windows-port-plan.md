@@ -10,7 +10,7 @@ An agent on Windows gets a screen of its own. The agent launches applications on
 
 ## Decisions (2026-11-16)
 
-1. Isolation model: not chosen yet. Spike A (loopback RDP session) and spike B (hidden desktop) run first. The results decide.
+1. Isolation model: spike B, the hidden desktop. Spike A (loopback RDP session) failed: Windows 11 Pro refuses a second interactive session. See the rulings file.
 2. Code home: this repository. Windows code goes in `*_windows.go` files behind interfaces. Linux behavior does not change.
 3. v1 scope: agent screens only. Desktop control (`desktop_*`), notifications (`notify_*`) and recording come after v1.
 4. Test machine: a Windows 11 Pro VM under QEMU/KVM on archMachine. GPU behavior in a VM differs from real hardware. Each GPU result from the VM is marked "VM only" until a real machine confirms it.

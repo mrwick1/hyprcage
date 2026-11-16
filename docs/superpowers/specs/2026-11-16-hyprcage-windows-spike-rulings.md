@@ -32,4 +32,21 @@ The spike creates the desktop `hc-spike-b` with `CreateDesktopW`. It starts Chro
 
 ## Spike A: loopback RDP session
 
-Not run yet.
+Setup: the same VM, Windows 11 Pro 26H2. The console user `Quickemu` is signed in (session 1). The spike enabled Remote Desktop, created a local user `hcagent` in "Remote Desktop Users", stored its credential with `cmdkey /generic:TERMSRV/127.0.0.2`, and started `mstsc` with an `.rdp` file for `127.0.0.2` (1280x800) from session 1 through a scheduled task with `/it`.
+
+### Results
+
+- The connection reaches the server: `qwinsta` shows `rdp-tcp#0` in state `Conn`.
+- The logon is refused: "The number of connections to this computer is limited and all connections are in use right now."
+- The same refusal comes with the policy values `MaxInstanceCount = 2` and `fSingleSessionPerUser = 0` (under `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`), after `gpupdate /force` and a restart of `TermService`.
+- Before the logon, Windows shows three prompts: the self-signed certificate warning (removed by `authentication level:i:0`), a one-time consent for unsigned `.rdp` files per account, and an "Unknown remote connection" warning on every launch of an unsigned `.rdp` file. To verify: whether `rdpsign` with a trusted certificate removes the last one.
+- Not tested: an RDP logon from another machine while the console user is signed in.
+- All changes were undone after the test: user, credential, task, policy values, firewall rule and `fDenyTSConnections`.
+
+### Ruling
+
+Spike A fails check 8. A Windows 11 client edition allows one interactive session at a time. A second session needs a patched `termsrv.dll` (for example RDP Wrapper). That breaks the license terms and breaks on Windows updates, so hyprcage does not use it. Checks 1 to 7 were not run, because no second session started.
+
+## Decision
+
+The plan says: if spike A fails check 8 and spike B passes checks 1 to 4 with Chrome, choose B. Spike B passes checks 1, 3 and 4 with Chrome. Check 2 is partial: XAML content does not capture. The isolation model is B, the hidden desktop. Its open items: two screens at once (check 5), closing single-instance packaged apps (check 6), capture time for non-browser windows (check 7), and Calculator and Settings (check 2).
