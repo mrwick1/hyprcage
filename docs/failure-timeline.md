@@ -39,4 +39,4 @@ Sources report available, partial, or unavailable. Lost browser events, log exce
 
 Storage tests cover redaction, cross-task cursor refusal, pagination, deduplication, journal gaps, and preservation of existing evidence when an atomic write fails. A controlled browser fixture verifies that one timeline response contains an action, HTTP 500, console error, process output and exit, wait failure, and page excerpt. It also verifies explicit action links and evidence retention after task close.
 
-A live cage journey, screenshot privacy handling, and the MCP response warning after a write failure have not been tested for this implementation.
+A live cage journey passed once on `9c44623`. It verified server survival after screen creation, the HTTP 500 journey, timeline contents, redaction, pagination, action links, resource cleanup, and journal retention. Screenshots, mirror visuals, concurrency, and the MCP response warning after a write failure remain untested.
