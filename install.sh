@@ -260,9 +260,11 @@ register_agents() {
 # unregister_agents [NAME]: removes the registrations named NAME (default offstage).
 unregister_agents() {
   local name=${1:-offstage}
-  have claude && claude mcp remove --scope user "$name" >/dev/null 2>&1
-  have codex && codex mcp remove "$name" >/dev/null 2>&1
-  have gemini && gemini mcp remove -s user "$name" >/dev/null 2>&1
+  # Each remove fails when the name is not registered. Under set -e, a failed
+  # last command of an && list ends the script, so each one ends in || true.
+  have claude && claude mcp remove --scope user "$name" >/dev/null 2>&1 || true
+  have codex && codex mcp remove "$name" >/dev/null 2>&1 || true
+  have gemini && gemini mcp remove -s user "$name" >/dev/null 2>&1 || true
   json_unset "$HOME/.cursor/mcp.json" mcpServers "$name"
   json_unset "$HOME/.codeium/windsurf/mcp_config.json" mcpServers "$name"
   json_unset "$HOME/.config/opencode/opencode.json" mcp "$name"
