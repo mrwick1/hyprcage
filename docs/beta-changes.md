@@ -21,11 +21,13 @@ Each build is a GitHub pre-release with the same name. The plugin from the
 - Limits: timeline collection occurs at tool boundaries and queries. It does
   not collect screenshots. Pattern redaction cannot remove every possible
   secret. Keep secrets out of test output. Bare reports are retained as partial text
-  excerpts. Use Bare step assertions for browser postconditions; standalone
+  excerpts only after explicit console/network reads. Use Bare step assertions for browser postconditions; standalone
   request-start cursors are not available from Bare.
+- Fix: failed Bare step assertions are tool errors. Timeline reads do not
+  advance Bare console or network cursors.
 - Retest: create a task, launch a local test server, and create its screen with
   the returned `task_id`. Trigger a controlled failed request. Read
-  `task_timeline`, close the task, and confirm that only its resources stop.
+  `browser_console` and `browser_network`, then `task_timeline`. Close the task, and confirm that only its resources stop.
 
 - Bare is required. Missing or invalid browser downloads fail installation.
 - The offstage MCP server exposes Bare through `browser_*` tools. New installs
