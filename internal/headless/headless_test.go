@@ -303,7 +303,7 @@ func TestScreencastFramesAndDetach(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Logf("%d new frames in 1 s", changed)
-	if changed < 10 {
+	if changed < 3 { // 47 without -race; the decoding is slow with it
 		t.Errorf("only %d new frames in 1 s of animation", changed)
 	}
 	if err := w.Detach(); err != nil {
