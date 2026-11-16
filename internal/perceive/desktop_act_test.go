@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/hypr"
 )
 
 // oneWindow is the desktop of the desktop act tests: one window at 0,0.

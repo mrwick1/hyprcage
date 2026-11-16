@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func TestLocked(t *testing.T) {
@@ -86,7 +86,7 @@ func TestParseCombo(t *testing.T) {
 // deadDesktop points at a socket that does not exist, so any command that
 // reaches Hyprland fails with hyprland_unreachable.
 func deadDesktop(t *testing.T, locked bool) Desktop {
-	t.Setenv("HYPRCAGE_DRIVER", "lua")
+	t.Setenv("OFFSTAGE_DRIVER", "lua")
 	old := lockedFn
 	lockedFn = func() bool { return locked }
 	t.Cleanup(func() { lockedFn = old })
@@ -170,13 +170,13 @@ func TestInstanceOverride(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	fakeInstance(t, "nested")
 	fallback := &hypr.Instance{Signature: "human"}
-	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "nested")
+	t.Setenv("OFFSTAGE_DESKTOP_INSTANCE", "nested")
 	inst, err := Instance(fallback)
 	if err != nil || inst.Signature != "nested" || inst.Dir != filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "hypr", "nested") {
 		t.Fatalf("got %+v %v, want the nested instance", inst, err)
 	}
 	for _, bad := range []string{"../nested", "a/b", "..", "gone"} {
-		t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", bad)
+		t.Setenv("OFFSTAGE_DESKTOP_INSTANCE", bad)
 		if inst, err := Instance(fallback); err == nil {
 			t.Errorf("%q: got %+v, want an error", bad, inst)
 		}
@@ -184,7 +184,7 @@ func TestInstanceOverride(t *testing.T) {
 }
 
 func TestInstanceFallback(t *testing.T) {
-	t.Setenv("HYPRCAGE_DESKTOP_INSTANCE", "")
+	t.Setenv("OFFSTAGE_DESKTOP_INSTANCE", "")
 	fallback := &hypr.Instance{Signature: "human"}
 	if inst, err := Instance(fallback); err != nil || inst != fallback {
 		t.Fatalf("got %+v %v, want the fallback", inst, err)
@@ -341,11 +341,11 @@ func TestLaunchSingleInstanceMoves(t *testing.T) {
 	}
 }
 
-// A mirror window that opens during the launch is hyprcage's, not the app's.
+// A mirror window that opens during the launch is offstage's, not the app's.
 func TestLaunchSkipsMirror(t *testing.T) {
 	d, _, _ := fakeDesktop(t, false,
 		`[]`,
-		`[{"address":"0xm","pid":9,"class":"hyprcage-mirror","workspace":{"id":2}},{"address":"0xb","pid":7,"workspace":{"id":4}}]`)
+		`[{"address":"0xm","pid":9,"class":"offstage-mirror","workspace":{"id":2}},{"address":"0xb","pid":7,"workspace":{"id":4}}]`)
 	pid, addr, _, err := d.Launch([]string{"thunar"}, nil, "", 4, time.Second)
 	if err != nil || pid != 7 || addr != "0xb" {
 		t.Fatalf("got %d %q %v, want 7 0xb", pid, addr, err)

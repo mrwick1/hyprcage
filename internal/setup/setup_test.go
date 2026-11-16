@@ -56,7 +56,7 @@ func TestMissingFilePackage(t *testing.T) {
 	defer func() { Packages = saved }()
 	Packages = []Package{
 		{Package: "present-file", File: "setup_test.go"},
-		{Package: "absent-file", File: "/nonexistent/hyprcage/eng.traineddata"},
+		{Package: "absent-file", File: "/nonexistent/offstage/eng.traineddata"},
 	}
 	if got := Missing(); !reflect.DeepEqual(got, []string{"absent-file"}) {
 		t.Fatalf("Missing() = %v, want [absent-file]", got)
@@ -76,8 +76,8 @@ func TestInstallArgvZypperNames(t *testing.T) {
 }
 
 func TestNotifydUnitExecStart(t *testing.T) {
-	got := string(notifydUnit(`/opt/my bin/100%/hyprcage`))
-	if !strings.Contains(got, `ExecStart="/opt/my bin/100%%/hyprcage" notifyd`+"\n") {
+	got := string(notifydUnit(`/opt/my bin/100%/offstage`))
+	if !strings.Contains(got, `ExecStart="/opt/my bin/100%%/offstage" notifyd`+"\n") {
 		t.Fatalf("unit:\n%s", got)
 	}
 }

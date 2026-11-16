@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hexadecimil/hyprcage/internal/lock"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // fail prints err and maps it to an exit code (cahier §6.1).
 func (e *Env) fail(err error) int {
-	fmt.Fprintf(e.Stderr, "hyprcage: %v\n", err)
+	fmt.Fprintf(e.Stderr, "offstage: %v\n", err)
 	var se *screen.Error
 	if errors.As(err, &se) {
 		switch se.Code {

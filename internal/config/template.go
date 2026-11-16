@@ -9,8 +9,8 @@ import (
 // Template is the configuration file written on installation: every key at
 // its default, so that changing a setting is editing a line, not
 // discovering a key. It must parse to Default(), which a test checks.
-const Template = `# hyprcage configuration. Every key is optional and shown at its default;
-# a key hyprcage does not know or a value out of range makes it refuse the
+const Template = `# offstage configuration. Every key is optional and shown at its default;
+# a key offstage does not know or a value out of range makes it refuse the
 # whole file rather than run on the defaults in silence. The file is read
 # again by every command, so a change applies to the next screen or mirror
 # without restarting anything.

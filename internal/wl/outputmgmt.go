@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// wlr-output-management client: the way hyprcage gives cage's headless
+// wlr-output-management client: the way offstage gives cage's headless
 // output the size the screen was asked for. wlroots creates that output at
 // 1280x720 and cage takes no size option, but cage implements the manager
 // side of this protocol and honours a custom mode set through it (verified

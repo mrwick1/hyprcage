@@ -101,11 +101,11 @@ func TestApplyRejects(t *testing.T) {
 
 func TestPathHonoursXDG(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/x")
-	if got := Path(); got != "/tmp/x/hyprcage/config.toml" {
+	if got := Path(); got != "/tmp/x/offstage/config.toml" {
 		t.Errorf("Path() = %s", got)
 	}
 	t.Setenv("XDG_CONFIG_HOME", "")
-	if got := Path(); !strings.HasSuffix(got, "/.config/hyprcage/config.toml") {
+	if got := Path(); !strings.HasSuffix(got, "/.config/offstage/config.toml") {
 		t.Errorf("Path() = %s", got)
 	}
 }

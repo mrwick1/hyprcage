@@ -1,5 +1,5 @@
 // Package registry stores one JSON record per screen under
-// $XDG_RUNTIME_DIR/hyprcage (tmpfs: the state dies with the login session),
+// $XDG_RUNTIME_DIR/offstage (tmpfs: the state dies with the login session),
 // plus the .inner file cage's holder writes and the global lock file.
 package registry
 
@@ -31,7 +31,7 @@ type Screen struct {
 	State     string    `json:"state"` // starting, ready
 	// Version is the record format: 3 for a screen with its own headless
 	// output (cage on wlroots' headless backend). A record without one was
-	// written by a 0.1 or 0.2 hyprcage, whose screens were Hyprland outputs,
+	// written by a 0.1 or 0.2 offstage, whose screens were Hyprland outputs,
 	// and is torn down the old way.
 	Version int `json:"version,omitempty"`
 	Width   int `json:"width"`
@@ -62,7 +62,7 @@ type Screen struct {
 	// DebugPID is the process that opened DebugPort, and DebugPIDStart its
 	// start time. Chromium clears its environment and leaves the screen's
 	// cgroup, so the port belongs to the screen by this process, not by
-	// HYPRCAGE_SCREEN.
+	// OFFSTAGE_SCREEN.
 	DebugPID      int    `json:"debug_pid,omitempty"`
 	DebugPIDStart uint64 `json:"debug_pid_start,omitempty"`
 	// EmulatedOrigin is the screen pixel of the page's top-left, measured
@@ -74,9 +74,9 @@ type Screen struct {
 // Dir is the registry directory.
 func Dir() string {
 	if rt := os.Getenv("XDG_RUNTIME_DIR"); rt != "" {
-		return filepath.Join(rt, "hyprcage")
+		return filepath.Join(rt, "offstage")
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("hyprcage-%d", os.Getuid()))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("offstage-%d", os.Getuid()))
 }
 
 // EnsureDir creates the registry directory (0700) and returns it.
@@ -168,7 +168,7 @@ func Heartbeat(name string) (time.Time, error) {
 	return fi.ModTime(), nil
 }
 
-// ReadInner parses the KEY=VALUE file written by `hyprcage _holder`.
+// ReadInner parses the KEY=VALUE file written by `offstage _holder`.
 func ReadInner(name string) (map[string]string, error) {
 	data, err := os.ReadFile(InnerPath(name))
 	if err != nil {

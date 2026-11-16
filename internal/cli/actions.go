@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // openScreen resolves a screen (empty name = the session's only one) and
@@ -57,7 +57,7 @@ func runShot(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() > 1 {
-		return e.errorf("usage: hyprcage shot [screen] [-o file] [--scale S] [--region x,y,w,h] [--format png|jpeg] [--no-cursor]")
+		return e.errorf("usage: offstage shot [screen] [-o file] [--scale S] [--region x,y,w,h] [--format png|jpeg] [--no-cursor]")
 	}
 	opts := screen.ShotOptions{Scale: *scale, Format: *format, Cursor: !*noCursor}
 	if *region != "" {
@@ -97,7 +97,7 @@ func runClick(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 3 {
-		return e.errorf("usage: hyprcage click <screen> <x> <y> [--button B] [--count N] [--mod ctrl,shift]")
+		return e.errorf("usage: offstage click <screen> <x> <y> [--button B] [--count N] [--mod ctrl,shift]")
 	}
 	x, ok := atoi(e, "x", fs.Arg(1))
 	if !ok {
@@ -131,7 +131,7 @@ func runMove(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 3 {
-		return e.errorf("usage: hyprcage move <screen> <x> <y>")
+		return e.errorf("usage: offstage move <screen> <x> <y>")
 	}
 	x, ok := atoi(e, "x", fs.Arg(1))
 	if !ok {
@@ -158,7 +158,7 @@ func runScroll(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 4 {
-		return e.errorf("usage: hyprcage scroll <screen> <x> <y> <up|down|left|right> [--amount N]")
+		return e.errorf("usage: offstage scroll <screen> <x> <y> <up|down|left|right> [--amount N]")
 	}
 	x, ok := atoi(e, "x", fs.Arg(1))
 	if !ok {
@@ -185,7 +185,7 @@ func runDrag(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 5 {
-		return e.errorf("usage: hyprcage drag <screen> <x1> <y1> <x2> <y2> [--duration 250ms]")
+		return e.errorf("usage: offstage drag <screen> <x1> <y1> <x2> <y2> [--duration 250ms]")
 	}
 	var v [4]int
 	for i := range v {
@@ -211,7 +211,7 @@ func runType(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 2 {
-		return e.errorf("usage: hyprcage type <screen> <text>")
+		return e.errorf("usage: offstage type <screen> <text>")
 	}
 	_, cl, err := openScreen(fs.Arg(0))
 	if err != nil {
@@ -229,7 +229,7 @@ func runKey(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() < 2 {
-		return e.errorf("usage: hyprcage key <screen> <combo> [<combo>...]   (e.g. ctrl+l Return)")
+		return e.errorf("usage: offstage key <screen> <combo> [<combo>...]   (e.g. ctrl+l Return)")
 	}
 	_, cl, err := openScreen(fs.Arg(0))
 	if err != nil {
@@ -248,7 +248,7 @@ func runWindows(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() > 1 {
-		return e.errorf("usage: hyprcage windows [screen] [--json]")
+		return e.errorf("usage: offstage windows [screen] [--json]")
 	}
 	_, cl, err := openScreen(fs.Arg(0))
 	if err != nil {
@@ -290,7 +290,7 @@ func runClose(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 2 {
-		return e.errorf("usage: hyprcage close <screen> <window-id>")
+		return e.errorf("usage: offstage close <screen> <window-id>")
 	}
 	id, ok := atoi(e, "window id", fs.Arg(1))
 	if !ok {
@@ -316,7 +316,7 @@ func runWait(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() > 1 {
-		return e.errorf("usage: hyprcage wait [screen] [--ms N] [--stable D] [--title RE] [--timeout D]")
+		return e.errorf("usage: offstage wait [screen] [--ms N] [--stable D] [--title RE] [--timeout D]")
 	}
 	if *ms > 0 {
 		time.Sleep(time.Duration(*ms) * time.Millisecond)

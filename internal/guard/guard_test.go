@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func policy(mut func(*config.Guard)) Policy {

@@ -7,18 +7,18 @@ These files are optional. Each machine links them in from its own configuration.
 1. Link the scripts into your `PATH`:
 
    ```sh
-   ln -s "$PWD/contrib/waybar/hyprcage-agents" ~/.local/bin/
-   ln -s "$PWD/contrib/waybar/hyprcage-menu" ~/.local/bin/
+   ln -s "$PWD/contrib/waybar/offstage-agents" ~/.local/bin/
+   ln -s "$PWD/contrib/waybar/offstage-menu" ~/.local/bin/
    ```
 
 2. Add the module to `~/.config/waybar/config.jsonc`, and add `"custom/agents"` to a modules list:
 
    ```jsonc
    "custom/agents": {
-     "exec": "hyprcage-agents",
+     "exec": "offstage-agents",
      "return-type": "json",
      "interval": 2,
-     "on-click": "hyprcage-menu"
+     "on-click": "offstage-menu"
    }
    ```
 

@@ -27,12 +27,12 @@ type Entry struct {
 	Action  string    `json:"action,omitempty"` // the invoked key, for "action"
 }
 
-// Path is $HYPRCAGE_NOTIFY_FILE, else ~/.local/state/hyprcage/notifications.jsonl.
+// Path is $OFFSTAGE_NOTIFY_FILE, else ~/.local/state/offstage/notifications.jsonl.
 func Path() string {
-	if p := os.Getenv("HYPRCAGE_NOTIFY_FILE"); p != "" {
+	if p := os.Getenv("OFFSTAGE_NOTIFY_FILE"); p != "" {
 		return p
 	}
-	return filepath.Join(os.Getenv("HOME"), ".local", "state", "hyprcage", "notifications.jsonl")
+	return filepath.Join(os.Getenv("HOME"), ".local", "state", "offstage", "notifications.jsonl")
 }
 
 // Create makes the file (0600) and its directory (0700) when they are

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/lock"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 // GCOptions selects what gc destroys beyond dead sessions.
@@ -25,8 +25,8 @@ type GCReport struct {
 }
 
 // roleSuffixRE matches the unique suffix of the units that carry one, the
-// applications and the mirrors: hyprcage-<screen>-app-<pid>-<n>.scope and
-// hyprcage-<screen>-mirror-<pid>-<n>.scope. Leaving it out would make gc
+// applications and the mirrors: offstage-<screen>-app-<pid>-<n>.scope and
+// offstage-<screen>-mirror-<pid>-<n>.scope. Leaving it out would make gc
 // read the whole suffix as part of the screen name, find no record under
 // that name, and stop a unit that is doing its job.
 var roleSuffixRE = regexp.MustCompile(`-(app|mirror)-\d+(-\d+)?$`)
@@ -62,7 +62,7 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 	}
 
 	if sysd.Available() {
-		units, _ := sysd.ListUnits("hyprcage-*")
+		units, _ := sysd.ListUnits("offstage-*")
 		for _, u := range units {
 			name := orphanScreenName(u)
 			if name == "" || known[name] {
@@ -73,7 +73,7 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 			rep.Orphans = append(rep.Orphans, u)
 		}
 	}
-	// Legacy: outputs of screens made by a hyprcage before 0.3, which were
+	// Legacy: outputs of screens made by a offstage before 0.3, which were
 	// Hyprland's, left behind by a record that is gone.
 	if c.Hypr != nil {
 		if mons, err := c.Hypr.Monitors(); err == nil {
@@ -91,11 +91,11 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 }
 
 // orphanScreenName extracts the screen name from a unit name such as
-// hyprcage-<name>.slice, hyprcage-<name>-cage.scope, hyprcage-<name>-app-N.scope
-// or hyprcage-gc-<name>.timer.
+// offstage-<name>.slice, offstage-<name>-cage.scope, offstage-<name>-app-N.scope
+// or offstage-gc-<name>.timer.
 func orphanScreenName(unit string) string {
-	base := strings.TrimPrefix(unit, "hyprcage-")
-	if base == unit || unit == "hyprcage-notifyd.service" { // the notification log belongs to no screen
+	base := strings.TrimPrefix(unit, "offstage-")
+	if base == unit || unit == "offstage-notifyd.service" { // the notification log belongs to no screen
 		return ""
 	}
 	if i := strings.LastIndex(base, "."); i >= 0 {

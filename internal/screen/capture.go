@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Rect is a region in screen pixels.

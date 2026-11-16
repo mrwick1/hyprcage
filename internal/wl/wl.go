@@ -1,9 +1,9 @@
-// Package wl is hyprcage's Wayland client to the nested cage compositor:
+// Package wl is offstage's Wayland client to the nested cage compositor:
 // virtual pointer and keyboard for input, screencopy for capture, foreign
 // toplevel for the window list. Pure Go, no cgo, no external dependency
 // (cahier §4.4, §4.5, §4.9 and spike S7).
 //
-// This file fixes the API the rest of hyprcage relies on. The wire protocol
+// This file fixes the API the rest of offstage relies on. The wire protocol
 // implementation replaces the stubs below.
 package wl
 
@@ -20,16 +20,16 @@ import (
 	"time"
 )
 
-// wlDebug traces every request and event on stderr when HYPRCAGE_WL_DEBUG is
+// wlDebug traces every request and event on stderr when OFFSTAGE_WL_DEBUG is
 // set. There is no other way to see this wire protocol: WAYLAND_DEBUG is a
 // libwayland feature and this client does not use libwayland.
-var wlDebug = os.Getenv("HYPRCAGE_WL_DEBUG") != ""
+var wlDebug = os.Getenv("OFFSTAGE_WL_DEBUG") != ""
 
 // ErrNotImplemented is returned by the stubs until the protocol code lands.
 var ErrNotImplemented = errors.New("wl: not implemented yet (spike S7)")
 
 // ErrMissingProtocol is the root of the errors returned when the compositor
-// does not advertise an interface hyprcage needs. Test it with errors.Is; the
+// does not advertise an interface offstage needs. Test it with errors.Is; the
 // wrapping error names the interface.
 var ErrMissingProtocol = errors.New("wl: protocol not advertised by the compositor")
 
@@ -37,7 +37,7 @@ func missingErr(iface string) error {
 	return fmt.Errorf("wl: compositor does not advertise %s: %w", iface, ErrMissingProtocol)
 }
 
-// RequiredGlobals are the interfaces cage must advertise for hyprcage to work.
+// RequiredGlobals are the interfaces cage must advertise for offstage to work.
 var RequiredGlobals = []string{
 	"zwlr_virtual_pointer_manager_v1",
 	"zwp_virtual_keyboard_manager_v1",
@@ -188,7 +188,7 @@ func newClient(fd int, display string) *Client {
 
 // Connect opens the Wayland socket named display (relative to
 // $XDG_RUNTIME_DIR, or an absolute path), fetches the registry and binds
-// what hyprcage needs, input devices included.
+// what offstage needs, input devices included.
 func Connect(display string) (*Client, error) {
 	return connect(display, true)
 }

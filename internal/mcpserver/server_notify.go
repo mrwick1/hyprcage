@@ -13,10 +13,10 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/notifyd"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/notifyd"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/setup"
 )
 
 type notifyListIn struct {
@@ -44,10 +44,10 @@ func (s *Server) registerNotify(srv *mcp.Server) {
 }
 
 // notifications reads the notification file. With unit, it also requires
-// the daemon's unit to run, unless HYPRCAGE_NOTIFY_FILE names the file.
+// the daemon's unit to run, unless OFFSTAGE_NOTIFY_FILE names the file.
 func notifications(unit bool) ([]notifyd.Entry, error) {
-	const hint = "systemctl --user start hyprcage-notifyd"
-	if unit && os.Getenv("HYPRCAGE_NOTIFY_FILE") == "" {
+	const hint = "systemctl --user start offstage-notifyd"
+	if unit && os.Getenv("OFFSTAGE_NOTIFY_FILE") == "" {
 		out, _ := exec.Command("systemctl", "--user", "is-active", setup.NotifydUnit).Output()
 		if state := strings.TrimSpace(string(out)); state != "active" {
 			return nil, screen.Errf(screen.CodeNotifydDown, hint, "%s is %s", setup.NotifydUnit, state)

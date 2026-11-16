@@ -3,12 +3,12 @@ package screen
 import (
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
-// isAgentOutput reports whether an output belongs to hyprcage rather than to
+// isAgentOutput reports whether an output belongs to offstage rather than to
 // the human. Two sources answer it. The configured prefix covers every name
-// hyprcage builds, and Create forces it on the names its callers pass. The
+// offstage builds, and Create forces it on the names its callers pass. The
 // registry covers a screen recorded before that rule existed, whose name can
 // be anything.
 //

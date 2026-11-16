@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func openDesktop() (desktop.Desktop, error) {
@@ -26,7 +26,7 @@ func runDesktop(e *Env) int {
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
-	usage := "usage: hyprcage desktop windows | focus <addr> | move <addr> <ws> | type <addr> <text> | key <addr> <combo>..."
+	usage := "usage: offstage desktop windows | focus <addr> | move <addr> <ws> | type <addr> <text> | key <addr> <combo>..."
 	if fs.NArg() < 1 {
 		return e.errorf(usage)
 	}

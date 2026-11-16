@@ -153,7 +153,7 @@ func (c *Client) captureFrame(p *frameProto, start func(frame uint32)) (*image.R
 	}
 
 	size := int(st.stride) * int(st.height)
-	f, err := runtimeTempFile("hyprcage-shm-*")
+	f, err := runtimeTempFile("offstage-shm-*")
 	if err != nil {
 		c.destroyObject(frame, p.reqDestroy)
 		return nil, err

@@ -8,7 +8,7 @@ import (
 
 // ShmPool is a memory file both compositors can map: cage's screencopy
 // writes a frame into it and the human's compositor reads the very same
-// bytes as a wl_buffer. Nothing is copied by hyprcage in between. Each
+// bytes as a wl_buffer. Nothing is copied by offstage in between. Each
 // Client that uses the pool creates its own wl_shm_pool object over the
 // same file descriptor with ImportPool.
 type ShmPool struct {
@@ -19,7 +19,7 @@ type ShmPool struct {
 
 // NewShmPool creates a sealed memory file of size bytes.
 func NewShmPool(size int) (*ShmPool, error) {
-	f, err := runtimeTempFile("hyprcage-pool-*")
+	f, err := runtimeTempFile("offstage-pool-*")
 	if err != nil {
 		return nil, err
 	}

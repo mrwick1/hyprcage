@@ -3,7 +3,7 @@ package perceive
 import (
 	"context"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 const defaultReadSteps = 30

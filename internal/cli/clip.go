@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 func runClip(e *Env) int {
@@ -13,7 +13,7 @@ func runClip(e *Env) int {
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
-	usage := "usage: hyprcage clip get [screen] | clip set [screen] <text>"
+	usage := "usage: offstage clip get [screen] | clip set [screen] <text>"
 	if fs.NArg() < 1 {
 		return e.errorf(usage)
 	}

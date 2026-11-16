@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Hook shim shipped in the plugin: runs the offstage hook when the binary is
+# there and stays silent otherwise (the first session after installing the
+# plugin can start before the MCP launcher has fetched the binary).
+bin=$(command -v offstage 2>/dev/null || true)
+[ -z "$bin" ] && [ -x "$HOME/.local/bin/offstage" ] && bin=$HOME/.local/bin/offstage
+[ -n "$bin" ] || exit 0
+exec "$bin" "$@"

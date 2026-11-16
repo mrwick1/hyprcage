@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 // ScreenProcesses lists the processes that belong to a screen, by the
-// HYPRCAGE_SCREEN variable every one of them carries: cage, the mirror,
+// OFFSTAGE_SCREEN variable every one of them carries: cage, the mirror,
 // the applications. It is the inventory when systemd is not there to keep
 // one, and the last resort after it.
 func ScreenProcesses(name string) []int {
-	want := []byte("HYPRCAGE_SCREEN=" + name + "\x00")
+	want := []byte("OFFSTAGE_SCREEN=" + name + "\x00")
 	self := os.Getpid()
 	entries, err := os.ReadDir("/proc")
 	if err != nil {

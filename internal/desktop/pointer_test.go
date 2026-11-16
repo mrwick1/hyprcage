@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // fakeWL records pointer input in log. Move number failMove fails (0: none).

@@ -16,10 +16,10 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/browser"
-	"github.com/hexadecimil/hyprcage/internal/devtools"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/browser"
+	"github.com/hexadecimil/offstage/internal/devtools"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 type browserIn struct {
@@ -50,7 +50,7 @@ type networkIn struct {
 type traceIn struct {
 	Screen string `json:"screen,omitempty"`
 	Action string `json:"action" jsonschema:"start or stop"`
-	Path   string `json:"path,omitempty" jsonschema:"stop only: where to write the trace, default ~/.cache/hyprcage/devtools/"`
+	Path   string `json:"path,omitempty" jsonschema:"stop only: where to write the trace, default ~/.cache/offstage/devtools/"`
 }
 
 type emulateIn struct {
@@ -71,14 +71,14 @@ type auditIn struct {
 	URL        string   `json:"url,omitempty" jsonschema:"page to audit; default the page the screen shows now"`
 	Categories []string `json:"categories,omitempty" jsonschema:"performance, accessibility, best-practices, seo; default all four"`
 	FormFactor string   `json:"form_factor,omitempty" jsonschema:"mobile (default) or desktop"`
-	Path       string   `json:"path,omitempty" jsonschema:"where to write the full JSON report, default ~/.cache/hyprcage/devtools/"`
+	Path       string   `json:"path,omitempty" jsonschema:"where to write the full JSON report, default ~/.cache/offstage/devtools/"`
 	TimeoutS   int      `json:"timeout_s,omitempty" jsonschema:"default 120"`
 }
 
 type heapIn struct {
 	Screen string `json:"screen,omitempty"`
 	Page   string `json:"page,omitempty" jsonschema:"part of the page URL, when more than one page is open"`
-	Path   string `json:"path,omitempty" jsonschema:"where to write the snapshot, default ~/.cache/hyprcage/devtools/"`
+	Path   string `json:"path,omitempty" jsonschema:"where to write the snapshot, default ~/.cache/offstage/devtools/"`
 }
 
 // registerBrowser adds browser_open and the devtools_* tools.

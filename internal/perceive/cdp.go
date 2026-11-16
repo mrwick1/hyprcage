@@ -15,8 +15,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 const cdpHint = "the DevTools port is closed; snapshot falls back to AT-SPI or OCR"
@@ -571,7 +571,7 @@ func (s *cdpSource) covered(ctx context.Context, session string, backend int) (b
 	if hit.BackendNodeID == backend {
 		return false, nil
 	}
-	const group = "hyprcage-hit"
+	const group = "offstage-hit"
 	defer s.call(ctx, session, "Runtime.releaseObjectGroup", map[string]any{"objectGroup": group}, nil)
 	var ids [2]string
 	for i, b := range []int{backend, hit.BackendNodeID} {

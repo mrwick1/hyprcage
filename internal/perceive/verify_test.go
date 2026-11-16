@@ -2,7 +2,7 @@ package perceive
 
 import (
 	"context"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/hypr"
 	"image"
 	"image/color"
 	"image/draw"

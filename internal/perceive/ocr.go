@@ -11,14 +11,14 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/setup"
 )
 
 // OCRData is the path of the English language data.
 const OCRData = setup.OCRData
 
-const ocrHint = "run hyprcage setup"
+const ocrHint = "run offstage setup"
 
 // ocrMinConf is the confidence below which a word is dropped as noise.
 const ocrMinConf = 60

@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/godbus/dbus/v5"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // accessible is one AT-SPI object, as the walk needs it.

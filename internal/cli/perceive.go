@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 const perceiveTimeout = 30 * time.Second
@@ -88,7 +88,7 @@ func runSnapshot(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() > 1 {
-		return e.errorf("usage: hyprcage snapshot [-mode interactive|full] [-max N] [-root REF] [-source auto|cdp|atspi|ocr] [screen]")
+		return e.errorf("usage: offstage snapshot [-mode interactive|full] [-max N] [-root REF] [-source auto|cdp|atspi|ocr] [screen]")
 	}
 	m, err := perceive.ParseMode(*modeFlag)
 	if err != nil {
@@ -125,7 +125,7 @@ func runAct(e *Env) int {
 		name, args = args[0], args[1:]
 	}
 	if len(args) < 2 {
-		return e.errorf("usage: hyprcage act [screen] <ref> <%s> [text or keys...]", strings.Join(actOps, "|"))
+		return e.errorf("usage: offstage act [screen] <ref> <%s> [text or keys...]", strings.Join(actOps, "|"))
 	}
 	op := perceive.ActOp{Ref: args[0], Op: args[1]}
 	switch op.Op {
@@ -172,7 +172,7 @@ func runFind(e *Env) int {
 	case 2:
 		name, expr = fs.Arg(0), fs.Arg(1)
 	default:
-		return e.errorf("usage: hyprcage find [-role R] [-timeout ms] [screen] <regexp>")
+		return e.errorf("usage: offstage find [-role R] [-timeout ms] [screen] <regexp>")
 	}
 	re, err := regexp.Compile(expr)
 	if err != nil {

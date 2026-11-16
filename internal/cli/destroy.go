@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 func runDestroy(e *Env) int {
@@ -17,7 +17,7 @@ func runDestroy(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 1 {
-		return e.errorf("usage: hyprcage destroy [--force] <screen>")
+		return e.errorf("usage: offstage destroy [--force] <screen>")
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -29,7 +29,7 @@ func runDestroy(e *Env) int {
 	}
 	rec, err := registry.Load(fs.Arg(0))
 	if errors.Is(err, registry.ErrNotFound) {
-		return e.fail(&screen.Error{Code: screen.CodeNotFound, Msg: "no screen named " + fs.Arg(0), Hint: "hyprcage list --all"})
+		return e.fail(&screen.Error{Code: screen.CodeNotFound, Msg: "no screen named " + fs.Arg(0), Hint: "offstage list --all"})
 	}
 	if err != nil {
 		return e.fail(err)

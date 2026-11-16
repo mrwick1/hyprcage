@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func TestFind(t *testing.T) {
@@ -144,7 +144,7 @@ func TestProfileName(t *testing.T) {
 func TestProfilesDirHonoursXDG(t *testing.T) {
 	x := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", x)
-	if d, _ := ProfilesDir(); d != x+"/hyprcage/profiles" {
+	if d, _ := ProfilesDir(); d != x+"/offstage/profiles" {
 		t.Errorf("got %s", d)
 	}
 }

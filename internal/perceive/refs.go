@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Table gives each node Key a stable ref and keeps the last snapshot.

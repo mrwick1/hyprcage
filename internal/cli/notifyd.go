@@ -5,11 +5,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/notifyd"
+	"github.com/hexadecimil/offstage/internal/notifyd"
 )
 
 // runNotifyd keeps the desktop notifications in notifyd.Path() until
-// SIGTERM or SIGINT. The user unit hyprcage-notifyd.service runs it.
+// SIGTERM or SIGINT. The user unit offstage-notifyd.service runs it.
 func runNotifyd(e *Env) int {
 	if err := e.parse(e.flags("notifyd")); err != nil {
 		return ExitUsage

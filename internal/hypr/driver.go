@@ -19,7 +19,7 @@ type ExecRules struct {
 
 // ConfigDriver abstracts the two configuration modes of Hyprland: classic
 // (hyprland.conf, `hyprctl keyword`) and Lua (hyprland.lua, `hyprctl eval`).
-// This is what keeps hyprcage generic across Arch + Hyprland setups instead
+// This is what keeps offstage generic across Arch + Hyprland setups instead
 // of being tied to one distribution (cahier §2.2.6).
 type ConfigDriver interface {
 	Mode() string
@@ -46,11 +46,11 @@ type ConfigDriver interface {
 	MoveWindowCmd(address string, workspace int) string
 }
 
-// Driver detects the configuration mode: HYPRCAGE_DRIVER=lua|classic wins;
+// Driver detects the configuration mode: OFFSTAGE_DRIVER=lua|classic wins;
 // otherwise a Lua REPL probe decides (`repl return 1` answers "1" only when
 // the Lua parser is active; verified on 0.56.2 in both modes).
 func (i *Instance) Driver() ConfigDriver {
-	switch strings.ToLower(os.Getenv("HYPRCAGE_DRIVER")) {
+	switch strings.ToLower(os.Getenv("OFFSTAGE_DRIVER")) {
 	case "lua":
 		return &luaDriver{i}
 	case "classic":

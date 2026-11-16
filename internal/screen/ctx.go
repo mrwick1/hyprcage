@@ -1,15 +1,15 @@
 package screen
 
 import (
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/hypr"
 )
 
 // Ctx bundles what every operation needs: the configuration and, when one
 // runs, the Hyprland instance with its configuration driver. A screen
 // itself needs no Hyprland: cage brings its own output. Hyprland is used to
 // place the mirror window, by doctor, and to tear down screens made by a
-// hyprcage before 0.3, whose outputs were Hyprland's.
+// offstage before 0.3, whose outputs were Hyprland's.
 type Ctx struct {
 	Cfg    config.Config
 	Hypr   *hypr.Instance

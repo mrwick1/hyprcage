@@ -18,10 +18,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/wl"
 	"golang.org/x/sys/unix"
 )
 
@@ -107,7 +107,7 @@ func (m *Mirror) open() error {
 	if missing := m.cage.Missing(); len(missing) > 0 {
 		return fmt.Errorf("cage lacks %v", missing)
 	}
-	m.win, err = wl.OpenWindow(m.opts.Display, "hyprcage-mirror", "hyprcage mirror: "+m.rec.Name)
+	m.win, err = wl.OpenWindow(m.opts.Display, "offstage-mirror", "offstage mirror: "+m.rec.Name)
 	if err != nil {
 		return fmt.Errorf("opening the window: %w", err)
 	}
