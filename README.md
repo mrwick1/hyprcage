@@ -21,6 +21,8 @@ any other MCP client.
 
 ## Install
 
+Closed-beta testers on Linux: read [docs/beta-linux.md](docs/beta-linux.md).
+
 **Claude Code**
 
 ```
