@@ -44,6 +44,22 @@ Code: the plugin below does that, and two registrations would give the agent
 two offstage servers. To use offstage with Codex as well, name it, for example
 `-Agents codex`.
 
+The installer does not put `offstage.exe` on your PATH. The commands in this
+guide need it there. Run this once in PowerShell, then open a new terminal:
+
+```
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ";$env:LOCALAPPDATA\offstage\bin", 'User')
+```
+
+Check the install:
+
+```
+offstage doctor
+```
+
+Each line must show `ok`. A `warn` on `ffmpeg` means only that recording does
+not work.
+
 For Claude Code, install the plugin from the `beta` branch as well. Run this
 in a terminal:
 
