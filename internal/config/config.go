@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -127,9 +128,13 @@ func Default() Config {
 }
 
 // Path is the config file: $XDG_CONFIG_HOME/hyprcage/config.toml, that is
-// ~/.config/hyprcage/config.toml by default.
+// ~/.config/hyprcage/config.toml by default and %APPDATA%\hyprcage\config.toml
+// on Windows.
 func Path() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" && runtime.GOOS == "windows" {
+		base = os.Getenv("AppData")
+	}
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

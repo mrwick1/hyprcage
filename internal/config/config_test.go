@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -101,12 +102,17 @@ func TestApplyRejects(t *testing.T) {
 
 func TestPathHonoursXDG(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/x")
-	if got := Path(); got != "/tmp/x/hyprcage/config.toml" {
-		t.Errorf("Path() = %s", got)
+	if got, want := Path(), filepath.Join("/tmp/x", "hyprcage", "config.toml"); got != want {
+		t.Errorf("Path() = %s, want %s", got, want)
 	}
 	t.Setenv("XDG_CONFIG_HOME", "")
-	if got := Path(); !strings.HasSuffix(got, "/.config/hyprcage/config.toml") {
-		t.Errorf("Path() = %s", got)
+	t.Setenv("AppData", `C:\Users\a\AppData\Roaming`)
+	want := filepath.Join(".config", "hyprcage", "config.toml")
+	if runtime.GOOS == "windows" {
+		want = filepath.Join(`C:\Users\a\AppData\Roaming`, "hyprcage", "config.toml")
+	}
+	if got := Path(); !strings.HasSuffix(got, want) {
+		t.Errorf("Path() = %s, want it to end with %s", got, want)
 	}
 }
 
@@ -164,8 +170,9 @@ func TestRecordAndBrowserKeys(t *testing.T) {
 
 func TestExpandHome(t *testing.T) {
 	t.Setenv("HOME", "/home/x")
-	if got := ExpandHome("~/Videos/agent"); got != "/home/x/Videos/agent" {
-		t.Errorf("got %s", got)
+	t.Setenv("USERPROFILE", "/home/x") // the home directory on Windows
+	if got, want := ExpandHome("~/Videos/agent"), filepath.Join("/home/x", "Videos", "agent"); got != want {
+		t.Errorf("got %s, want %s", got, want)
 	}
 	if got := ExpandHome("/abs"); got != "/abs" {
 		t.Errorf("got %s", got)
