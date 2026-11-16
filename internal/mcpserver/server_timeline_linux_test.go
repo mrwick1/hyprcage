@@ -3,17 +3,22 @@
 package mcpserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/sysd"
 	"github.com/hexadecimil/offstage/internal/task"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTaskFailureTimeline(t *testing.T) {
@@ -91,5 +96,26 @@ func TestTaskFailureTimeline(t *testing.T) {
 	closed := read(map[string]any{})
 	if len(closed.Events) < len(page.Events) {
 		t.Fatal("evidence lost on close")
+	}
+}
+
+func TestTimelineDoesNotReadBareDiagnosticCursors(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	owner := session.Current().Owner()
+	owned, err := task.Create(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &registry.Screen{Name: "hc-bare-evidence", CreatedAt: time.Now(), Owner: owner}
+	if err := task.Attach(owned.ID, owner, rec); err != nil {
+		t.Fatal(err)
+	}
+	s := newServer(config.Default())
+	// A sentinel client has no transport. Any diagnostic call would panic.
+	s.bare = map[string]*mcp.ClientSession{tableKey(rec): {}}
+	s.bareSessionHints = map[string]string{tableKey(rec): "main"}
+	if _, err := s.taskTimeline(context.Background(), timelineIn{TaskID: owned.ID}); err != nil {
+		t.Fatal(err)
 	}
 }

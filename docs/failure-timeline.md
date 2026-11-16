@@ -14,7 +14,7 @@ Pass the returned `next` object as `after` to continue. A cursor belongs to one 
 
 - Tool calls retain task and screen-instance identity, action IDs, errors, and condition outcomes when they return. A screen with a task records that task ID in its registry entry.
 - Failed calls and wait timeouts attempt a small page excerpt immediately after the call. The excerpt contains up to 20 element names, roles, and states. It omits input values. A failed source read is reported as unavailable.
-- Browser requests and console entries are copied from the existing diagnostics collector at tool boundaries and timeline queries. The collector is not reconnected to manufacture missing history. Request bodies, headers, and cookies are not collected.
+- Native-app DevTools requests and console entries are copied from the diagnostics collector at tool boundaries and timeline queries. Bare excerpts are copied only from explicit `browser_console` and `browser_network` replies. Timeline collection does not call those tools because their reads advance native cursors. The collector is not reconnected to manufacture missing history. Request bodies, headers, and cookies are not collected.
 - Owned process logs contribute a tail excerpt of at most 4096 bytes. The full bounded, redacted log remains linked. Retained process exit results appear as separate events.
 
 Events have a task-local collection sequence, an observation time, and a source time when available. Collection order and nearby source timestamps do not prove causality. Process log modification time describes the file, not each log line.
@@ -32,7 +32,7 @@ Sources report available, partial, or unavailable. Lost browser events, log exce
 - Screenshots are not collected. Failure page excerpts provide text evidence only.
 - Collection occurs at tool boundaries and queries. It is not continuous process or browser tracing.
 - Diagnostic buffers can expire between calls. Closing a browser removes its live collector. Events already copied to the task journal remain available.
-- Bare browser outcomes and bounded native console/network text excerpts are retained. These excerpts are marked partial because the native reports do not expose stable request-start cursors or exact loss counts. Native-app DevTools diagnostics retain structured events. Standalone condition cursors remain native-app tools; use Bare step assertions for browser postconditions.
+- Bare browser outcomes and explicitly requested native console/network text excerpts are retained. These excerpts are marked partial because the native reports do not expose stable request-start cursors or exact loss counts. Native-app DevTools diagnostics retain structured events. Standalone condition cursors remain native-app tools; use Bare step assertions for browser postconditions.
 - Native graphical app stdout logs are not imported. Process excerpts come from `task_launch` resources.
 
 ## Validation

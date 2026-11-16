@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
@@ -81,6 +82,7 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 			metadata := timelineMetadata(args)
 			start := time.Now()
 			result, err = s.callBare(ctx, original, args, hasWindow)
+			normalizeBareResult(original, result)
 			var failed error
 			if err != nil || result != nil && result.IsError {
 				failed = fmt.Errorf("Bare tool failed")
@@ -161,4 +163,47 @@ func (s *Server) closeBare() {
 		_ = b.Close()
 		delete(s.bare, key)
 	}
+}
+
+// Bare's report tools use a documented compact receipt or a JSON report.
+// Page text and diagnostic tools must never be classified from their contents.
+func normalizeBareResult(name string, result *mcp.CallToolResult) {
+	if result == nil {
+		return
+	}
+	switch name {
+	case "open", "act", "step", "run_steps", "run_suite", "close":
+	default:
+		return
+	}
+	text := strings.TrimSpace(textResultText(result))
+	var report struct {
+		OK *bool `json:"ok"`
+	}
+	failed := false
+	known := false
+	if json.Unmarshal([]byte(text), &report) == nil && report.OK != nil {
+		failed = !*report.OK
+		known = true
+	} else if strings.HasPrefix(text, "FAILED ") {
+		failed = true
+		known = true
+	} else if strings.HasPrefix(text, "ok (") {
+		known = true
+	}
+	if failed {
+		result.IsError = true
+	}
+	if known && result.StructuredContent == nil {
+		result.StructuredContent = map[string]any{"ok": !failed, "result_source": "bare_report"}
+	}
+}
+
+func textResultText(res *mcp.CallToolResult) string {
+	for _, c := range res.Content {
+		if t, ok := c.(*mcp.TextContent); ok {
+			return t.Text
+		}
+	}
+	return ""
 }
