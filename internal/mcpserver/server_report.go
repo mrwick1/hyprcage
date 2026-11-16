@@ -13,14 +13,15 @@ import (
 
 type reportIn struct {
 	Title     string `json:"title" jsonschema:"one line that names the offstage problem"`
-	Expected  string `json:"expected" jsonschema:"what the tool should have done"`
-	Actual    string `json:"actual" jsonschema:"what it did instead, with the error text"`
+	Expected  string `json:"expected,omitempty" jsonschema:"for a bug: what the tool should have done"`
+	Actual    string `json:"actual,omitempty" jsonschema:"for a bug: what it did instead, with the error text; for other types: the details"`
 	Screen    string `json:"screen,omitempty" jsonschema:"the agent screen it happened on; its tool calls, logs, element tree and a screenshot go into the report"`
 	Area      string `json:"area,omitempty" jsonschema:"crash, isolation-leak (a tool touched the human's desktop, cursor or focus), install or desktop"`
+	Type      string `json:"type,omitempty" jsonschema:"bug (default), doubt, suggestion or feedback"`
 	Confirmed bool   `json:"confirmed,omitempty" jsonschema:"true only after the human saw the preview and agreed to send it"`
 }
 
-const reportDesc = "Send a beta report about a problem in offstage itself, not in the app under test: a tool error the arguments did not cause, an action that returned success but did not happen, a tool that touched the human's desktop, cursor or focus, or a crash. One report per distinct problem. The report carries the tool calls on the screen, the logs, the element tree and a screenshot of the agent screen; private data is removed first. When the reply is a preview, show it to the human and call again with confirmed:true only after they agree."
+const reportDesc = "Send a beta report about offstage itself, never about the app under test. type bug (default): a tool error the arguments did not cause, an action that returned success but did not happen, a tool that touched the human's desktop, cursor or focus, or a crash. type doubt: you were unsure how to use offstage (which tool, what an argument means, an unclear error or doc). type suggestion: a tool or option that would have helped. type feedback: what worked well or badly, once at the end of a task that used offstage heavily; expected and actual may be empty for these three. One report per distinct item; do not repeat one you filed this session. The report carries the tool calls on the screen, the logs, the element tree and a screenshot of the agent screen; private data is removed first. When the reply is a preview, show it to the human and call again with confirmed:true only after they agree."
 
 func (s *Server) registerReport(srv *mcp.Server) {
 	tool(s, srv, "report_issue", reportDesc, s.reportIssue)
@@ -30,7 +31,7 @@ func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
 	if desktop.IsDesktop(in.Screen) {
 		return nil, screen.Errf(screen.CodeUnsupported, "name the agent screen, or leave screen empty", "a report never reads the human's desktop")
 	}
-	req := report.Request{Title: in.Title, Expected: in.Expected, Actual: in.Actual, Area: in.Area, Extra: map[string][]byte{}}
+	req := report.Request{Title: in.Title, Expected: in.Expected, Actual: in.Actual, Area: in.Area, Type: in.Type, Extra: map[string][]byte{}}
 	if in.Screen != "" {
 		if rec, _, err := s.resolve(in.Screen, false); err == nil {
 			req.Screen = rec.Name

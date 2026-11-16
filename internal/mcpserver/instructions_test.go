@@ -11,5 +11,10 @@ func TestInstructionsAskForReports(t *testing.T) {
 		if !strings.Contains(text, "call report_issue") {
 			t.Errorf("%s instructions do not ask for report_issue", name)
 		}
+		for _, w := range []string{"doubt", "suggestion"} {
+			if !strings.Contains(text, w) {
+				t.Errorf("%s instructions do not mention %s", name, w)
+			}
+		}
 	}
 }
