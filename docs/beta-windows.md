@@ -33,7 +33,7 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`. Run this in PowerShell:
 
 ```
-$env:OFFSTAGE_VERSION = 'v0.11.0-beta.6'
+$env:OFFSTAGE_VERSION = 'v0.11.0-beta.7'
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/mrwick1/offstage/beta/install.ps1))) -Agents none
 ```
 

@@ -6,7 +6,28 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
-## Unreleased: Bare is the browser
+## v0.11.0-beta.7 (2026-11-16)
+
+- New: Linux task tools group owned server processes, screens, and local
+  artifacts. Use `task_create`, `task_launch`, `task_inspect`, and `task_close`.
+  Server launch requires a working systemd user manager. Close tasks explicitly.
+- New: `task_wait` waits for process exits. `condition_wait` observes native-app element
+  presence or absence and DevTools requests. Failure conditions take precedence.
+  An embedded action arms request observation before it sends input.
+  `condition_cursor` supports a separate action followed by a wait.
+- New: `task_timeline` retains bounded local evidence from actions, requests,
+  console messages, owned process output, and failure page excerpts. It reports
+  source gaps. Evidence remains readable after task closure.
+- Limits: timeline collection occurs at tool boundaries and queries. It does
+  not collect screenshots. Pattern redaction cannot remove every possible
+  secret. Keep secrets out of test output. Bare reports are retained as partial text
+  excerpts only after explicit console/network reads. Use Bare step assertions for browser postconditions; standalone
+  request-start cursors are not available from Bare.
+- Fix: failed Bare step assertions are tool errors. Timeline reads do not
+  advance Bare console or network cursors.
+- Retest: create a task, launch a local test server, and create its screen with
+  the returned `task_id`. Trigger a controlled failed request. Read
+  `browser_console` and `browser_network`, then `task_timeline`. Close the task, and confirm that only its resources stop.
 
 - Bare is required. Missing or invalid browser downloads fail installation.
 - The offstage MCP server exposes Bare through `browser_*` tools. New installs
