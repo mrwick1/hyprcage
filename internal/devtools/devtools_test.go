@@ -83,6 +83,11 @@ func TestConsoleCollectsMessagesExceptionsAndLogEntries(t *testing.T) {
 		t.Fatalf("got %+v dropped %d", got, dropped)
 	}
 	for i := range want {
+		if got[i].Sequence != uint64(i+1) || got[i].At.IsZero() {
+			t.Fatal("console evidence identity missing")
+		}
+		got[i].Sequence = 0
+		got[i].At = time.Time{}
 		if got[i] != want[i] {
 			t.Errorf("msg %d: got %+v, want %+v", i, got[i], want[i])
 		}

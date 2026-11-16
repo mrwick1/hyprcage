@@ -56,3 +56,18 @@ func TestCursorDetectsLostRequests(t *testing.T) {
 		t.Fatal("cleared in-flight requests accepted")
 	}
 }
+
+func TestConsoleEvidenceRetainsClearLoss(t *testing.T) {
+	s, _ := newFake()
+	s.add("p", Msg{Text: "one"})
+	s.Console(true)
+	messages, lost := s.ConsoleEvidence()
+	if len(messages) != 0 || lost != 1 {
+		t.Fatal(messages, lost)
+	}
+	s.add("p", Msg{Text: "two"})
+	messages, lost = s.ConsoleEvidence()
+	if len(messages) != 1 || messages[0].Sequence != 2 || lost != 1 {
+		t.Fatal(messages, lost)
+	}
+}

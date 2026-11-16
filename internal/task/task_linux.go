@@ -448,7 +448,11 @@ func Attach(taskID string, owner registry.Owner, rec *registry.Screen) error {
 		return fmt.Errorf("task resource limit reached (64)")
 	}
 	t.Resources = append(t.Resources, Resource{ID: id("screen-"), Kind: "screen", Screen: rec.Name, CreatedAt: rec.CreatedAt, State: "active"})
-	return save(t)
+	if err := save(t); err != nil {
+		return err
+	}
+	rec.TaskID = taskID
+	return registry.Save(rec)
 }
 
 // Close invokes screenClose only for the exact recorded screen instance.

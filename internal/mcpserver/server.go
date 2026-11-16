@@ -472,7 +472,7 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 		}
 		res, err := h(in)
 		return res, opts, err
-	})
+	}, s)
 }
 
 // unlocked registers a handler that runs outside the server lock. Only a
@@ -508,20 +508,22 @@ var crashNotice atomic.Pointer[string]
 
 // add registers a handler and writes its audit line with the options it
 // returns.
-func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error)) {
-	addContext(srv, name, desc, func(_ context.Context, in In) (*mcp.CallToolResult, []audit.Option, error) { return h(in) })
+func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error), servers ...*Server) {
+	addContext(srv, name, desc, func(_ context.Context, in In) (*mcp.CallToolResult, []audit.Option, error) { return h(in) }, servers...)
 }
 
 // addContext preserves request cancellation for handlers that wait outside the UI lock.
-func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Context, In) (*mcp.CallToolResult, []audit.Option, error)) {
+func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Context, In) (*mcp.CallToolResult, []audit.Option, error), servers ...*Server) {
 	if !available(name) {
 		return
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			start := time.Now()
+			metadata := timelineMetadata(in)
 			res, opts, err := safely(name, func(in In) (*mcp.CallToolResult, []audit.Option, error) { return h(ctx, in) }, in)
 			opts = append(opts, audit.WithDuration(time.Since(start)))
+			opts = append(opts, metadata...)
 			failed := err
 			if failed == nil && res != nil && res.IsError {
 				failed = errors.New("tool result is an error")
@@ -530,6 +532,9 @@ func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Conte
 				opts = append(opts, audit.WithVerdict(v))
 			}
 			e := audit.Record(name, in, failed, opts...)
+			for _, server := range servers {
+				server.recordTimeline(e, res)
+			}
 			if recorded != nil {
 				recorded(e)
 			}
@@ -571,6 +576,7 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerTasks(srv)
 	s.registerConditions(srv)
 	s.registerScreenConditions(srv)
+	s.registerTimeline(srv)
 }
 
 // --- handlers ---------------------------------------------------------------

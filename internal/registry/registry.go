@@ -26,6 +26,7 @@ type Owner struct {
 
 // Screen is the record of one agent screen. Its file mtime is the heartbeat.
 type Screen struct {
+	TaskID    string    `json:"task_id,omitempty"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	State     string    `json:"state"` // starting, ready

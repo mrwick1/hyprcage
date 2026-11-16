@@ -46,7 +46,7 @@ func (s *Server) registerScreenConditions(srv *mcp.Server) {
 	addContext(srv, "condition_wait", "Wait for element presence/absence or completed requests on one agent screen. Failure predicates take precedence. Optional action is observed before dispatch. Returns evidence and explicit timeout, cancellation or unsupported state. Never treats a source error as element absence.", func(ctx context.Context, in expectIn) (*mcp.CallToolResult, []audit.Option, error) {
 		r, e := s.conditionWait(ctx, in)
 		return r, nil, e
-	})
+	}, s)
 	addContext(srv, "condition_cursor", "Arm request observation and return a cursor before an action. Use it in condition_wait after that action. A reconnect or buffer gap invalidates the cursor.", func(ctx context.Context, in screenIn) (*mcp.CallToolResult, []audit.Option, error) {
 		if desktop.IsDesktop(in.Screen) {
 			return nil, nil, fmt.Errorf("condition cursors require an agent screen")
@@ -66,7 +66,7 @@ func (s *Server) registerScreenConditions(srv *mcp.Server) {
 			return nil, nil, err
 		}
 		return textResult(c), nil, nil
-	})
+	}, s)
 }
 func (s *Server) conditionLock(ctx context.Context) error {
 	for {
@@ -287,6 +287,7 @@ func (s *Server) conditionWait(parent context.Context, in expectIn) (*mcp.CallTo
 		return textResult(out), nil
 	}
 	if in.Action != nil {
+		var actionEntry *audit.Entry
 		if err = s.conditionLock(ctx); err != nil {
 			return interrupt()
 		}
@@ -299,9 +300,13 @@ func (s *Server) conditionWait(parent context.Context, in expectIn) (*mcp.CallTo
 			action := *in.Action
 			action.Screen = in.Screen
 			_, e = s.actContext(ctx, action)
-			audit.Record("act", action, e, audit.WithActionID(out.ActionID))
+			entry := audit.Record("act", action, e, audit.WithActionID(out.ActionID), audit.WithTaskID(current.TaskID), audit.WithScreenInstance(identity))
+			actionEntry = &entry
 		}
 		s.mu.Unlock()
+		if actionEntry != nil {
+			s.recordTimeline(*actionEntry, nil)
+		}
 		if e != nil {
 			out.Status = "failed"
 			out.Last = condition.Observation{Status: "failed", Evidence: map[string]string{"reason": redact.Text(e.Error())}}

@@ -1,0 +1,42 @@
+# Local task failure timeline
+
+Status: First implementation. Linux only. This branch depends on the condition-waits branch and PR #54.
+
+Call `task_timeline` with `task_id`. It returns events, source availability, a local artifact path, and a continuation cursor. The default page has at most 50 events. The maximum is 200.
+
+```json
+{"task_id":"<task id>","limit":50}
+```
+
+Pass the returned `next` object as `after` to continue. A cursor belongs to one task. `gap: true` means earlier events were evicted. `dropped` reports journal eviction. An optional `action_id` filters explicit action links. It does not claim that nearby requests or console entries were caused by that action.
+
+## Sources
+
+- Tool calls retain task and screen-instance identity, action IDs, errors, and condition outcomes when they return. A screen with a task records that task ID in its registry entry.
+- Failed calls and wait timeouts attempt a small page excerpt immediately after the call. The excerpt contains up to 20 element names, roles, and states. It omits input values. A failed source read is reported as unavailable.
+- Browser requests and console entries are copied from the existing diagnostics collector at tool boundaries and timeline queries. The collector is not reconnected to manufacture missing history. Request bodies, headers, and cookies are not collected.
+- Owned process logs contribute a tail excerpt of at most 4096 bytes. The full bounded, redacted log remains linked. Retained process exit results appear as separate events.
+
+Events have a task-local collection sequence, an observation time, and a source time when available. Collection order and nearby source timestamps do not prove causality. Process log modification time describes the file, not each log line.
+
+## Storage and privacy
+
+The journal is `timeline.json` inside the task directory. It survives task closure and uses the task's seven-day artifact retention policy. It holds at most 512 events. Each event payload is limited to 8192 bytes. Oversized payloads get an explicit truncation marker. Repeated reads use per-stream sequence positions to avoid replaying old collector buffers after journal eviction.
+
+Evidence is redacted before persistence. Typed text is already reduced by the action audit. URL queries, known token formats, and known secret fields are removed. Pattern redaction cannot remove every possible secret from arbitrary logs or element names. Keep secrets out of fixture output. Evidence remains local; the tool does not upload it.
+
+Sources report available, partial, or unavailable. Lost browser events, log excerpts, disconnected collectors, and missing files remain visible as limits. A journal write failure adds a warning to a tool response when that response exists. It does not replace the original result. A crash or failed write can leave an incomplete journal.
+
+## Current limits
+
+- Screenshots are not collected. Failure page excerpts provide text evidence only.
+- Collection occurs at tool boundaries and queries. It is not continuous process or browser tracing.
+- Diagnostic buffers can expire between calls. Closing a browser removes its live collector. Events already copied to the task journal remain available.
+- Browser observation uses the current diagnostics adapter. Bare integration and engine parity are separate work.
+- Native graphical app stdout logs are not imported. Process excerpts come from `task_launch` resources.
+
+## Validation
+
+Storage tests cover redaction, cross-task cursor refusal, pagination, deduplication, journal gaps, and preservation of existing evidence when an atomic write fails. A controlled browser fixture verifies that one timeline response contains an action, HTTP 500, console error, process output and exit, wait failure, and page excerpt. It also verifies explicit action links and evidence retention after task close.
+
+A live cage journey, screenshot privacy handling, and the MCP response warning after a write failure have not been tested for this implementation.
