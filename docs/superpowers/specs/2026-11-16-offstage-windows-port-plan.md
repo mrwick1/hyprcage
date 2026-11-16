@@ -173,7 +173,7 @@ Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 s
 - The name "offstage" means Hyprland. A Windows release under that name may confuse users. The name stays until v1 works.
 - `wl` and `screen` are large and well tested. The seam in phase 2 must not change Linux behavior. The Linux VM suite is the guard.
 
-## Open questions for Arjun
+## Decisions from Arjun
 
-1. Who uses the Windows build first: only you, friends, or a public release.
-2. A rename before a public Windows release: yes or no.
+1. Windows audience: a public release is on the table (decided 2026-11-16).
+2. Rename before a public Windows release: done. The project is now offstage.
