@@ -29,6 +29,13 @@ type Guard struct {
 	Combos   []string // blocked key combinations
 }
 
+// Report is the [report] table: where beta reports go and what they carry.
+type Report struct {
+	URL         string // the beta relay
+	Confirm     bool   // report_issue shows the report and sends it only on a second call with confirmed
+	Screenshots bool   // a report carries a screenshot and the element tree of the agent screen
+}
+
 // Config is the effective configuration. It holds slices, so compare it
 // with reflect.DeepEqual, not ==.
 type Config struct {
@@ -77,6 +84,7 @@ type Config struct {
 
 	Verify bool // actions on an agent screen return a verdict unless the call passes verify:false
 	Guard  Guard
+	Report Report
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -123,6 +131,7 @@ func Default() Config {
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
 			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
 		},
+		Report: Report{URL: "https://beta.mrwick.dev", Confirm: true, Screenshots: true},
 	}
 }
 
@@ -225,6 +234,11 @@ type file struct {
 		Keywords []string `toml:"keywords"`
 		Combos   []string `toml:"combos"`
 	} `toml:"guard"`
+	Report struct {
+		URL         *string `toml:"url"`
+		Confirm     *bool   `toml:"confirm"`
+		Screenshots *bool   `toml:"screenshots"`
+	} `toml:"report"`
 }
 
 // Apply overrides cfg with the TOML text and validates the result.
@@ -320,6 +334,15 @@ func Apply(cfg *Config, text string) error {
 	if f.Guard.Combos != nil {
 		cfg.Guard.Combos = f.Guard.Combos
 	}
+	if f.Report.URL != nil {
+		cfg.Report.URL = strings.TrimRight(strings.TrimSpace(*f.Report.URL), "/")
+	}
+	if f.Report.Confirm != nil {
+		cfg.Report.Confirm = *f.Report.Confirm
+	}
+	if f.Report.Screenshots != nil {
+		cfg.Report.Screenshots = *f.Report.Screenshots
+	}
 	return cfg.Validate()
 }
 
@@ -387,6 +410,9 @@ func (c Config) Validate() error {
 				return fmt.Errorf("guard.%s: an entry is empty", key)
 			}
 		}
+	}
+	if !strings.HasPrefix(c.Report.URL, "https://") && !strings.HasPrefix(c.Report.URL, "http://127.0.0.1") && !strings.HasPrefix(c.Report.URL, "http://localhost") {
+		return fmt.Errorf("report.url: %q must be https (or http on localhost)", c.Report.URL)
 	}
 	return nil
 }

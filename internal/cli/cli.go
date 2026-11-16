@@ -72,6 +72,7 @@ func init() {
 		{"browser", "open the agent's Chrome with DevTools on a screen", runBrowser, false},
 		{"profile", "list or remove the saved browser profiles (list, rm <name>)", runProfile, false},
 		{"notifyd", "keep 48 hours of desktop notifications (run by a user unit)", runNotifyd, false},
+		{"report", "send a beta report about an offstage problem (login, flush, status)", runReport, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},
 		{"_holder", "internal: keeps cage alive and publishes its socket", runHolder, true},

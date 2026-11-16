@@ -117,6 +117,17 @@ Use the human's desktop only when the job needs their own apps or their session.
 - Every desktop tool refuses with `session_locked` while the screen is locked.
 - **Guard**: a desktop action that closes a window or hits a destructive control returns `ack_required` with the reason. The blocked keys are `Ctrl+W`, `Ctrl+Q` and `Alt+F4`. The blocked clicks are on controls with a label such as delete, remove, erase, format, uninstall, close all, quit or shut down. Repeat the call with `ack: "<reason>"` only when the task needs the action. The server logs the reason. The guard reads the label from your last `snapshot`. With no snapshot, only the keys are blocked. The `[guard]` table in `config.toml` sets `enabled` (`desktop`, `all` or `off`), `apps`, `keywords` and `combos`.
 
+## Report offstage problems (beta)
+
+Call `report_issue` when offstage itself fails:
+
+- A tool returns an error that your arguments did not cause.
+- A tool returns success, but `verify` or a new `snapshot` shows the action did not happen.
+- A tool touched the human's desktop, cursor or focus (`area: "isolation-leak"`).
+- offstage crashed or did not start (`area: "crash"`).
+
+Do not report bugs in the app under test, wrong arguments, or an action the guard blocked. Send one report per problem. Pass `screen`, so the report carries its tool calls, logs, element tree and screenshot. When the reply is a preview, show it to the human and send it again with `confirmed: true` only after they agree. Without a beta key the report waits on the machine. The human runs `offstage report login`.
+
 ## Never
 
 - `app &` from a shell, `open_application` from computer-use, or any launch outside `app_launch`: it lands on the human's screen.

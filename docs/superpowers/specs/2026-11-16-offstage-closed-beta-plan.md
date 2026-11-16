@@ -12,7 +12,7 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 
 1. Platforms: Linux and Windows run in the same beta. Linux ships first with the full tool set. Windows follows when B5 is done.
 2. Isolation on Windows: run spike A (loopback RDP) first. If spike A fails, ship the Windows beta on spike B (hidden desktop) and list its limits. The Windows beta ships in both cases.
-3. Testers: Joel on Linux. Aswin: platform to confirm. More known people later, under ten in total.
+3. Testers: Joel on Linux, Aswin on Windows. More known people later, under ten in total.
 4. Report target: the self-hosted Plane instance `plane.mrwick.dev` (Community edition 1.4.2). Testers get no Plane account. GitHub issues stay off.
 5. Filing path: a small relay on mrwick-server. Each tester has a beta key. Only the relay holds a Plane token.
 6. Reproduction: a report carries a replayable trace. A screenshot is supporting evidence only.
@@ -23,7 +23,7 @@ A small group of known testers runs offstage on Linux (Hyprland) and on Windows 
 | Tester | Platform | Setup |
 | --- | --- | --- |
 | Joel | Linux | Same as Arjun's ThinkPad E16 (`arjun-e16`): openSUSE Tumbleweed, Hyprland 0.56.2, AMD HawkPoint1 GPU (checked 2026-11-16). The README records openSUSE as verified with Hyprland 0.56.2. |
-| Aswin | to confirm | |
+| Aswin | Windows | Joins when the Windows build is ready (B5). |
 
 `arjun-e16` is the reference machine for Joel's track. A problem Joel reports is replayed there first.
 
@@ -180,7 +180,7 @@ Beta keys:
 - Keys live in the vault as `offstage/beta-key-<tester>` in folder `agents`. Arjun sends each key to its tester.
 - Revoke a key: delete its line from `/srv/offstage-relay/secrets/keys` and restart the container.
 - Add a tester: generate a key, store it in the vault, and add `name $(offstage-relay hash <<< key)` to the keys file.
-- The tester stores the key with `offstage report login`. It goes to the OS credential store (Secret Service on Linux, Credential Manager on Windows), never to the config file.
+- The tester stores the key with `offstage report login`. It goes to the file `beta-key` next to the config file, readable by the user only (mode 0600). It never goes into `config.toml`. `OFFSTAGE_BETA_KEY` overrides the file. The OS credential store was dropped: a 0600 file is simpler and the key only files reports.
 
 Limits: 5 MB per bundle (the Plane attachment limit on this instance), 10 reports per key per day, 60 requests per key per hour.
 
@@ -248,5 +248,4 @@ Verified against Plane 1.4.2 on 2026-11-16: work items, comments, labels and the
 
 ## Open questions for Arjun
 
-1. Aswin's platform: Linux or Windows.
-2. `report.confirm = true` for week 1 only, or for the whole beta.
+1. `report.confirm = true` for week 1 only, or for the whole beta.
