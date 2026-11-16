@@ -55,7 +55,11 @@ func FFmpegArgs(w, h, fps int, crop image.Rectangle, encoder, out string) []stri
 func quality(encoder string) []string {
 	switch encoder {
 	case "libx264":
-		return []string{"-crf", "18", "-preset", "medium", "-tune", "stillimage"}
+		// One thread, no lookahead and no B-frames keep ffmpeg small: 54 MB
+		// at 1280x800 and 86 MB at 1920x1080, where the defaults (medium,
+		// 1.5 threads per core, 40 frames ahead) took 270 to 1000 MB. The
+		// quality stays the same; the file is up to 2.5 times larger.
+		return []string{"-crf", "18", "-preset", "superfast", "-tune", "stillimage", "-threads", "1", "-x264-params", "rc-lookahead=0:bframes=0"}
 	case "libopenh264":
 		return []string{"-b:v", "6M"}
 	}

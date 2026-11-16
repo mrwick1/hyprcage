@@ -44,7 +44,7 @@ func TestFFmpegArgs(t *testing.T) {
 		}
 	}
 	x := strings.Join(FFmpegArgs(1920, 1080, 30, image.Rectangle{}, "libx264", "/tmp/o.mp4"), " ")
-	if !strings.Contains(x, "-c:v libx264 -crf 18 -preset medium -tune stillimage -pix_fmt yuv420p /tmp/o.mp4") {
+	if !strings.Contains(x, "-c:v libx264 -crf 18 -preset superfast -tune stillimage -threads 1 -x264-params rc-lookahead=0:bframes=0 -pix_fmt yuv420p /tmp/o.mp4") {
 		t.Errorf("libx264 argv lacks the quality options: %s", x)
 	}
 }
