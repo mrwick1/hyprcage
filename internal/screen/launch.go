@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/sysd"
 )
@@ -84,7 +84,7 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = full
 	cmd.Dir = cwd
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	proc.Detach(cmd)
 	if f := appLog(rec.Name, launchSeq); f != nil {
 		cmd.Stdout, cmd.Stderr = f, f
 		defer f.Close()

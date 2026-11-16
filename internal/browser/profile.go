@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -50,7 +49,7 @@ func lockProfile(path string) (unlock func(), err error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := flockExclusive(f); err != nil {
 		f.Close()
 		return nil, err
 	}

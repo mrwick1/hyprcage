@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/session"
 	"github.com/hexadecimil/hyprcage/internal/shellq"
@@ -99,7 +100,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 		}
 	} else {
 		p := exec.Command(argv[0], argv[1:]...)
-		p.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		proc.Detach(p)
 		if err := p.Start(); err != nil {
 			return err
 		}
@@ -123,7 +124,7 @@ func StartMirror(c *Ctx, rec *registry.Screen, exe string, useSystemd bool) erro
 func StopMirror(name string) {
 	st, alive := ReadMirror(name)
 	if alive {
-		_ = syscall.Kill(st.PID, syscall.SIGTERM)
+		_ = proc.Kill(st.PID, syscall.SIGTERM)
 		deadline := time.Now().Add(time.Second)
 		for time.Now().Before(deadline) {
 			if !session.PIDAlive(st.PID, st.PIDStart) {

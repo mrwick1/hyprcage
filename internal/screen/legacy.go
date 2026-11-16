@@ -11,6 +11,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/hypr"
 	"github.com/hexadecimil/hyprcage/internal/lock"
 	"github.com/hexadecimil/hyprcage/internal/notify"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/sysd"
 )
@@ -199,7 +200,7 @@ func legacyPIDs(h *hypr.Instance, rec *registry.Screen) []int {
 func killLegacyPIDs(h *hypr.Instance, rec *registry.Screen, sig syscall.Signal) {
 	for _, pid := range legacyPIDs(h, rec) {
 		if pid > 0 {
-			_ = syscall.Kill(pid, sig)
+			_ = proc.Kill(pid, sig)
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/lock"
 	"github.com/hexadecimil/hyprcage/internal/notify"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/session"
 	"github.com/hexadecimil/hyprcage/internal/sysd"
@@ -236,7 +237,7 @@ func startCage(c *Ctx, rec *registry.Screen, exe, renderer string, useSystemd bo
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = full
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	proc.Detach(cmd)
 	if f := cageLog(rec.Name); f != nil {
 		cmd.Stdout, cmd.Stderr = f, f
 		defer f.Close()
