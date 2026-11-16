@@ -46,7 +46,10 @@ Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 to
 Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
 Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then snapshot / act / find; devtools_eval, devtools_console, devtools_network, devtools_trace, devtools_heap and devtools_audit (Lighthouse) read page internals of any screen launched with DevTools; devtools_emulate makes its pages a phone or tablet, or throttles network and CPU. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
 The human's desktop: pass screen "desktop" (plus window, an address from desktop_windows) to screenshot, snapshot, find, act, click, double_click, move, scroll, drag and app_launch; coordinates are global logical pixels. act tries AT-SPI first (no cursor, no focus change), then CDP, then the real pointer, which is put back after each action. Only desktop_workspace changes the human's view; a pointer action on a hidden window refuses with window_hidden. desktop_windows, desktop_focus, desktop_move, desktop_type and desktop_key act on single windows (each key briefly takes the human's focus). notify_list, notify_wait and notify_act read and act on the human's notifications of the last 48 hours. Every desktop tool refuses while the session is locked; prefer an agent screen whenever the task allows it.
-Beta: when offstage itself misbehaves (an error your arguments did not cause, a success that did not happen, a touch on the human's desktop, cursor or focus, a crash), call report_issue once per problem with the screen. Not for bugs in the app under test, wrong arguments, or a guard block.`
+` + reportNote
+
+// reportNote tells the agent when to file a beta report, on every platform.
+const reportNote = `Beta: when offstage itself misbehaves (an error your arguments did not cause, a success that did not happen, a touch on the human's desktop, cursor or focus, a crash), call report_issue once per problem with the screen. Not for bugs in the app under test, wrong arguments, or a guard block.`
 
 // Server holds the per-session state.
 type Server struct {
