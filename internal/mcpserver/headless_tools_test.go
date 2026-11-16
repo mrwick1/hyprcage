@@ -129,6 +129,9 @@ func TestHeadlessTools(t *testing.T) {
 		}
 	})
 	t.Run("clipboard", func(t *testing.T) {
+		if !available("clipboard_set") {
+			t.Skip("this system registers no clipboard tool")
+		}
 		set := hcall(t, cs, "clipboard_set", map[string]any{"text": "clip-text"})
 		if set.IsError {
 			// Headless has no clipboard: the refusal must carry its code.
