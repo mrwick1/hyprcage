@@ -40,6 +40,7 @@ import (
 )
 
 const instructions = `offstage ships Bare, its own browser. Use browser_open, browser_snapshot, browser_act and browser_find for browser work. Use browser_ensure_session and browser_save_state for login state, browser_run_steps or browser_run_suite for journeys, and browser_console, browser_network and browser_diagnose to inspect failures. Chrome is not required. Do not fall back to Chrome.
+Task lifecycle (Linux): task_create -> task_launch for a server; pass task_id to screen_create. task_inspect reads resources; task_close stops owned resources. Server launch requires user systemd. Close tasks explicitly.
 Browser sessions are headless by default and need no screen_create. To show the browser, create a cage screen and pass its name as screen to every browser_* call. Use one browser session per cage screen. Close sessions with browser_close, then screen_destroy when done. Do not pass window=true without an offstage screen.
 Native applications: screen_create -> app_launch -> snapshot / act / find -> screen_destroy. Anything graphical you launch for yourself goes inside an offstage screen, never on the human's desktop. Read text with snapshot before taking screenshots. Never change the human's focus, cursor or workspaces. Use desktop_* only for tasks that require the human's own apps.
 Use browser_* for Bare pages; unprefixed snapshot, act and input tools are for native applications. Record visible browser screens with record_start, crop none, and record_stop. Native desktop recording uses target desktop; tell the human first.
@@ -302,6 +303,7 @@ func (s *Server) afterAction(rec *registry.Screen, cl screen.Surface, want bool,
 // --- tool inputs ------------------------------------------------------------
 
 type createIn struct {
+	TaskID string `json:"task_id,omitempty" jsonschema:"optional Linux task owner; task_close also closes this screen"`
 	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; the configured prefix is added; use the returned screen name in later calls"`
 	Size   string `json:"size,omitempty" jsonschema:"WxH in pixels, default 1280x800 (configurable); keep every side at or below 2000"`
 	Mirror *bool  `json:"mirror,omitempty" jsonschema:"open a mirror window on one of the human's workspaces so they can watch. Leave it out to follow the human's configuration, which is what they want by default. Pass true when they asked to see the work or when showing it is the point, false for a screen they have no reason to watch"`
@@ -565,11 +567,15 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerPerceive(srv)
 	s.registerReport(srv)
 	s.registerWatch(srv)
+	s.registerTasks(srv)
 }
 
 // --- handlers ---------------------------------------------------------------
 
 func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
+	if err := validateTask(in.TaskID); err != nil {
+		return nil, err
+	}
 	if in.Kind == screen.KindHeadless {
 		return nil, fmt.Errorf("use browser_open without screen for a headless Bare session")
 	}
@@ -592,6 +598,9 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 	opts := screen.CreateOptions{Name: in.Name, Width: w, Height: h, Mirror: in.Mirror, Owner: session.Current().Owner()}
 	rec, err := screen.Create(c, opts)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.attachTask(in.TaskID, rec); err != nil {
 		return nil, err
 	}
 	out := map[string]any{

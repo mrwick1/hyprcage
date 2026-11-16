@@ -169,6 +169,10 @@ tool has a command-line twin: `offstage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
 
+### Task lifecycle (Linux)
+
+Use `task_create` to group a server process and screens. Launch the server with `task_launch`, and pass `task_id` to `screen_create`. Inspect state and logs with `task_inspect`. Call `task_close` to stop owned resources. See [task lifecycle](docs/task-lifecycle.md).
+
 ### Saved browser state
 
 Use `browser_save_state` to save cookies, localStorage and sessionStorage under

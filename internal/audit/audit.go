@@ -8,6 +8,7 @@
 package audit
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -25,15 +26,17 @@ import (
 
 // Entry is one line of the log.
 type Entry struct {
-	Time    string         `json:"time"`
-	Screen  string         `json:"screen,omitempty"`
-	Tool    string         `json:"tool"`
-	Args    map[string]any `json:"args,omitempty"`
-	Error   string         `json:"error,omitempty"`   // error code of a failed action
-	Ack     string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
-	Verdict any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
-	Target  []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
-	Ms      int64          `json:"ms,omitempty"`      // how long the call took, in milliseconds
+	ActionID string         `json:"action_id,omitempty"`
+	TaskID   string         `json:"task_id,omitempty"`
+	Time     string         `json:"time"`
+	Screen   string         `json:"screen,omitempty"`
+	Tool     string         `json:"tool"`
+	Args     map[string]any `json:"args,omitempty"`
+	Error    string         `json:"error,omitempty"`   // error code of a failed action
+	Ack      string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
+	Verdict  any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
+	Target   []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
+	Ms       int64          `json:"ms,omitempty"`      // how long the call took, in milliseconds
 }
 
 // Target is the element of the last snapshot under a point or a ref of an
@@ -82,11 +85,15 @@ func Path() string {
 // Record appends one line for a tool call with input in and result err, and
 // returns the line. It never fails the call: a write error is dropped.
 func Record(tool string, in any, err error, opts ...Option) Entry {
-	e := Entry{Time: time.Now().UTC().Format(time.RFC3339Nano), Tool: tool}
+	e := Entry{ActionID: rand.Text(), Time: time.Now().UTC().Format(time.RFC3339Nano), Tool: tool}
 	if b, jerr := json.Marshal(in); jerr == nil {
 		var args map[string]any
 		if json.Unmarshal(b, &args) == nil {
 			redact(args)
+			if taskID, ok := args["task_id"].(string); ok {
+				e.TaskID = taskID
+				delete(args, "task_id")
+			}
 			if s, ok := args["screen"].(string); ok {
 				e.Screen = s
 				delete(args, "screen")
