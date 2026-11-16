@@ -271,3 +271,19 @@ func TestTypeLabelTitleAndValidation(t *testing.T) {
 		t.Error("a rejected type filed a work item")
 	}
 }
+
+func TestAreaBareAcceptedUnknownRejected(t *testing.T) {
+	s, fp := setup(t)
+	m := meta()
+	m.Area, m.Fingerprint = "bare", ""
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 {
+		t.Fatalf("bare: code %d", code)
+	}
+	m.Area = "nonsense"
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 400 {
+		t.Errorf("unknown area: code %d", code)
+	}
+	if len(fp.created) != 1 {
+		t.Errorf("filed %d work items, want 1", len(fp.created))
+	}
+}

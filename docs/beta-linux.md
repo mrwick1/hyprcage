@@ -113,7 +113,8 @@ You can also file a report yourself:
 offstage report --title "Mirror window stays black" --expected "the screen shows" --actual "black window" --screen <screen> --area desktop
 ```
 
-`--area` is one of `crash`, `isolation-leak`, `install` or `desktop`. Only
+`--area` is one of `crash`, `isolation-leak`, `install`, `desktop` or `bare` (a problem with the bare browser server,
+`bare-mcp`). Only
 `--title` is required.
 
 Reports go to a relay at `https://beta.mrwick.dev`. The relay files them in a

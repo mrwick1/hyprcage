@@ -20,7 +20,7 @@ func runReport(e *Env) int {
 	expected := fs.String("expected", "", "what should have happened")
 	actual := fs.String("actual", "", "what happened instead")
 	screenName := fs.String("screen", "", "the agent screen the problem happened on")
-	area := fs.String("area", "", "crash, isolation-leak, install or desktop")
+	area := fs.String("area", "", "crash, isolation-leak, install, desktop or bare (a problem with the bare browser server, bare-mcp)")
 	typ := fs.String("type", "", "bug (default), doubt, suggestion or feedback")
 	dry := fs.Bool("dry-run", false, "build the bundle and print where it is, without sending it")
 	if err := e.parse(fs); err != nil {
