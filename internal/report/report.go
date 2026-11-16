@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -451,11 +452,25 @@ func modTime(p string) time.Time {
 	return fi.ModTime()
 }
 
+var chromeVersionDir = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$`)
+
 // Env describes the machine: versions, OS, desktop and the config file.
 func Env() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "offstage %s\n%s/%s\nos: %s\ngo: %s\n", version.Version, runtime.GOOS, runtime.GOARCH, osName(), runtime.Version())
-	if p, err := headless.FindChrome(); err == nil {
+	if p, err := headless.FindChrome(); err == nil && runtime.GOOS == "windows" {
+		// chrome.exe --version opens a window; the install folder holds a
+		// directory named after the version.
+		v := "version unreadable"
+		if ents, err := os.ReadDir(filepath.Dir(p)); err == nil {
+			for _, d := range ents {
+				if d.IsDir() && chromeVersionDir.MatchString(d.Name()) {
+					v = d.Name()
+				}
+			}
+		}
+		fmt.Fprintf(&b, "chrome: %s %s\n", filepath.Base(p), v)
+	} else if err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		out, err := exec.CommandContext(ctx, p, "--version").Output()
 		cancel()
