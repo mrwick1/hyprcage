@@ -27,4 +27,5 @@ const instructionsOffLinux = `offstage gives you a browser screen of your own: o
 Workflow: screen_create -> browser_open -> snapshot / act / find / screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
 Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Take a screenshot only when the snapshot does not explain the page. Coordinates are page pixels.
 Recording: record_start / record_stop need ffmpeg. devtools_eval, devtools_console, devtools_network, devtools_trace, devtools_heap, devtools_audit (Lighthouse) and devtools_emulate read and shape the page.
-There is no desktop, no native app, no mirror window, no clipboard and no notification tool on this system.`
+There is no desktop, no native app, no mirror window, no clipboard and no notification tool on this system.
+` + reportNote
