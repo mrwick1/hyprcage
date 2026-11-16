@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
@@ -63,8 +64,14 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 					err = nil
 				}
 			}()
+			var entry *audit.Entry
 			s.mu.Lock()
-			defer s.mu.Unlock()
+			defer func() {
+				s.mu.Unlock()
+				if entry != nil {
+					s.recordTimeline(*entry, result)
+				}
+			}()
 			var args map[string]any
 			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
 				return nil, err
@@ -72,14 +79,18 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 			if args == nil {
 				args = map[string]any{}
 			}
+			metadata := timelineMetadata(args)
 			start := time.Now()
 			result, err = s.callBare(ctx, original, args, hasWindow)
+			normalizeBareResult(original, result)
 			var failed error
 			if err != nil || result != nil && result.IsError {
 				failed = fmt.Errorf("Bare tool failed")
 			}
 			// Bare arguments can contain credentials and scripts. Log metadata only.
-			audit.Record(copy.Name, struct{}{}, failed, audit.WithDuration(time.Since(start)))
+			metadata = append(metadata, audit.WithDuration(time.Since(start)))
+			recordedEntry := audit.Record(copy.Name, struct{}{}, failed, metadata...)
+			entry = &recordedEntry
 			return result, err
 		})
 	}
@@ -129,7 +140,22 @@ func (s *Server) callBare(ctx context.Context, name string, args map[string]any,
 	if b == nil {
 		return nil, fmt.Errorf("Bare is unavailable; restart the offstage MCP server")
 	}
-	return b.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	result, err := b.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	if err == nil && result != nil {
+		if s.bareSessionHints == nil {
+			s.bareSessionHints = map[string]string{}
+		}
+		sessionName, _ := args["session"].(string)
+		if sessionName == "" {
+			sessionName = "main"
+		}
+		if name == "close" && !result.IsError {
+			delete(s.bareSessionHints, key)
+		} else {
+			s.bareSessionHints[key] = sessionName
+		}
+	}
+	return result, err
 }
 
 func (s *Server) closeBare() {
@@ -137,4 +163,47 @@ func (s *Server) closeBare() {
 		_ = b.Close()
 		delete(s.bare, key)
 	}
+}
+
+// Bare's report tools use a documented compact receipt or a JSON report.
+// Page text and diagnostic tools must never be classified from their contents.
+func normalizeBareResult(name string, result *mcp.CallToolResult) {
+	if result == nil {
+		return
+	}
+	switch name {
+	case "open", "act", "step", "run_steps", "run_suite", "close":
+	default:
+		return
+	}
+	text := strings.TrimSpace(textResultText(result))
+	var report struct {
+		OK *bool `json:"ok"`
+	}
+	failed := false
+	known := false
+	if json.Unmarshal([]byte(text), &report) == nil && report.OK != nil {
+		failed = !*report.OK
+		known = true
+	} else if strings.HasPrefix(text, "FAILED ") {
+		failed = true
+		known = true
+	} else if strings.HasPrefix(text, "ok (") {
+		known = true
+	}
+	if failed {
+		result.IsError = true
+	}
+	if known && result.StructuredContent == nil {
+		result.StructuredContent = map[string]any{"ok": !failed, "result_source": "bare_report"}
+	}
+}
+
+func textResultText(res *mcp.CallToolResult) string {
+	for _, c := range res.Content {
+		if t, ok := c.(*mcp.TextContent); ok {
+			return t.Text
+		}
+	}
+	return ""
 }

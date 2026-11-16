@@ -52,4 +52,4 @@ Controlled browser tests cover presence, absence, timeout, failure precedence, i
 
 ## Required Bare browser
 
-The default browser is Bare. Use `browser_act` with its native `expect` input for Bare action postconditions. `condition_wait` and `condition_cursor` use native-app accessibility and DevTools sources. They do not fall back to Chrome for a Bare page. A Bare session without the required structured source returns unsupported. Its current text network reports do not provide the stable request-start cursor required by this API.
+The default browser is Bare. Use Bare step assertions through `browser_step` for browser postconditions. Use an `expect` field on `browser_act` only when the installed engine advertises that field. `condition_wait` and `condition_cursor` use native-app accessibility and DevTools sources. They do not fall back to Chrome for a Bare page. A Bare session without the required structured source returns unsupported. Its current text network reports do not provide the stable request-start cursor required by this API.

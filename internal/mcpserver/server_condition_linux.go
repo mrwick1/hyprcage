@@ -24,7 +24,7 @@ func (s *Server) registerConditions(srv *mcp.Server) {
 	addContext(srv, "task_wait", "Wait for an owned task process to exit. Returns satisfied, failed, timed_out, cancelled or unsupported with the last observation. A mismatched exit code or closed task fails. Does not hold the screen lock, so task_close remains available.", func(ctx context.Context, in taskWaitIn) (*mcp.CallToolResult, []audit.Option, error) {
 		r, e := s.taskWait(ctx, in)
 		return r, nil, e
-	})
+	}, s)
 }
 func (s *Server) taskWait(ctx context.Context, in taskWaitIn) (*mcp.CallToolResult, error) {
 	if in.TimeoutMs < 0 || in.TimeoutMs > 600000 {

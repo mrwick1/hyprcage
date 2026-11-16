@@ -45,10 +45,12 @@ type conn interface {
 
 // Msg is one console message, uncaught exception or browser log entry.
 type Msg struct {
-	Level  string `json:"level"`
-	Text   string `json:"text"`
-	Source string `json:"source,omitempty"` // url:line
-	Page   string `json:"page,omitempty"`   // url of the page that logged it
+	Sequence uint64    `json:"sequence,omitempty"`
+	At       time.Time `json:"at,omitempty"`
+	Level    string    `json:"level"`
+	Text     string    `json:"text"`
+	Source   string    `json:"source,omitempty"` // url:line
+	Page     string    `json:"page,omitempty"`   // url of the page that logged it
 }
 
 // Req is one network request. It holds no headers and no bodies.
@@ -76,8 +78,10 @@ type target struct{ id, url string }
 // Session holds one connection to a screen's browser. It attaches to every
 // page as it appears and buffers the console from then on.
 type Session struct {
-	c    conn
-	port int
+	consoleSeq  uint64
+	consoleLost uint64
+	c           conn
+	port        int
 
 	requestSeq  uint64
 	eventSource string
@@ -371,10 +375,14 @@ func (s *Session) event(ev cdp.Event) {
 func (s *Session) add(sessionID string, m Msg) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.consoleSeq++
+	m.Sequence = s.consoleSeq
+	m.At = time.Now().UTC()
 	m.Page = s.pages[sessionID].url
 	if len(s.console) >= MaxConsole {
 		s.console = s.console[1:]
 		s.dropped++
+		s.consoleLost++
 	}
 	s.console = append(s.console, m)
 }
@@ -445,6 +453,7 @@ func (s *Session) Console(clear bool) ([]Msg, int) {
 	defer s.mu.Unlock()
 	out, dropped := append([]Msg(nil), s.console...), s.dropped
 	if clear {
+		s.consoleLost += uint64(len(s.console))
 		s.console, s.dropped = nil, 0
 	}
 	return out, dropped

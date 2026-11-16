@@ -88,3 +88,17 @@ func (s *Session) Events(after Cursor) ([]NetworkEvent, Cursor, error) {
 	}
 	return out, now, nil
 }
+
+// Completed returns a snapshot for local evidence collection, including loss counts.
+func (s *Session) Completed() ([]NetworkEvent, Cursor, uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]NetworkEvent{}, s.events...), s.cursor(), s.eventLost + s.eventSeq - uint64(len(s.events))
+}
+
+// ConsoleEvidence keeps cumulative buffer-loss accounting across explicit clears.
+func (s *Session) ConsoleEvidence() ([]Msg, uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Msg{}, s.console...), s.consoleLost
+}

@@ -2,6 +2,7 @@ package screen
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/hexadecimil/offstage/internal/config"
@@ -169,5 +170,12 @@ func TestPickWorkspace(t *testing.T) {
 		if got := pickWorkspace(tc.cfg, tc.owner, tc.occupied, tc.slots); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestTaskServiceIsNotScreenOrphan(t *testing.T) {
+	unit := "offstage-task-" + strings.Repeat("a", 32) + "-process-" + strings.Repeat("b", 32) + ".service"
+	if got := orphanScreenName(unit); got != "" {
+		t.Fatalf("task-owned service classified as screen %q", got)
 	}
 }

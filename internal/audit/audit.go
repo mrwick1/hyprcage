@@ -26,17 +26,18 @@ import (
 
 // Entry is one line of the log.
 type Entry struct {
-	ActionID string         `json:"action_id,omitempty"`
-	TaskID   string         `json:"task_id,omitempty"`
-	Time     string         `json:"time"`
-	Screen   string         `json:"screen,omitempty"`
-	Tool     string         `json:"tool"`
-	Args     map[string]any `json:"args,omitempty"`
-	Error    string         `json:"error,omitempty"`   // error code of a failed action
-	Ack      string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
-	Verdict  any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
-	Target   []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
-	Ms       int64          `json:"ms,omitempty"`      // how long the call took, in milliseconds
+	ScreenInstance string         `json:"screen_instance,omitempty"`
+	ActionID       string         `json:"action_id,omitempty"`
+	TaskID         string         `json:"task_id,omitempty"`
+	Time           string         `json:"time"`
+	Screen         string         `json:"screen,omitempty"`
+	Tool           string         `json:"tool"`
+	Args           map[string]any `json:"args,omitempty"`
+	Error          string         `json:"error,omitempty"`   // error code of a failed action
+	Ack            string         `json:"ack,omitempty"`     // the reason the caller gave for a guarded action
+	Verdict        any            `json:"verdict,omitempty"` // the outcome of the action, when the tool computes one
+	Target         []Target       `json:"target,omitempty"`  // the elements the action aimed at, for a replay
+	Ms             int64          `json:"ms,omitempty"`      // how long the call took, in milliseconds
 }
 
 // Target is the element of the last snapshot under a point or a ref of an
@@ -51,6 +52,10 @@ type Target struct {
 
 // Option sets an optional field of an Entry.
 type Option func(*Entry)
+
+func WithScreen(name string) Option       { return func(e *Entry) { e.Screen = name } }
+func WithTaskID(id string) Option         { return func(e *Entry) { e.TaskID = id } }
+func WithScreenInstance(id string) Option { return func(e *Entry) { e.ScreenInstance = id } }
 
 func WithActionID(id string) Option { return func(e *Entry) { e.ActionID = id } }
 
