@@ -6,6 +6,19 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## Unreleased: Bare is the browser
+
+- Bare is required. Missing or invalid browser downloads fail installation.
+- The offstage MCP server exposes Bare through `browser_*` tools. New installs
+  need no separate Bare MCP registration.
+- Headless sessions need no screen. Visible Linux sessions run inside an owned
+  offstage screen. Destroying that screen closes its browser process.
+- Chrome browser tools and their DevTools tools are no longer exposed.
+- Windows supports headless Bare sessions and reports. Recording is unavailable.
+- `offstage browser` now serves Bare MCP on stdin/stdout. Its former URL,
+  screen and profile arguments are removed. Existing Chrome profiles stay on disk.
+- `OFFSTAGE_NO_BARE` and Windows `-NoBare` are rejected.
+
 ## v0.11.0-beta.6 (2026-11-16)
 
 - New: the installers also install bare, a browser for scripted end-to-end

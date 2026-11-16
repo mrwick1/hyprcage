@@ -4,12 +4,14 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
@@ -89,6 +91,23 @@ func (s *Server) recordTimeline(e audit.Entry, res *mcp.CallToolResult) {
 	correlationID := e.ActionID
 	var status string
 	_ = json.Unmarshal(reply["status"], &status)
+	if strings.HasPrefix(e.Tool, "browser_") && res != nil {
+		if e.Tool == "browser_console" || e.Tool == "browser_network" {
+			payload["native_diagnostics"] = textResultText(res)
+		}
+		if e.Tool == "browser_act" {
+			raw, _ := json.Marshal(res.StructuredContent)
+			var native map[string]any
+			_ = json.Unmarshal(raw, &native)
+			summary := map[string]any{}
+			for _, key := range []string{"action_status", "page_status", "verification"} {
+				if v, ok := native[key]; ok {
+					summary[key] = v
+				}
+			}
+			payload["native_outcome"] = summary
+		}
+	}
 	if status != "" {
 		payload["status"] = status
 	}
@@ -140,6 +159,22 @@ func (s *Server) failureState(ctx context.Context, e audit.Entry) (*task.Event, 
 	rec, cl, err := s.resolve(e.Screen, true)
 	if err != nil || tableKey(rec) != e.ScreenInstance {
 		return nil, unavailable
+	}
+	if b := s.bare[e.ScreenInstance]; b != nil {
+		name := s.bareSessionHints[e.ScreenInstance]
+		if name == "" {
+			return nil, unavailable
+		}
+		reply, err := b.CallTool(ctx, &mcp.CallToolParams{Name: "snapshot", Arguments: map[string]any{"session": name, "mode": "all", "max_chars": 4000}})
+		if err != nil || reply == nil || reply.IsError {
+			return nil, unavailable
+		}
+		lines := strings.Split(textResultText(reply), "\n")
+		for i, line := range lines {
+			lines[i] = strings.SplitN(line, " = ", 2)[0]
+		}
+		event := task.Event{ID: e.ActionID + ":state", Source: "failure_state:" + e.ScreenInstance, Kind: "page_state", ActionID: e.ActionID, Data: eventData(map[string]any{"source": "bare", "outline": strings.Join(lines, "\n"), "values_omitted": true})}
+		return &event, task.SourceState{Status: "partial", Note: "bounded native Bare outline; input values omitted"}
 	}
 	src, err := perceive.Choose(ctx, rec, cl, "auto")
 	if err != nil {
@@ -242,6 +277,33 @@ func (s *Server) taskTimeline(ctx context.Context, in timelineIn) (*mcp.CallTool
 			source := "browser:" + identity
 			if err := s.conditionLock(ctx); err != nil {
 				return nil, err
+			}
+			if b := s.bare[identity]; b != nil {
+				name := s.bareSessionHints[identity]
+				if name == "" {
+					sources[source] = task.SourceState{Status: "unavailable", Note: "no selected Bare session"}
+					s.mu.Unlock()
+					continue
+				}
+				sources[source] = task.SourceState{Status: "partial", Note: "native text excerpts; structured request cursors are unavailable"}
+				for _, tool := range []string{"network", "console"} {
+					args := map[string]any{"session": name, "since_last": false, "max": 50}
+					if tool == "network" {
+						args["failed_only"] = false
+					} else {
+						args["level"] = "all"
+					}
+					reply, e := b.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
+					if e != nil || reply == nil || reply.IsError {
+						sources[source] = task.SourceState{Status: "unavailable", Note: "native Bare diagnostics unavailable"}
+						continue
+					}
+					text := textResultText(reply)
+					digest := sha256.Sum256([]byte(text))
+					events = append(events, task.Event{ID: fmt.Sprintf("%s:%x", tool, digest), Source: source, Kind: "browser_" + tool + "_excerpt", Data: eventData(map[string]any{"text": text})})
+				}
+				s.mu.Unlock()
+				continue
 			}
 			d := s.devtools[identity]
 			if d == nil {

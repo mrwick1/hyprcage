@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/config"
-	"github.com/hexadecimil/offstage/internal/headless"
 	"github.com/hexadecimil/offstage/internal/hypr"
 	"github.com/hexadecimil/offstage/internal/perceive"
 	"github.com/hexadecimil/offstage/internal/registry"
@@ -59,18 +58,6 @@ func runDoctor(e *Env) int {
 	bst, bdetail := bareCheck(filepath.Dir(exe))
 	add("bare", bst, bdetail)
 	if runtime.GOOS != "linux" {
-		// Off Linux a screen is one headless Chrome. The Hyprland, cage and
-		// desktop checks do not apply.
-		if p, err := headless.FindChrome(); err != nil {
-			add("chrome", "fail", err.Error())
-		} else {
-			add("chrome", "ok", p)
-		}
-		if p, err := exec.LookPath("ffmpeg"); err != nil {
-			add("ffmpeg", "warn", "not found: recording needs it; winget install ffmpeg")
-		} else {
-			add("ffmpeg", "ok", p)
-		}
 		return printChecks(e, checks, *asJSON)
 	}
 
@@ -178,7 +165,7 @@ func runDoctor(e *Env) int {
 
 // bareCheck reports whether bare-mcp and bare-drive, the e2e browser that the
 // installer ships, are in dir (the directory of offstage) or in PATH. A
-// missing one is a warning: offstage works without bare.
+// missing one fails the check: Bare is required.
 func bareCheck(dir string) (string, string) {
 	ext := ""
 	if runtime.GOOS == "windows" {
@@ -199,7 +186,7 @@ func bareCheck(dir string) (string, string) {
 		}
 	}
 	if len(missing) > 0 {
-		return "warn", strings.Join(missing, " and ") + " not found; the e2e browser needs both: rerun the installer"
+		return "fail", strings.Join(missing, " and ") + " not found; the e2e browser needs both: rerun the installer"
 	}
 	return "ok", mcp
 }

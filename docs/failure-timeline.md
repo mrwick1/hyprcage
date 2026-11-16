@@ -32,11 +32,11 @@ Sources report available, partial, or unavailable. Lost browser events, log exce
 - Screenshots are not collected. Failure page excerpts provide text evidence only.
 - Collection occurs at tool boundaries and queries. It is not continuous process or browser tracing.
 - Diagnostic buffers can expire between calls. Closing a browser removes its live collector. Events already copied to the task journal remain available.
-- Browser observation uses the current diagnostics adapter. Bare integration and engine parity are separate work.
+- Bare browser outcomes and bounded native console/network text excerpts are retained. These excerpts are marked partial because the native reports do not expose stable request-start cursors or exact loss counts. Native-app DevTools diagnostics retain structured events. Standalone condition cursors remain native-app tools; use Bare step assertions for browser postconditions.
 - Native graphical app stdout logs are not imported. Process excerpts come from `task_launch` resources.
 
 ## Validation
 
 Storage tests cover redaction, cross-task cursor refusal, pagination, deduplication, journal gaps, and preservation of existing evidence when an atomic write fails. A controlled browser fixture verifies that one timeline response contains an action, HTTP 500, console error, process output and exit, wait failure, and page excerpt. It also verifies explicit action links and evidence retention after task close.
 
-A live cage journey passed once on `9c44623`. It verified server survival after screen creation, the HTTP 500 journey, timeline contents, redaction, pagination, action links, resource cleanup, and journal retention. Screenshots, mirror visuals, concurrency, and the MCP response warning after a write failure remain untested.
+A native-app Chrome cage journey passed once on `9c44623`, before the Bare-default merge. It verified server survival after screen creation, the HTTP 500 journey, timeline contents, redaction, pagination, action links, resource cleanup, and journal retention. Screenshots, mirror visuals, concurrency, and the MCP response warning after a write failure remain untested.
