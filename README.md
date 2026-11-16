@@ -19,6 +19,34 @@ a spare workspace, or not at all. It works on any Hyprland desktop, Omarchy
 included, with Claude Code, Codex, Cursor, Gemini CLI, Windsurf, OpenCode or
 any other MCP client.
 
+## Browser
+
+Bare is the bundled browser. Installation requires both `bare-mcp` and
+`bare-drive`, downloaded from the pinned Bare release with checksum verification.
+A missing or invalid download fails installation. Chrome is not required.
+
+The offstage MCP server exposes Bare's native tools as `browser_*`:
+`browser_open`, `browser_snapshot`, `browser_act`, `browser_find`,
+`browser_run_steps`, `browser_run_suite`, and the other Bare tools.
+Use a unique `session` and close it with `browser_close` when done.
+Headless browsing needs no screen or desktop connection.
+
+On Linux, create an offstage screen and pass `screen` to every browser call to
+show the session there. offstage routes its Wayland connection into that screen.
+The mirror and screen recording work with this visible browser. Use one browser
+session per screen and `crop: "none"` for recording. Destroying the screen closes
+its browser process. On Windows, browser sessions are headless.
+
+Bare uses its own engine. Chrome DevTools, Lighthouse, CDP emulation, performance
+traces and heap snapshots are not part of this browser interface. Use Bare's
+console, network and diagnosis tools. Browser compatibility must be checked with
+the target app.
+
+`offstage browser` now serves Bare MCP on stdin/stdout. Its former screen/URL
+arguments and Chrome profile option are removed. The `OFFSTAGE_NO_BARE` and
+Windows `-NoBare` options are rejected. Existing standalone Bare registrations
+are kept; new installs need only the offstage MCP registration.
+
 ## Install
 
 Closed-beta testers on Linux: read [docs/beta-linux.md](docs/beta-linux.md).
@@ -70,9 +98,9 @@ offstage setup && offstage config && offstage doctor
 
 ## Windows
 
-Windows is supported in a smaller form. A screen there is one headless
-Chrome that the agent drives over DevTools. It has no window, so your desktop
-is never touched.
+Windows runs the bundled Bare browser headlessly. It does not open a window on
+your desktop or require Chrome. Native apps, desktop tools and recording are
+unavailable on Windows.
 
 Install from PowerShell. It needs no admin rights and changes no system
 setting:
@@ -87,17 +115,10 @@ Code and Codex. Options go after the script block, for example `-Agents none`,
 `-BinaryOnly` or `-Uninstall`. `OFFSTAGE_VERSION=v0.9.0` pins a release. The
 Claude Code plugin also works: its launcher runs the same script.
 
-- **Needs**: Windows 11 and Chrome. Recording also needs ffmpeg:
-  `winget install ffmpeg`.
-- **Tools**: `screen_create`, `screen_destroy`, `screen_list`, `browser_open`,
-  `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`,
-  `move`, `wait`, `snapshot`, `act`, `find`, `read_page`, `watch`,
-  `devtools_*`, `record_start` and `record_stop`.
-- **Not yet**: native apps, `mirror`, `clipboard_*`, `desktop_*` and
-  `notify_*`. The server does not list them.
-- **Claude Code plugin hooks**: the hooks run through Git Bash. Without Git
-  Bash, Claude Code runs them in PowerShell, where they fail and the session
-  goes on. The screens then close only when the MCP server stops.
+- **Tools**: the `browser_*` tools and `report_issue`.
+- **Needs**: the bundled `bare-mcp.exe` and `bare-drive.exe`.
+- Browser sessions end when the MCP server stops. Close each session with
+  `browser_close` before handing back.
 
 ## Agents
 
@@ -134,16 +155,10 @@ and screen coordinates. `act` clicks, types, presses keys, hovers or scrolls
 on a ref and returns what changed. `find` waits for an element by name or
 value. The text comes from the first source that answers: the DevTools
 protocol (CDP), then AT-SPI, then OCR with tesseract. The first line of a
-snapshot names the source. For CDP, launch a Chromium or Electron app with
+snapshot names the source. For CDP-backed native app snapshots, launch an Electron app with
 `app_launch` and `debug: true`: offstage opens a DevTools port on 127.0.0.1
 for it. GTK and Qt apps need the AT-SPI bus, and OCR needs `offstage setup`.
 `offstage doctor` checks both.
-
-The `devtools_audit` tool runs Lighthouse against the Chrome that `browser_open`
-started. It needs Node.js: it runs `npx -y lighthouse@13.5.0` and installs nothing else.
-The `[browser] lighthouse = "13.5.0"` key in the config file sets the version.
-It returns the 0-100 score of each category, the 10 worst audits and the path of
-the full JSON report.
 
 A screen normally opens a mirror window on one of your spare workspaces, 6
 to 9 by default. Switch to it with your usual workspace binding to watch the
@@ -154,27 +169,14 @@ tool has a command-line twin: `offstage create`, `launch`, `shot`, `click`,
 `type`, `destroy`, `mirror`, `list`, `config`, `doctor`, `snapshot`, `act`,
 `find`.
 
-### Saved browser profiles
+### Saved browser state
 
-`browser_open` starts Chrome on a throwaway profile that `screen_destroy`
-deletes. Pass `profile: "<name>"` to keep the profile instead. The name
-matches `^[a-z0-9-]{1,40}$`. The profile lives in
-`~/.local/share/offstage/profiles/<name>` (`$XDG_DATA_HOME` is respected),
-with mode 700. `screen_destroy` and `offstage gc` never delete it. A later
-`browser_open` with the same name starts with the same cookies, logins and
-local storage, and session cookies too: offstage sets Chrome's "continue where you left off" option in a saved profile, because Chrome drops session cookies at exit otherwise. One screen at a time can use a profile: a second
-`browser_open` on a profile in use fails with `browser_running`, because a
-second Chrome on the same user data directory would hand its work to the
-first one and exit.
-
-The CLI twin is `offstage browser --profile <name> [screen] [url]`.
-`offstage profile list` shows the saved profiles and which are in use.
-`offstage profile rm <name>` deletes one, and refuses while a screen uses it.
-
-Any agent session on this machine can open any named profile. Profiles are shared by design, because one user runs them all.
-
-A saved profile holds live session cookies. Never commit it, never put it in
-a recording directory, and never back it up off this machine.
+Use `browser_save_state` to save cookies, localStorage and sessionStorage under
+a name. Pass `file` to persist state between server runs. Use
+`browser_ensure_session` to restore it and check that the login still works.
+State files contain live credentials. Never commit or share their contents.
+Legacy Chrome profiles are not imported into Bare. Existing profile files stay
+on disk and can still be managed with `offstage profile`.
 
 ## Configuration
 
@@ -283,6 +285,6 @@ MIT
 
 ## Fork additions (mrwick1/offstage)
 
-This fork adds recording (`record`), the agent's Chrome with DevTools (`browser`), the clipboard of a screen (`clip`), control of the human's own desktop (`screen: "desktop"` on the perception and pointer tools, `desktop_*`, and the `notify_*` tools with the `offstage-notifyd` user unit), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md` and `docs/superpowers/specs/2026-09-30-hyprcage-desktop-design.md`.
+This fork adds recording (`record`), the bundled Bare browser (`browser_*`), the clipboard of a screen (`clip`), control of the human's own desktop (`screen: "desktop"` on the perception and pointer tools, `desktop_*`, and the `notify_*` tools with the `offstage-notifyd` user unit), `show`, a waybar module, and openSUSE support in the installer. See `contrib/README.md` `docs/superpowers/specs/2026-09-29-hyprcage-fork-design.md` and `docs/superpowers/specs/2026-09-30-hyprcage-desktop-design.md`.
 
 The fork is also verified on openSUSE Tumbleweed with Hyprland 0.56.2 (Lua configuration, one monitor at scale 1, `input:follow_mouse = 2`). On openSUSE, the fork's installer also installs `at-spi2-core`, because GTK does not pull it in there. The `tesseract-ocr` package 5.5.3-2.1 crashes when it exits. offstage keeps the output that tesseract writes before the crash. The verification record is at the end of `docs/superpowers/specs/2026-09-30-hyprcage-desktop-rulings.md`.

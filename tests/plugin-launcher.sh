@@ -13,11 +13,14 @@ case $(uname -m) in x86_64) a=amd64 ;; aarch64) a=arm64 ;; *) echo "SKIP unknown
 
 # The plugin cache: the repository files without .git.
 mkdir -p "$tmp/plugin"
-git -C "$here" ls-files -z | (cd "$here" && xargs -0 cp --parents -t "$tmp/plugin")
+git -C "$here" ls-files --cached --others --exclude-standard -z | (cd "$here" && while IFS= read -r -d '' file; do [ ! -f "$file" ] || cp --parents "$file" "$tmp/plugin"; done)
 # The release: a stub binary that reports the pinned version.
 mkdir -p "$tmp/release" "$tmp/stub"
 printf '#!/bin/sh\n[ "$1" = version ] && echo %s\nexit 0\n' "$want" > "$tmp/release/offstage-linux-$a"
 (cd "$tmp/release" && sha256sum "offstage-linux-$a" > SHA256SUMS)
+printf '#!/bin/sh\nexit 0\n' > "$tmp/release/bare-mcp-linux-$a"
+cp "$tmp/release/bare-mcp-linux-$a" "$tmp/release/bare-drive-linux-$a"
+(cd "$tmp/release" && sha256sum "bare-mcp-linux-$a" "bare-drive-linux-$a" >> SHA256SUMS)
 # go must not run: it would build from source.
 printf '#!/bin/sh\necho go-ran > "%s/go-ran"\nexit 1\n' "$tmp" > "$tmp/stub/go"
 chmod +x "$tmp/stub/go"
@@ -29,9 +32,14 @@ mkdir -p "$tmp/home/.local/bin"
 printf '#!/bin/sh\n[ "$1" = version ] && echo %s\nexit 0\n' "$old" > "$tmp/home/.local/bin/offstage"
 chmod +x "$tmp/home/.local/bin/offstage"
 
-env -i PATH="$tmp/stub:/usr/bin:/bin" HOME="$tmp/home" OFFSTAGE_RELEASE_BASE="file://$tmp/release" \
-  bash "$tmp/plugin/bin/offstage-mcp" </dev/null >/dev/null 2>"$tmp/err" || true
+env -i PATH="$tmp/stub:/usr/bin:/bin" HOME="$tmp/home" OFFSTAGE_RELEASE_BASE="file://$tmp/release" OFFSTAGE_BARE_RELEASE_BASE="file://$tmp/release" \
+  bash "$tmp/plugin/bin/offstage-mcp" </dev/null >/dev/null 2>"$tmp/err"
 got=$("$tmp/home/.local/bin/offstage" version)
 if [ "$got" = "$want" ] && [ ! -e "$tmp/go-ran" ]; then echo "PASS the launcher replaces $old with the pinned release $want"
 else echo "FAIL from $old: installed version $got (want $want), go ran: $([ -e "$tmp/go-ran" ] && echo yes || echo no)"; cat "$tmp/err"; exit 1; fi
 done
+rm "$tmp/home/.local/bin/bare-drive"
+env -i PATH="$tmp/stub:/usr/bin:/bin" HOME="$tmp/home" OFFSTAGE_RELEASE_BASE="file://$tmp/release" OFFSTAGE_BARE_RELEASE_BASE="file://$tmp/release" \
+  bash "$tmp/plugin/bin/offstage-mcp" </dev/null >/dev/null 2>"$tmp/err"
+[ -x "$tmp/home/.local/bin/bare-drive" ] || { cat "$tmp/err"; exit 1; }
+echo 'PASS the launcher repairs missing Bare beside a current offstage'

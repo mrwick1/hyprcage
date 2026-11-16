@@ -28,11 +28,10 @@ var executable = os.Executable
 
 // registerFork adds the tools of the mrwick1 fork.
 func (s *Server) registerFork(srv *mcp.Server) {
-	tool(s, srv, "record_start", "Start recording a screen (or the human's desktop with target=\"desktop\") to an MP4 file. On a screen with a browser opened by browser_open or app_launch debug=true it records only the page viewport by default (crop). A headless screen records its page. It stops by itself after the configured maximum (30 min by default), when the screen closes, or with record_stop. Desktop recording is refused while the human's session is locked.", s.recordStart)
+	tool(s, srv, "record_start", "Start recording a screen (or the human's desktop with target=\"desktop\") to an MP4 file. Use crop none for a visible Bare screen. Native apps launched with debug=true support viewport cropping. It stops by itself after the configured maximum (30 min by default), when the screen closes, or with record_stop. Desktop recording is refused while the human's session is locked.", s.recordStart)
 	tool(s, srv, "record_stop", "Stop a recording and return the path of the MP4 file.", s.recordStop)
 	s.registerClip(srv)
 	s.registerDesktop(srv)
-	s.registerBrowser(srv)
 	s.registerNotify(srv)
 }
 

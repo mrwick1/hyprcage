@@ -1,14 +1,11 @@
 //go:build windows
 
-// mcp-e2e drives `offstage mcp` over stdio as an agent does: it creates a
-// headless screen, opens a page, fills a form by ref, clicks, takes a
-// screenshot, records, and destroys the screen. It checks that the human's
-// cursor and foreground window stay the same. Run it in the Windows VM.
+// mcp-e2e drives the bundled Bare browser through offstage MCP. It checks
+// form input, navigation, screenshots and desktop isolation. Run it in Windows.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -18,7 +15,6 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -69,38 +65,26 @@ func main() {
 	}
 	fmt.Printf("tools (%d): %s\n", len(names), strings.Join(names, " "))
 
-	var created struct{ Screen, Kind string }
-	must(json.Unmarshal([]byte(call(cs, "screen_create", nil)), &created))
-	sc := map[string]any{"screen": created.Screen}
-	fmt.Println("screen:", created.Screen, created.Kind)
-	defer call(cs, "screen_destroy", sc)
-
+	sc := map[string]any{"session": "e2e"}
+	defer call(cs, "browser_close", sc)
 	call(cs, "browser_open", with(sc, "url", web.URL))
-	snap := call(cs, "snapshot", sc)
+	snap := call(cs, "browser_snapshot", sc)
 	ref := regexp.MustCompile(`\[(e\d+)\][^\n]*textbox[^\n]*Name`).FindStringSubmatch(snap)
 	if ref == nil {
 		fail("no Name textbox in snapshot:\n" + snap)
 	}
-	call(cs, "act", with(sc, "ref", ref[1], "op", "type", "text", "hello windows"))
-	call(cs, "key", with(sc, "keys", []string{"Return"}))
-	got := call(cs, "devtools_eval", with(sc, "expression", "out.textContent"))
-	fmt.Println("form:", strings.TrimSpace(got))
+	call(cs, "browser_act", with(sc, "ref", ref[1], "op", "type", "text", "hello windows"))
+	call(cs, "browser_act", with(sc, "op", "press", "key", "Enter"))
+	got := call(cs, "browser_read", sc)
 	if !strings.Contains(got, "got:hello windows") {
-		fail("form did not submit")
+		fail("form did not submit: " + got)
 	}
-
-	call(cs, "record_start", map[string]any{"target": created.Screen})
-	f := call(cs, "find", with(with(sc, "text", "Next page"), "timeout_ms", 3000))
-	fref := regexp.MustCompile(`\[(e\d+)\]`).FindStringSubmatch(f)
-	if fref == nil {
-		fail("find gave no ref:\n" + f)
+	call(cs, "browser_act", with(sc, "op", "click", "loc", `text="Next page"`))
+	got = call(cs, "browser_read", sc)
+	if !strings.Contains(got, "Second page") {
+		fail("navigation did not finish: " + got)
 	}
-	call(cs, "act", with(sc, "ref", fref[1], "op", "click"))
-	call(cs, "wait", with(sc, "title", "next", "timeout_ms", 5000))
-	time.Sleep(time.Second)
-	fmt.Println("record:", strings.TrimSpace(call(cs, "record_stop", map[string]any{"target": created.Screen})))
-
-	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "screenshot", Arguments: sc})
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "browser_screenshot", Arguments: with(sc, "inline", true)})
 	must(err)
 	for _, c := range res.Content {
 		if img, ok := c.(*mcp.ImageContent); ok {
