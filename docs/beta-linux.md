@@ -16,6 +16,9 @@ The installer installs `cage`, `ffmpeg`, `wl-clipboard`, `tesseract` and
 
 ## Install (beta build)
 
+The Bare browser migration is unreleased. The commands below still pin the
+previous beta. Use the migration release version after it is published.
+
 The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`:
 
@@ -210,18 +213,21 @@ rm ~/.config/offstage/beta-key
 Reports then stay in the queue on your machine. To send again, run
 `offstage report login`.
 
-## bare: the e2e browser
+## Bare: the bundled browser
 
-bare is a separate browser for scripted end-to-end journeys. It installs with
-offstage: the installer puts `bare-mcp` and `bare-drive` in `~/.local/bin` and
-registers an MCP server named `bare` with each agent. The installer needs
-`libxkbcommon`, and it installs that package too.
+Bare is required. The installer verifies and installs `bare-mcp` and
+`bare-drive` in `~/.local/bin`. It also installs `libxkbcommon`.
+A missing download or invalid checksum fails installation.
 
-- A bare that is already registered stays as it is.
-- To skip bare, set `OFFSTAGE_NO_BARE=1` when you run the installer.
-- `offstage doctor` warns when `bare-mcp` or `bare-drive` is missing. Rerun
-  the installer to fix it.
-- The agent reports a bare problem with `report_issue` and the area `bare`.
+Use the `browser_*` tools in the offstage MCP server. Headless sessions need
+no screen. For a visible session, create an offstage screen and pass its name
+as `screen` to each browser call. Close the session with `browser_close`.
+Destroying the screen also closes its browser process.
+
+Existing standalone Bare registrations stay unchanged. New installations
+register only offstage. `OFFSTAGE_NO_BARE=1` is no longer supported.
+`offstage doctor` fails when either Bare binary is missing.
+Report a Bare problem with `report_issue`, area `bare`.
 
 ## Known limits
 

@@ -11,8 +11,8 @@ Each build is a GitHub pre-release with the same name. The plugin from the
 - New: Linux task tools group owned server processes, screens, and local
   artifacts. Use `task_create`, `task_launch`, `task_inspect`, and `task_close`.
   Server launch requires a working systemd user manager. Close tasks explicitly.
-- New: `task_wait` waits for process exits. `condition_wait` observes element
-  presence or absence and completed requests. Failure conditions take precedence.
+- New: `task_wait` waits for process exits. `condition_wait` observes native-app element
+  presence or absence and DevTools requests. Failure conditions take precedence.
   An embedded action arms request observation before it sends input.
   `condition_cursor` supports a separate action followed by a wait.
 - New: `task_timeline` retains bounded local evidence from actions, requests,
@@ -20,10 +20,23 @@ Each build is a GitHub pre-release with the same name. The plugin from the
   source gaps. Evidence remains readable after task closure.
 - Limits: timeline collection occurs at tool boundaries and queries. It does
   not collect screenshots. Pattern redaction cannot remove every possible
-  secret. Keep secrets out of test output. Bare replacement is separate work.
+  secret. Keep secrets out of test output. Bare reports are retained as partial text
+  excerpts. Use Bare step assertions for browser postconditions; standalone
+  request-start cursors are not available from Bare.
 - Retest: create a task, launch a local test server, and create its screen with
   the returned `task_id`. Trigger a controlled failed request. Read
   `task_timeline`, close the task, and confirm that only its resources stop.
+
+- Bare is required. Missing or invalid browser downloads fail installation.
+- The offstage MCP server exposes Bare through `browser_*` tools. New installs
+  need no separate Bare MCP registration.
+- Headless sessions need no screen. Visible Linux sessions run inside an owned
+  offstage screen. Destroying that screen closes its browser process.
+- Chrome browser tools and their DevTools tools are no longer exposed.
+- Windows supports headless Bare sessions and reports. Recording is unavailable.
+- `offstage browser` now serves Bare MCP on stdin/stdout. Its former URL,
+  screen and profile arguments are removed. Existing Chrome profiles stay on disk.
+- `OFFSTAGE_NO_BARE` and Windows `-NoBare` are rejected.
 
 ## v0.11.0-beta.6 (2026-11-16)
 

@@ -27,7 +27,7 @@ func TestConditionValidation(t *testing.T) {
 }
 func TestScreenConditions(t *testing.T) {
 	requireChrome(t)
-	_, cs := guardServer(t, nil)
+	s, cs := guardServer(t, nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var once sync.Once
@@ -50,7 +50,7 @@ func TestScreenConditions(t *testing.T) {
 	defer web.Close()
 	defer once.Do(func() { close(release) })
 	rec := createHeadlessScreen(t, cs)
-	mustCall(t, cs, "browser_open", map[string]any{"screen": rec.Name, "url": web.URL})
+	openNativeTestPage(t, s, rec, web.URL)
 	call := func(args map[string]any) expectResult {
 		t.Helper()
 		args["screen"] = rec.Name
@@ -89,13 +89,13 @@ func TestScreenConditions(t *testing.T) {
 	if err := json.Unmarshal([]byte(text(mustCall(t, cs, "condition_cursor", map[string]any{"screen": rec.Name}))), &cursor); err != nil {
 		t.Fatal(err)
 	}
-	mustCall(t, cs, "devtools_eval", map[string]any{"screen": rec.Name, "expression": "fetch('/ok')"})
+	evalNativeTestPage(t, s, rec, "fetch('/ok')")
 	completed := call(map[string]any{"success": []predicate{{Kind: "request", Text: "/ok", Status: 200}}, "after": cursor})
 	if completed.Status != "satisfied" {
 		t.Fatal(completed)
 	}
 	// A request already in flight at the cursor must not satisfy a later action.
-	mustCall(t, cs, "devtools_eval", map[string]any{"screen": rec.Name, "expression": "void fetch('/slow')"})
+	evalNativeTestPage(t, s, rec, "void fetch('/slow')")
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):

@@ -9,12 +9,11 @@
 #   3. registers the MCP server with the agents it finds: Claude Code and Codex.
 #      bare, the e2e browser, comes with it: bare-mcp.exe and bare-drive.exe
 #      from the bare release, checksum verified, into the same directory. A
-#      bare download that fails is a warning: offstage still installs.
-#   4. warns when Chrome or ffmpeg is missing. It installs neither.
+#      bare download that fails stops installation.
 #
 # Options and environment:
 #   -Agents LIST             claude, codex, or none (default: every agent found)
-#   -NoBare                  do not install or register bare (or OFFSTAGE_NO_BARE=1)
+#   -NoBare                  rejected: Bare is required
 #   -BinaryOnly              step 1 only, bare included (what the plugin's launcher runs)
 #   -BareOnly                bare only (what the plugin's bare launcher runs)
 #   -Uninstall               remove the binary, the registrations and offstage's state
@@ -89,9 +88,9 @@ function Install-Binary {
 }
 
 # Download, verify and install bare-mcp.exe and bare-drive.exe. A failure is a
-# warning: offstage works without bare.
+# fatal error: Bare is required.
 function Install-Bare {
-  if ($SkipBare) { Say 'bare skipped'; return }
+  if ($SkipBare) { throw 'Bare is required; -NoBare and OFFSTAGE_NO_BARE are no longer supported' }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid())
   New-Item -ItemType Directory $tmp | Out-Null
   try {
@@ -105,7 +104,7 @@ function Install-Bare {
     }
     $mcp = 'bare-mcp-windows-amd64.exe'; $drive = 'bare-drive-windows-amd64.exe'
     $wantMcp = Want $mcp; $wantDrive = Want $drive
-    if ((Test-Path $BareMcp) -and (Test-Path $BareDrive) -and (Get-FileHash $BareMcp -Algorithm SHA256).Hash -eq $wantMcp) {
+    if ((Test-Path $BareMcp) -and (Test-Path $BareDrive) -and (Get-FileHash $BareMcp -Algorithm SHA256).Hash -eq $wantMcp -and (Get-FileHash $BareDrive -Algorithm SHA256).Hash -eq $wantDrive) {
       Say "bare $BareVersion already in $BinDir"; return
     }
     Say "downloading bare $BareVersion for windows/amd64"
@@ -122,7 +121,7 @@ function Install-Bare {
     }
     Say "installed bare-mcp.exe and bare-drive.exe in $BinDir"
   } catch {
-    Warn "could not install bare ${BareVersion}: $($_.Exception.Message). offstage works without it; rerun the installer later"
+    throw "could not install required Bare ${BareVersion}: $($_.Exception.Message)"
   } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
   }
@@ -149,31 +148,7 @@ function Register-Agents {
     elseif (Try-Run codex mcp add offstage -- $Exe mcp) { Say 'codex: MCP server registered' }
     else { Warn "codex: run  codex mcp add offstage -- $Exe mcp" }
   }
-  # bare: its reports go through offstage's report_issue. A bare that is
-  # already registered stays as it is.
-  if (-not $SkipBare -and (Test-Path $BareMcp)) {
-    $env1 = 'BARE_MCP_REPORT=offstage'
-    if ((Wanted 'claude') -and (Have 'claude')) {
-      if (Try-Run claude mcp get bare) { Say 'claude: bare already registered, left alone' }
-      elseif (Try-Run claude mcp add --scope user bare -e $env1 -- $BareMcp) { Say 'claude: bare registered' }
-      else { Warn "claude: run  claude mcp add --scope user bare -e $env1 -- $BareMcp" }
-    }
-    if ((Wanted 'codex') -and (Have 'codex')) {
-      if (Select-String -Path (Join-Path $HOME '.codex\config.toml') -Pattern '^\[mcp_servers\.bare\]' -Quiet -ErrorAction SilentlyContinue) { Say 'codex: bare already registered, left alone' }
-      elseif (Try-Run codex mcp add --env $env1 bare -- $BareMcp) { Say 'codex: bare registered' }
-      else { Warn "codex: run  codex mcp add --env $env1 bare -- $BareMcp" }
-    }
-  }
   if (-not $found) { Say "no selected agent found; any MCP client can run  $Exe mcp  (see the README)" }
-}
-
-function Test-Tools {
-  $chrome = (Have 'chrome.exe') -or @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA |
-    Where-Object { $_ } | ForEach-Object { Join-Path $_ 'Google\Chrome\Application\chrome.exe' } | Where-Object { Test-Path $_ }).Count
-  if (-not $chrome) { Warn 'Chrome not found: offstage drives Chrome. Install it from https://www.google.com/chrome' }
-  # A winget install in this shell does not update its PATH: read the saved one.
-  $env:Path = @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User'), $env:Path) -join ';'
-  if (-not (Have 'ffmpeg')) { Warn 'ffmpeg not found: recording needs it. Install it with  winget install ffmpeg' }
 }
 
 function Remove-All {
@@ -195,7 +170,7 @@ try {
   Install-Binary
   Install-Bare
   Write-Config
-  if (-not $BinaryOnly) { Register-Agents; Test-Tools }
+  if (-not $BinaryOnly) { Register-Agents }
 } catch {
   [Console]::Error.WriteLine("error: $($_.Exception.Message)")
   exit 1

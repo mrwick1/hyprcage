@@ -1,6 +1,6 @@
 ---
 name: offstage
-description: REQUIRED before launching any graphical application FOR YOURSELF (testing a UI, taking screenshots, driving an app, computer-use) on a Hyprland desktop, or in a headless Chrome on Windows. Not for apps the human asked you to open for them: those go on their normal screens. Triggers - launch/open/test a GUI app, screenshot of an app, click/type in an app, computer-use, open_application, headless output.
+description: REQUIRED before launching any graphical application FOR YOURSELF (testing a UI, taking screenshots, driving an app, computer-use) on a Hyprland desktop, or in the Bare browser on Windows. Not for apps the human asked you to open for them: those go on their normal screens. Triggers - launch/open/test a GUI app, screenshot of an app, click/type in an app, computer-use, open_application, headless output.
 ---
 
 # offstage: your own screen, never the human's
@@ -29,22 +29,48 @@ is there and the screen could not be captured, often a machine too busy to
 answer in time. Retry once, then tell the human. Calling `setup` for it
 installs nothing and asks them for a password for nothing.
 
-## On Windows
+## Browser: Bare
 
-Windows has headless screens only. A screen there is one headless Chrome with no window, and the human's desktop is never touched. The MCP server lists only the tools that work there: if a tool in this file is not in your list, it does not exist on this system.
+Bare is required and ships with offstage as `bare-mcp` and `bare-drive`.
+Use the `browser_*` tools of the offstage MCP server for all browser work.
+Do not launch Chrome or use it as a fallback. Report unsupported pages with
+`report_issue`, area `bare`.
 
-- **Tools**: `screen_create`, `screen_destroy`, `screen_list`, `browser_open`, `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`, `move`, `wait`, `snapshot`, `act`, `find`, `read_page`, `watch`, `devtools_*`, `record_start` and `record_stop`.
-- **Flow**: `screen_create`, then `browser_open` with a URL, then `snapshot`, `act` and `find`. Coordinates are page pixels. Call `screen_destroy` when you are done.
-- **Not on Windows**: native apps (`app_launch`, `app_close`, `windows`), `mirror`, `batch`, `clipboard_*`, `read_selection`, `desktop_*`, `notify_*` and `setup`. For a native app, tell the human that this system cannot run it.
-- **Needs**: Chrome. Recording also needs ffmpeg: `winget install ffmpeg`.
-- **Paths**: the configuration is `%APPDATA%\offstage\config.toml`. The state is in `%LOCALAPPDATA%\offstage`. The `~/.config` and `~/.local` paths in this file are the Linux ones.
+1. Call `browser_open` with `url` and a unique `session`. It runs headlessly.
+2. Read `browser_snapshot`. Use `browser_act` and `browser_find` by ref or locator.
+3. Use `browser_read` for text and `browser_screenshot` for visual evidence.
+4. Use `browser_console`, `browser_network` and `browser_diagnose` to inspect errors.
+5. Use `browser_ensure_session` and `browser_save_state` for login state. State files
+   contain live credentials. Never commit, print or share their contents.
+6. Use `browser_run_steps` or `browser_run_suite` for scripted journeys.
+7. Call `browser_close` for every session you opened before handing back.
+
+To show the browser on Linux, first call `screen_create`. Pass `screen` and
+`session` to every `browser_*` call. offstage binds that browser process to the
+screen's Wayland socket. Use the screen name returned by `screen_create`; a
+configured prefix can change the name you supplied. Use one browser session per screen. Close the browser,
+then call `screen_destroy`. Destroying the screen also closes its browser process.
+Use `record_start` with `crop: "none"` to record a visible browser screen.
+
+Headless sessions do not need `screen_create`. On Windows, only headless Bare
+sessions and `report_issue` are available. Native apps, mirrors, desktop input
+and recording are unavailable there. Chrome is not required on either platform.
+
+The browser uses its own engine and protocol. It does not implement Chrome
+DevTools, Lighthouse, performance traces, heap snapshots or CDP emulation.
+Do not call `devtools_*` for Bare. Use viewport `width` and `height` on browser
+session creation when testing another screen size.
+
+`offstage browser` serves Bare's native MCP protocol on stdin/stdout for a
+standalone client. The former `offstage browser [screen] [url]` command is removed.
+A previously registered standalone `bare` MCP server can remain installed;
+prefer offstage's `browser_*` tools so visible sessions stay isolated.
 
 ## How (MCP tools)
 
 1. `screen_create` → **one screen per application** (cage shows one app at a time), 1280x800 by default. Remember its name.
    The human watches a screen through a mirror window. Leave `mirror` out and their configuration decides, which is the right answer unless they said something: pass `true` when they asked to watch or when showing the result is the point, `false` for a long job they have no reason to see. The reply carries `mirror_note` when there is none, and why. The `mirror` tool opens or closes that window later without touching the screen, so a screen made without one can still be shown on request.
-2. `app_launch` with the command. Browsers: always a dedicated profile, and `--kiosk` with the URL when the task is a page (the whole screen is the page). Chromium: `chromium --ozone-platform=wayland --user-data-dir=/tmp/hc-profile --no-first-run --kiosk <url>`. Firefox: `mkdir -p /tmp/hc-ff && firefox --no-remote --profile /tmp/hc-ff --kiosk <url>` (the profile directory must exist). Drop `--kiosk` only when you need tabs or the address bar.
-   Chromium and Electron apps (VS Code, Cursor and the like): pass `debug: true`. offstage then opens a DevTools port on 127.0.0.1 that `snapshot` reads. If the app refuses the port, `app_launch` returns `cdp_unreachable` and the app keeps running; `snapshot` then falls back to AT-SPI or OCR.
+2. `app_launch` with the native application's command. Use a dedicated profile for single-instance applications. For Electron apps, `debug: true` enables CDP-backed text snapshots. Browser pages use the Bare workflow above.
 3. `snapshot` **first**, not `screenshot`. It lists the elements of the screen as text, one per line, with a ref, a role, a name and screen coordinates. It costs a fraction of the tokens of an image.
 4. `act` on a ref: `click`, `double_click`, `type` (with `text`), `key` (with `keys`), `hover` or `scroll`. The reply lists what changed on the screen, so you often need no new snapshot.
 5. `find` (a regular expression on the name or value, with `timeout_ms`) to wait for an element. Controls, landmarks and headings match first. When none match, page text matches too, so `find` can check a status line or a success message. Use it instead of `wait` plus a screenshot.
@@ -69,13 +95,11 @@ Windows has headless screens only. A screen there is one headless Chrome with no
 - `cdp_unreachable` means the DevTools port does not answer or no longer belongs to the screen. Relaunch the app with `debug: true`, or use `source: atspi` or `source: ocr`.
 - A `snapshot` can come back with `nodes=0`, and an `act` diff can list every element as removed, when an app drops off the accessibility bus. Then take one `screenshot`, or use `source: ocr`.
 - An `act` that returns an error after it sent the input can still have taken effect. Take a `snapshot` before you retry it.
-- `no_source` means no source can read the screen. Relaunch the app with `debug: true`, or call `setup` to install OCR.
+- `no_source` means no source can read the native app screen. Relaunch the app with `debug: true`, or call `setup` to install OCR.
 
 ## More tools (mrwick1 fork)
 
-- **Record**: `record_start` on a screen, or `target: "desktop"` for the human's screen, then `record_stop`. The reply gives the MP4 path in `~/Videos/agent/`. A recording stops by itself after 30 minutes or when its screen closes. Tell the human when you record their desktop. For a recording that a person watches, such as a PR demo, create the screen with `size: "1920x1080"`: the 1280x800 default clips wide page layouts. On a screen with a browser from `browser_open` (or `app_launch debug=true`), the recording shows only the page viewport, without the tabs and the address bar. Pass `crop: "none"` to record the whole screen. The `[record] crop` key in `~/.config/offstage/config.toml` sets the default (`viewport` or `none`). A pause in which the screen does not change stays in the video for 1 second at most, and the rest of it is cut, so the time you spend between actions does not stretch the video. The `[record] idle` key sets that limit; `"0s"` keeps real time. While a screen records, the pointer glides to each target over 0.4 seconds instead of jumping, and the video shows a blue ring at each click. Outside a recording, the pointer still jumps, so tests do not slow down.
-- **Chrome by code**: `browser_open` on a screen, then `snapshot` / `act` / `find` to drive the page. For page internals use `devtools_eval` (run JavaScript, get JSON back), `devtools_console` (console calls, uncaught exceptions and failed requests since launch), `devtools_network` (requests since launch: method, URL, status, error, type, duration; `failed_only` defaults to true and keeps status 400 or higher and network errors such as CORS or DNS; `url_contains` filters; `clear` empties the buffer; no bodies or headers), `devtools_trace` (`start`, do the work, `stop`: a file for the DevTools Performance panel) and `devtools_heap` (a file for the Memory panel) and `devtools_audit` (a Lighthouse run on the screen's own Chrome: 0-100 scores, the 10 worst audits and a full JSON report path; `url`, `categories`, `form_factor` mobile or desktop, `path`, `timeout_s`; needs `npx`, takes 10 to 60 seconds, and Lighthouse reloads the page in a temporary tab). `devtools_emulate` makes the pages pretend to be a device: viewport, pixel ratio, `mobile`, `touch`, `user_agent`, `network` (offline, slow-3g, fast-3g, slow-4g, fast-4g), `cpu` slowdown and `color_scheme`. For a phone, pass width 390, height 844, scale 3, mobile, touch and a phone user agent, then reload. Each call replaces the whole emulation, and a call with no fields resets it. New tabs inherit it. They work on any screen launched with DevTools, Electron apps included. Each screen gets its own DevTools port, so several agent Chromes can run at once. `browser_running` means this screen already runs a DevTools app: reuse it or use another screen. With more than one tab open, pass part of the URL as `page`.
-- **Saved profile**: `browser_open` with `profile: "<name>"` (`^[a-z0-9-]{1,40}$`) keeps the Chrome profile in `~/.local/share/offstage/profiles/<name>`, so a later `browser_open` with the same name starts logged in (session cookies survive too, and Chrome also reopens the tabs of the last run). `screen_destroy` and `gc` never delete it. Log in once, then reuse the name for every later E2E. Without `profile`, the profile is a throwaway. One screen at a time can use a profile: a second `browser_open` on it fails with `browser_running`, so close the first screen or use another name. `offstage profile list` and `offstage profile rm <name>` manage the saved profiles. A profile holds live session cookies: never commit it, never record or screenshot a page that shows its secrets, and never copy or back it up off this machine.
+- **Record**: `record_start` on a screen, or `target: "desktop"` for the human's screen, then `record_stop`. The reply gives the MP4 path in `~/Videos/agent/`. A recording stops by itself after 30 minutes or when its screen closes. Tell the human when you record their desktop. For a recording that a person watches, such as a PR demo, create the screen with `size: "1920x1080"`: the 1280x800 default clips wide page layouts. For visible Bare sessions, pass `crop: "none"` to record the screen. Native apps launched with `debug: true` can use viewport cropping. The `[record] crop` key in `~/.config/offstage/config.toml` sets the default (`viewport` or `none`). A pause in which the screen does not change stays in the video for 1 second at most, and the rest of it is cut, so the time you spend between actions does not stretch the video. The `[record] idle` key sets that limit; `"0s"` keeps real time. While a screen records, the pointer glides to each target over 0.4 seconds instead of jumping, and the video shows a blue ring at each click. Outside a recording, the pointer still jumps, so tests do not slow down.
 - **Clipboard**: `clipboard_set`, then `key ctrl+v`, to paste long text into an app. `clipboard_get` reads what the app copied. It is the screen's clipboard, never the human's.
 - **Files**: no file tool is needed. Apps on a screen run as the human and see the same file system, so give them normal paths.
 
@@ -83,7 +107,7 @@ Windows has headless screens only. A screen there is one headless Chrome with no
 
 - **Verdict**: each action tool returns a `verify:` line, for example `verify: CONFIRMED (changed 4.2%, bbox ...)`. The server compares a frame before the action with a frame after it. `CONFIRMED` means the changed area contains the target. `PARTIAL` means the change is near the target, or covers only some points of a drag. `DIVERGED` means the change is far from the target. `NO_OP` means the screen did not change. Pass `verify: false` to skip the check. The `[verify] enabled` key in `config.toml` sets the default. The check adds about 120 ms to an action.
 - **Sense**: the result also has a `sense` object with `changed`, `opened`, `modal` and `no_op`. `opened` is true when the action opened a window. `modal` is true only when AT-SPI names the new window a dialog. `modal: false` can mean unknown.
-- **Spacing**: wait 0.5 seconds or more between two clicks at the same spot. Chrome reads two quick clicks as a double-click and selects a word. The selection then shows as a change, and a later click on a dead area returns `DIVERGED` instead of `NO_OP`.
+- **Spacing**: wait 0.5 seconds or more between two clicks at the same spot. Applications can read two quick clicks as a double-click and select a word. The selection then shows as a change, and a later click on a dead area returns `DIVERGED` instead of `NO_OP`.
 - **Animated pages**: a video or a spinner can make a verdict `CONFIRMED` when the action did nothing. Use `watch` for these pages.
 - **`watch`**: `watch` with `screen`, `seconds` (default 5, maximum 30) and `fps` (default 1, maximum 4) samples the screen. The verdict is `stable`, `jitter`, or `frozen`. `frozen` needs `expect_change: true` and a screen that never changes. A change in fewer than half of the frames returns `stable`. Pass `path` (a directory) to write each frame as a PNG. Without `path`, the reply has three thumbnails. It works on agent screens only.
 - **`read_selection`**: copies the selection of the focused window and returns the exact text, with no OCR. It restores the earlier clipboard of the screen. Do not use it in a terminal, because ctrl+c interrupts the program.
@@ -96,23 +120,20 @@ After every action, read the result. A click that returns no error does not prov
 
 1. Take a `snapshot` with `mode: full`. In `interactive` mode, a loading page and an empty page both looked like a ready page, because the status text is missing.
 2. Use the `act` diff only as a hint. It lists controls, so it misses an error banner on screen.
-3. Read `devtools_console` after each step. A page with failing trackers returned about 1,000 entries, and 994 were one repeated line. Collapse the repeats before you read.
+3. For Bare, read `browser_console` after each step. A page with failing trackers returned about 1,000 entries, and 994 were one repeated line. Collapse the repeats before you read.
 4. Read `notify_list` or `notify_wait` when the app under test sends desktop notifications. They read the human's tray, so filter with `app` or `match`.
 5. Name the page state before you act: ready, loading, error page, login wall, captcha, empty, or a validation message. Stop and report on an error page or a captcha.
 
 Where the kit is installed, `~/coding/personal/kit/bin/offstage-jev` covers steps 3 to 5 and plans form fills (`state`, `verify`, `check`, `fill`, `console`, `notify`, `find`). It sends the text to an outside model. Use it on your own test pages, not on client data or on a real tray.
 
-For a scripted end-to-end journey, use the tools of the `bare` MCP server when it is available. Use offstage `browser_open` for a page that bare cannot render. Report a bare problem with `report_issue` and the area `bare`.
+For a scripted end-to-end journey, use `browser_run_steps` or `browser_run_suite`. Report a Bare problem with `report_issue` and area `bare`. Do not fall back to Chrome.
 
 ## Review a whole app
 
-To map an app and find what is broken, run `~/coding/personal/kit/bin/offstage-map URL` where the kit is installed. Do not click through the pages by hand.
-
-- It creates its own screen, crawls the app, writes `MAP.md` and `map.json`, and closes the screen. Add `--login URL --profile FILE` for an app behind a login, or `--port N` for a Chrome that you logged in to yourself.
-- It opens addresses only. It never clicks a button or submits a form, except the login form. A link that logs out, deletes or changes data is not opened, and the map lists it.
-- `MAP.md` starts with the findings: HTTP errors, console defects, broken links, and a page that stays loading. It then lists the pages by shape, the links it did not open, and the risky buttons it found and never clicked.
-- Read the findings first. Open a page with `browser_open` only to look closer at a finding.
-- The page text and the link text go to an outside model. Use it on your own test apps, not on client data.
+Use `browser_links` to inspect navigation. Use `browser_run_steps` to check
+read-only journeys. Do not follow links or submit forms that change data unless
+the task authorizes the action. Check console and network failures after each
+journey. The older external `offstage-map` helper uses Chrome; do not use it.
 
 ## The human's desktop
 

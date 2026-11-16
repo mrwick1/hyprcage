@@ -5,6 +5,7 @@ package mcpserver
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/sysd"
 	"github.com/hexadecimil/offstage/internal/task"
 	"net/http"
@@ -21,7 +22,7 @@ func TestTaskFailureTimeline(t *testing.T) {
 		t.Skip("user systemd unavailable")
 	}
 	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
-	_, cs := guardServer(t, nil)
+	s, cs := guardServer(t, nil)
 	// systemctl resolves its user-manager socket through XDG_RUNTIME_DIR.
 	// Screen names are generated uniquely; cleanup removes only this task's records.
 	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
@@ -39,11 +40,12 @@ func TestTaskFailureTimeline(t *testing.T) {
 		fmt.Fprint(w, `<!doctype html><button onclick="console.error('fixture request error');fetch('/submit?token=fixture-secret').then(()=>document.querySelector('p').textContent='Failed')">Save</button><p>Ready</p>`)
 	}))
 	defer fixture.Close()
-	var created struct{ Screen string }
-	if err := json.Unmarshal([]byte(text(mustCall(t, cs, "screen_create", map[string]any{"kind": "headless", "task_id": owned.ID}))), &created); err != nil {
+	rec := createHeadlessScreen(t, cs)
+	if err := task.Attach(owned.ID, session.Current().Owner(), rec); err != nil {
 		t.Fatal(err)
 	}
-	mustCall(t, cs, "browser_open", map[string]any{"screen": created.Screen, "url": fixture.URL})
+	created := struct{ Screen string }{rec.Name}
+	openNativeTestPage(t, s, rec, fixture.URL)
 	snapshot := text(mustCall(t, cs, "snapshot", map[string]any{"screen": created.Screen}))
 	ref := regexp.MustCompile(`\[([^]]+)\] button "Save"`).FindStringSubmatch(snapshot)
 	if len(ref) != 2 {

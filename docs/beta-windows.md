@@ -3,7 +3,7 @@
 This guide is for the Windows tester of the closed offstage beta. Thank you
 for testing. Please read it once before you install.
 
-On Windows, a screen is one headless Chrome. It has no window on your desktop.
+On Windows, the bundled Bare browser runs headlessly. It opens no desktop window.
 The agent can do browser work only. Linux has more tools. See "What works on
 Windows".
 
@@ -13,13 +13,11 @@ real Windows hardware. Anything about GPU or hardware behavior is not verified.
 ## Requirements
 
 - Windows 11, x64.
-- Google Chrome.
 - An agent that speaks MCP. Claude Code is the main target.
-- `ffmpeg`, only for recording: `winget install ffmpeg`.
 - A beta key from Arjun (see "Beta key").
 
 You need no admin rights. The installer changes no system setting. It installs
-neither Chrome nor ffmpeg. It warns when one is missing.
+Bare and its driver. Chrome is not required. Recording is unavailable.
 
 The Claude Code plugin hooks run through Git Bash. Without Git Bash, Claude
 Code runs them in PowerShell, where they fail. The session goes on, but screens
@@ -27,6 +25,9 @@ then close only when the MCP server stops. Install Git for Windows to avoid
 this.
 
 ## Install (beta build)
+
+The Bare browser migration is unreleased. The commands below still pin the
+previous beta. Use the migration release version after it is published.
 
 The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`. Run this in PowerShell:
@@ -56,8 +57,7 @@ Check the install:
 offstage doctor
 ```
 
-Each line must show `ok`. A `warn` on `ffmpeg` means only that recording does
-not work.
+The Bare check must show `ok`. A missing browser binary fails the check.
 
 For Claude Code, install the plugin from the `beta` branch as well. Run this
 in a terminal:
@@ -250,18 +250,18 @@ Remove-Item $env:APPDATA\offstage\beta-key
 Reports then stay in the queue on your machine. To send again, run
 `offstage report login`.
 
-## bare: the e2e browser
+## Bare: the bundled browser
 
-bare is a separate browser for scripted end-to-end journeys. It installs with
-offstage: the installer puts `bare-mcp.exe` and `bare-drive.exe` in
-`%LOCALAPPDATA%\offstage\bin`. It registers an MCP server named `bare` with
-Claude Code and Codex.
+Bare is required. The installer verifies and installs `bare-mcp.exe` and
+`bare-drive.exe` in `%LOCALAPPDATA%\offstage\bin`. A missing download or invalid
+checksum fails installation. `-NoBare` and `OFFSTAGE_NO_BARE=1` are rejected.
 
-- A bare that is already registered stays as it is.
-- To skip bare, pass `-NoBare` to the installer, or set `OFFSTAGE_NO_BARE=1`.
-- `offstage doctor` warns when `bare-mcp.exe` or `bare-drive.exe` is missing.
-  Rerun the installer to fix it.
-- The agent reports a bare problem with `report_issue` and the area `bare`.
+Use offstage's `browser_open`, `browser_snapshot`, `browser_act` and other
+`browser_*` tools. No `screen_create` is needed. Close each session with
+`browser_close`. The server closes its browser process when it stops.
+Existing standalone Bare registrations stay unchanged.
+`offstage doctor` fails when either browser binary is missing.
+Report a Bare problem with `report_issue`, area `bare`.
 
 ## Uninstall
 
@@ -277,22 +277,9 @@ the state of offstage. It also removes bare, if the installer put it there. Chro
 
 ## Known limits
 
-- A screen is one headless Chrome. There is no native app, no desktop tool and
-  no mirror window.
-- Some sites detect a headless browser. They can block it or change the page.
-- offstage has no Job Object yet. It closes a screen with `taskkill /T /F` from
-  Chrome's main process. If that process dies first, a child process of Chrome
-  can stay. Run `offstage gc --all` to destroy every screen and clean the
-  leftovers. If a Chrome process still stays, close it in Task Manager and
-  tell Arjun.
-- `offstage replay` runs the trace of a report again on new screens. For a
-  report that it cannot replay, Arjun may ask you to repeat the steps.
-- Only a Windows 11 VM verified this build. Real hardware, and the GPU in
-  particular, is not verified.
-- The key file is not given an access list of its own on Windows. It is in your
-  user profile.
-- Linux is a separate guide: `docs/beta-linux.md`.
-
-## Contact
-
-Message Arjun directly. Do not post your beta key or a report bundle in public.
+- Browser sessions are headless. Native apps, desktop tools, mirrors and
+  recording are unavailable on Windows.
+- Bare uses its own engine. Check compatibility with the target app.
+- Chrome DevTools, Lighthouse, performance traces and heap snapshots are
+  unavailable. Use browser console, network and diagnosis tools.
+- The Bare migration has not been tested on Windows hardware or in the VM.

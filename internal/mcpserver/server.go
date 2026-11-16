@@ -39,14 +39,11 @@ import (
 	"github.com/hexadecimil/offstage/internal/wl"
 )
 
-const instructions = `offstage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
-Task lifecycle (Linux): task_create -> task_launch for a non-graphical server; pass task_id to screen_create to associate its screen. task_inspect reads resources and artifacts; task_close stops only owned resources. task_launch requires user systemd. Close tasks explicitly.
-Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
-Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
-Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
-Never launch apps outside app_launch. Outside the desktop_* tools, never touch the human's focus, cursor or workspaces.
-Recording: record_start / record_stop (a screen, or target "desktop"). Browser: browser_open, then snapshot / act / find; devtools_eval, devtools_console, devtools_network, devtools_trace, devtools_heap and devtools_audit (Lighthouse) read page internals of any screen launched with DevTools; devtools_emulate makes its pages a phone or tablet, or throttles network and CPU. Clipboard: clipboard_get / clipboard_set (the screen's, not the human's).
-The human's desktop: pass screen "desktop" (plus window, an address from desktop_windows) to screenshot, snapshot, find, act, click, double_click, move, scroll, drag and app_launch; coordinates are global logical pixels. act tries AT-SPI first (no cursor, no focus change), then CDP, then the real pointer, which is put back after each action. Only desktop_workspace changes the human's view; a pointer action on a hidden window refuses with window_hidden. desktop_windows, desktop_focus, desktop_move, desktop_type and desktop_key act on single windows (each key briefly takes the human's focus). notify_list, notify_wait and notify_act read and act on the human's notifications of the last 48 hours. Every desktop tool refuses while the session is locked; prefer an agent screen whenever the task allows it.
+const instructions = `offstage ships Bare, its own browser. Use browser_open, browser_snapshot, browser_act and browser_find for browser work. Use browser_ensure_session and browser_save_state for login state, browser_run_steps or browser_run_suite for journeys, and browser_console, browser_network and browser_diagnose to inspect failures. Chrome is not required. Do not fall back to Chrome.
+Task lifecycle (Linux): task_create -> task_launch for a server; pass task_id to screen_create. task_inspect reads resources; task_close stops owned resources. Server launch requires user systemd. Close tasks explicitly.
+Browser sessions are headless by default and need no screen_create. To show the browser, create a cage screen and pass its name as screen to every browser_* call. Use one browser session per cage screen. Close sessions with browser_close, then screen_destroy when done. Do not pass window=true without an offstage screen.
+Native applications: screen_create -> app_launch -> snapshot / act / find -> screen_destroy. Anything graphical you launch for yourself goes inside an offstage screen, never on the human's desktop. Read text with snapshot before taking screenshots. Never change the human's focus, cursor or workspaces. Use desktop_* only for tasks that require the human's own apps.
+Use browser_* for Bare pages; unprefixed snapshot, act and input tools are for native applications. Record visible browser screens with record_start, crop none, and record_stop. Native desktop recording uses target desktop; tell the human first.
 ` + reportNote
 
 // reportNote tells the agent when to file a beta report, on every platform.
@@ -54,15 +51,17 @@ const reportNote = `Beta: when offstage itself misbehaves (an error your argumen
 
 // Server holds the per-session state.
 type Server struct {
-	cfg config.Config
-	mu  sync.Mutex // one tool at a time: the Wayland client is single-threaded
-	ctx *screen.Ctx
+	bareSessionHints map[string]string
+	cfg              config.Config
+	mu               sync.Mutex // one tool at a time: the Wayland client is single-threaded
+	ctx              *screen.Ctx
 	// tables holds one ref table per screen instance (tableKey), guarded by mu.
 	tables map[string]*perceive.Table
 	// devtools holds one DevTools session per screen instance (tableKey), guarded by mu.
 	devtools map[string]*devtools.Session
 	// browsers holds one headless Browser per headless screen instance (tableKey), guarded by mu.
 	browsers map[string]*headless.Browser
+	bare     map[string]*mcp.ClientSession
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -80,6 +79,12 @@ func Run() error {
 	s := newServer(cfg)
 	s.adopt()
 	srv := s.mcpServer()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := s.registerBare(ctx, srv); err != nil {
+		return err
+	}
+	defer s.closeBare()
 	stop := make(chan struct{})
 	go s.heartbeat(stop)
 	err = srv.Run(context.Background(), &mcp.StdioTransport{})
@@ -300,10 +305,10 @@ func (s *Server) afterAction(rec *registry.Screen, cl screen.Surface, want bool,
 
 type createIn struct {
 	TaskID string `json:"task_id,omitempty" jsonschema:"optional Linux task owner; task_close also closes this screen"`
-	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; default hc-<random>"`
+	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; the configured prefix is added; use the returned screen name in later calls"`
 	Size   string `json:"size,omitempty" jsonschema:"WxH in pixels, default 1280x800 (configurable); keep every side at or below 2000"`
 	Mirror *bool  `json:"mirror,omitempty" jsonschema:"open a mirror window on one of the human's workspaces so they can watch. Leave it out to follow the human's configuration, which is what they want by default. Pass true when they asked to see the work or when showing it is the point, false for a screen they have no reason to watch"`
-	Kind   string `json:"kind,omitempty" jsonschema:"cage (default on Linux): a compositor for any graphical app. headless (the only kind elsewhere): one headless Chrome with no window, driven over DevTools; use browser_open, snapshot, act, click, type, key, screenshot and the devtools_ tools. It has no mirror, no app_launch, no clipboard and no recording"`
+	Kind   string `json:"kind,omitempty" jsonschema:"cage: a compositor for native apps and visible Bare sessions. Headless browsing uses browser_open without a screen"`
 }
 
 type mirrorIn struct {
@@ -321,11 +326,11 @@ type listIn struct {
 
 type launchIn struct {
 	Screen       string            `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
-	Command      []string          `json:"command" jsonschema:"argv of the application, e.g. [\"chromium\",\"--ozone-platform=wayland\",\"--user-data-dir=/tmp/hc-profile\",\"--no-first-run\",\"https://example.org\"]"`
+	Command      []string          `json:"command" jsonschema:"argv of a native application, e.g. [\"foot\"]; use browser_open for web pages"`
 	Cwd          string            `json:"cwd,omitempty" jsonschema:"working directory"`
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
-	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
+	Debug        bool              `json:"debug,omitempty" jsonschema:"Electron app: open the DevTools port that snapshot, act and find read"`
 	Workspace    int               `json:"workspace,omitempty" jsonschema:"desktop only: workspace to launch on, without switching to it (default: the active workspace)"`
 }
 
@@ -552,7 +557,7 @@ func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Conte
 
 func (s *Server) register(srv *mcp.Server) {
 	tool(s, srv, "setup", "Install what offstage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
-	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. With kind headless it is one windowless Chrome driven over DevTools instead (the only kind off Linux). The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
+	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. Use browser_open without screen for headless Bare browsing. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)
 	tool(s, srv, "mirror", "Open (open=true, default) or close (open=false) the human's mirror window for a screen, without touching the screen. Use it when the human asks to watch, or to stop showing a screen.", s.mirror)
@@ -585,6 +590,9 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 	if err := validateTask(in.TaskID); err != nil {
 		return nil, err
 	}
+	if in.Kind == screen.KindHeadless {
+		return nil, fmt.Errorf("use browser_open without screen for a headless Bare session")
+	}
 	if desktop.IsDesktop(in.Name) {
 		return nil, screen.Errf(screen.CodeInvalidName, "choose another name", "%q is reserved for the human's desktop", in.Name)
 	}
@@ -598,24 +606,10 @@ func (s *Server) screenCreate(in createIn) (*mcp.CallToolResult, error) {
 			return nil, fmt.Errorf("size must be WxH, got %q", in.Size)
 		}
 	}
-	kind, err := screenKind(in.Kind)
-	if err != nil {
-		return nil, err
+	if in.Kind != "" && in.Kind != screen.KindCage {
+		return nil, fmt.Errorf("kind must be cage; headless browsing uses browser_open without screen")
 	}
 	opts := screen.CreateOptions{Name: in.Name, Width: w, Height: h, Mirror: in.Mirror, Owner: session.Current().Owner()}
-	if kind == screen.KindHeadless {
-		rec, err := s.createHeadless(c, opts)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.attachTask(in.TaskID, rec); err != nil {
-			return nil, err
-		}
-		return textResult(map[string]any{
-			"screen": rec.Name, "kind": kind, "width": rec.Width, "height": rec.Height, "mirror_note": rec.MirrorNote,
-			"note": "coordinates are page pixels; open a page with browser_open, call screen_destroy when done",
-		}), nil
-	}
 	rec, err := screen.Create(c, opts)
 	if err != nil {
 		return nil, err
@@ -655,6 +649,11 @@ func (s *Server) screenDestroy(in screenIn) (*mcp.CallToolResult, error) {
 	s.dropTable(rec)
 	s.dropDevtools(rec)
 	s.dropBrowser(rec)
+	if b := s.bare[tableKey(rec)]; b != nil {
+		_ = b.Close()
+		delete(s.bare, tableKey(rec))
+		delete(s.bareSessionHints, tableKey(rec))
+	}
 	if err := screen.Destroy(s.ctx, rec); err != nil {
 		return nil, err
 	}

@@ -184,6 +184,17 @@ func (s *Server) conditionWait(parent context.Context, in expectIn) (*mcp.CallTo
 		return textResult(out), nil
 	}
 	identity := tableKey(rec)
+	if err := s.conditionLock(ctx); err != nil {
+		return interrupt()
+	}
+	isBare := s.bare[identity] != nil
+	s.mu.Unlock()
+	if isBare {
+		out.Status = "unsupported"
+		out.Last = condition.Observation{Status: "unsupported", Evidence: map[string]string{"reason": "use native browser step assertions for Bare; request-start cursors are unavailable"}}
+		return textResult(out), nil
+	}
+
 	source := "auto"
 	all := append(append([]predicate{}, in.Failure...), in.Success...)
 	observe := func(ctx context.Context) condition.Observation {
