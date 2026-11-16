@@ -11,7 +11,7 @@ R=$HOME/repo
 export PATH=$HOME/.local/bin:$PATH XDG_RUNTIME_DIR=/run/user/$(id -u)
 # Without a local base, the assets come from the GitHub release of OFFSTAGE_VERSION.
 : "${OFFSTAGE_VERSION:?set OFFSTAGE_VERSION (vX.Y.Z, or test with OFFSTAGE_RELEASE_BASE)}"
-export OFFSTAGE_RELEASE_BASE=${OFFSTAGE_RELEASE_BASE:-https://github.com/hexadecimil/offstage/releases/download/$OFFSTAGE_VERSION}
+export OFFSTAGE_RELEASE_BASE=${OFFSTAGE_RELEASE_BASE:-https://github.com/mrwick1/offstage/releases/download/$OFFSTAGE_VERSION}
 pgrep -x Hyprland >/dev/null || { HYPR_CONFIG=classic ./hypr-start.sh >/dev/null 2>&1; sleep 3; }
 export HYPRLAND_INSTANCE_SIGNATURE=$(ls "$XDG_RUNTIME_DIR/hypr" | head -1)
 sudo pacman -R --noconfirm cage >/dev/null 2>&1; rm -f ~/.local/bin/offstage
