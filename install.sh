@@ -16,8 +16,8 @@
 #      plus the skill for Codex, Cursor, Gemini CLI, Windsurf and OpenCode.
 #      bare, the e2e browser, comes with it: bare-mcp and bare-drive from the
 #      bare release, checksum verified, into the same directory. A bare
-#      download that fails is a warning: offstage still installs. The MCP
-#      server "bare" goes to each agent beside offstage.
+#      download that fails stops installation. The offstage MCP server
+#      exposes Bare through its browser_* tools.
 #   4. the user unit offstage-notifyd.service, which keeps 48 hours of
 #      desktop notifications for the notify tools.
 #   5. offstage doctor.
@@ -36,7 +36,7 @@
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests; default
 #                            the GitHub release of the version)
 #   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
-#   OFFSTAGE_NO_BARE=1       do not install or register bare
+#   OFFSTAGE_NO_BARE=1       rejected: Bare is required
 #   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
 set -euo pipefail
 
@@ -172,16 +172,17 @@ install_binary() {
 }
 
 # _install_bare TMPDIR: downloads, verifies and installs bare-mcp and bare-drive.
-# Every failure returns 1; install_bare turns it into a warning.
+# Every failure returns 1. Bare is required.
 _install_bare() {
-  local tmp=$1 a base m d want
+  local tmp=$1 a base m d want want_drive
   a=$(arch) || return 1
   m=bare-mcp-linux-$a; d=bare-drive-linux-$a
   base=${OFFSTAGE_BARE_RELEASE_BASE:-"https://github.com/$BARE_REPO/releases/download/$BARE_VERSION"}
   curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || return 1
   want=$(awk -v n="$m" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS")
-  if [ -n "$want" ] && [ -x "$BIN_DIR/bare-drive" ] && [ -x "$BIN_DIR/bare-mcp" ] \
-    && [ "$(sha256sum "$BIN_DIR/bare-mcp" | cut -d' ' -f1)" = "$want" ]; then
+  want_drive=$(awk -v n="$d" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS")
+  if [ -n "$want" ] && [ -n "$want_drive" ] && [ -x "$BIN_DIR/bare-drive" ] && [ -x "$BIN_DIR/bare-mcp" ] \
+    && [ "$(sha256sum "$BIN_DIR/bare-mcp" | cut -d' ' -f1)" = "$want" ] && [ "$(sha256sum "$BIN_DIR/bare-drive" | cut -d' ' -f1)" = "$want_drive" ]; then
     say "bare $BARE_VERSION already in $BIN_DIR"; return 0
   fi
   say "downloading bare $BARE_VERSION for linux/$a"
@@ -197,12 +198,14 @@ _install_bare() {
   say "installed bare-mcp and bare-drive in $BIN_DIR"
 }
 
-# install_bare: never fatal. offstage works without bare.
+# install_bare fails installation when the browser cannot be installed.
 install_bare() {
-  [ "${OFFSTAGE_NO_BARE:-0}" = 1 ] && { say "bare skipped (OFFSTAGE_NO_BARE=1)"; return 0; }
+  [ "${OFFSTAGE_NO_BARE:-0}" != 1 ] || { warn "Bare is required; OFFSTAGE_NO_BARE is no longer supported"; return 1; }
   local tmp; tmp=$(mktemp -d)
-  _install_bare "$tmp" || warn "could not install bare $BARE_VERSION; offstage works without it. Rerun the installer later"
+  local status=0
+  _install_bare "$tmp" || status=$?
   rm -rf "$tmp"
+  [ "$status" = 0 ] || { warn "could not install required Bare $BARE_VERSION; rerun the installer"; return "$status"; }
 }
 
 # The configuration file, every key at its default, so that a setting is a
@@ -312,43 +315,6 @@ register_agents() {
   [ $found = 1 ] || say "no selected agent found; any MCP client can run  $bin mcp  (see the README)"
 }
 
-# json_bare FILE TOPKEY JSON LABEL: adds the bare entry unless one exists.
-json_bare() {
-  local rc=0; json_set "$1" "$2" "$3" bare keep || rc=$?
-  case $rc in 0) say "$4: bare registered" ;; 3) say "$4: bare already registered, left alone" ;; esac
-}
-
-# register_bare: the MCP server bare, for each selected agent, with the env
-# that sends bare's problem reports through offstage's report_issue. A bare
-# that is already registered stays as it is.
-register_bare() {
-  local bin=$BIN_DIR/bare-mcp
-  [ "${OFFSTAGE_NO_BARE:-0}" = 1 ] && return 0
-  [ "$AGENTS" = none ] && return 0
-  [ -x "$bin" ] || { say "bare is not installed: bare registration skipped"; return 0; }
-  local env=BARE_MCP_REPORT=offstage
-  if wanted claude && have claude; then
-    if claude mcp get bare >/dev/null 2>&1; then say "claude: bare already registered, left alone"
-    elif claude mcp add --scope user bare -e "$env" -- "$bin" >/dev/null 2>&1; then say "claude: bare registered"
-    else warn "claude: run  claude mcp add --scope user bare -e $env -- $bin"; fi
-  fi
-  if wanted codex && have codex; then
-    if grep -qs '^\[mcp_servers\.bare\]' "$HOME/.codex/config.toml"; then say "codex: bare already registered, left alone"
-    elif codex mcp add --env "$env" bare -- "$bin" >/dev/null 2>&1; then say "codex: bare registered"
-    else warn "codex: run  codex mcp add --env $env bare -- $bin"; fi
-  fi
-  if wanted gemini && have gemini; then
-    if gemini mcp list 2>/dev/null | grep -qw bare; then say "gemini: bare already registered, left alone"
-    elif gemini mcp add -s user bare "$bin" -e "$env" >/dev/null 2>&1; then say "gemini: bare registered"
-    else warn "gemini: run  gemini mcp add -s user bare $bin -e $env"; fi
-  fi
-  local e="{\"command\":\"$bin\",\"env\":{\"BARE_MCP_REPORT\":\"offstage\"}}"
-  if wanted cursor && [ -d "$HOME/.cursor" ]; then json_bare "$HOME/.cursor/mcp.json" mcpServers "$e" cursor; fi
-  if wanted windsurf && [ -d "$HOME/.codeium/windsurf" ]; then json_bare "$HOME/.codeium/windsurf/mcp_config.json" mcpServers "$e" windsurf; fi
-  if wanted opencode && { have opencode || [ -d "$HOME/.config/opencode" ]; }; then
-    json_bare "$HOME/.config/opencode/opencode.json" mcp "{\"type\":\"local\",\"command\":[\"$bin\"],\"environment\":{\"BARE_MCP_REPORT\":\"offstage\"},\"enabled\":true}" opencode
-  fi
-}
 
 # unregister_agents [NAME]: removes the registrations named NAME (default offstage).
 unregister_agents() {
@@ -444,7 +410,6 @@ case $mode in
     write_config
     check_path
     register_agents
-    register_bare
     install_notifyd
     say "checking the installation"
     "$BIN_DIR/offstage" doctor || true

@@ -2,9 +2,6 @@
   "mcpServers": {
     "offstage": {
       "command": "${CLAUDE_PLUGIN_ROOT}/bin/offstage-mcp"
-    },
-    "bare": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/bin/offstage-bare-mcp"
     }
   }
 }
