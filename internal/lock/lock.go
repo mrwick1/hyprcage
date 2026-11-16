@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/registry"
@@ -40,13 +39,13 @@ func Acquire(timeout time.Duration) (release func(), err error) {
 	}
 	deadline := time.Now().Add(timeout)
 	for {
-		ferr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if ferr == nil {
-			break
-		}
-		if ferr != syscall.EWOULDBLOCK && ferr != syscall.EAGAIN {
+		held, ferr := tryLock(f)
+		if ferr != nil {
 			f.Close()
 			return nil, ferr
+		}
+		if held {
+			break
 		}
 		if time.Now().After(deadline) {
 			f.Close()
@@ -67,7 +66,7 @@ func releaseFn() {
 	}
 	depth--
 	if depth == 0 && file != nil {
-		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		unlock(file)
 		file.Close()
 		file = nil
 	}

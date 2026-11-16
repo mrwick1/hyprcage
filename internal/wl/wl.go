@@ -16,7 +16,6 @@ import (
 	"image"
 	"os"
 	"sort"
-	"syscall"
 	"time"
 )
 
@@ -321,10 +320,10 @@ func (c *Client) Close() error {
 	}
 	c.closed = true
 	for _, fd := range c.inFDs {
-		syscall.Close(fd)
+		closeFD(fd)
 	}
 	c.inFDs = nil
-	err := syscall.Close(c.fd)
+	err := closeFD(c.fd)
 	c.fd = -1
 	return err
 }

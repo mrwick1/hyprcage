@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/cdp"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/session"
 )
@@ -55,10 +56,10 @@ func killScreenProcesses(name string, sig syscall.Signal) {
 			cage = pid
 			continue
 		}
-		_ = syscall.Kill(pid, sig)
+		_ = proc.Kill(pid, sig)
 	}
 	if cage != 0 {
-		_ = syscall.Kill(cage, sig)
+		_ = proc.Kill(cage, sig)
 	}
 }
 
@@ -148,13 +149,13 @@ func killDebug(rec *registry.Screen) {
 			}
 		}
 	}
-	_ = syscall.Kill(rec.DebugPID, syscall.SIGTERM)
+	_ = proc.Kill(rec.DebugPID, syscall.SIGTERM)
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		if !alive() || zombie(rec.DebugPID) {
 			return
 		}
 	}
-	_ = syscall.Kill(rec.DebugPID, syscall.SIGKILL)
+	_ = proc.Kill(rec.DebugPID, syscall.SIGKILL)
 }
 
 // closeBrowser sends Browser.close to the DevTools port and reports whether

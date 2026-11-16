@@ -7,10 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/session"
 	"github.com/hexadecimil/hyprcage/internal/sysd"
 )
@@ -95,7 +95,7 @@ func gcSession(e *Env, sessionID string, after time.Duration) int {
 	}
 	if err := sysd.ScheduleOnce(after, "", cmd); err != nil {
 		c := exec.Command(cmd[0], cmd[1:]...)
-		c.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		proc.Detach(c)
 		if err := c.Start(); err != nil {
 			return e.errorf("%v", err)
 		}

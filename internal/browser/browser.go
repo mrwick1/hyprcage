@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -212,8 +213,8 @@ func Open(c *screen.Ctx, rec *registry.Screen, url, profileNamed string) (Info, 
 	}
 	if err != nil {
 		// Launch starts a new session, so -pid is its process group.
-		_ = syscall.Kill(-pid, syscall.SIGTERM)
-		_ = syscall.Kill(pid, syscall.SIGTERM)
+		_ = proc.Kill(-pid, syscall.SIGTERM)
+		_ = proc.Kill(pid, syscall.SIGTERM)
 		gone(port, 5*time.Second) // Chrome writes to its profile until it exits
 		discard()
 		return Info{}, err

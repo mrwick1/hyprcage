@@ -16,6 +16,7 @@ import (
 
 	"github.com/hexadecimil/hyprcage/internal/config"
 	"github.com/hexadecimil/hyprcage/internal/desktop"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/session"
@@ -89,7 +90,7 @@ func save(s State) error {
 	return os.WriteFile(StatePath(s.Target), data, 0o600)
 }
 
-func alive(pid int) bool { return pid > 0 && syscall.Kill(pid, 0) == nil }
+func alive(pid int) bool { return pid > 0 && proc.Kill(pid, 0) == nil }
 
 // Load returns the state of target's recorder, or not_recording.
 func Load(target string) (State, error) {
@@ -152,7 +153,7 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 	if isScreen {
 		cmd.Env = append(cmd.Env, "HYPRCAGE_SCREEN="+target)
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	proc.Detach(cmd)
 	// The child's own errors go to its log; O_APPEND keeps them and
 	// ffmpeg's output, which RunChild appends to the same file.
 	logPath := filepath.Join(screen.LogDir(), "record-"+target+".log")
@@ -191,7 +192,7 @@ func Stop(target string) (State, error) {
 	if err != nil {
 		return s, err
 	}
-	_ = syscall.Kill(s.PID, syscall.SIGTERM)
+	_ = proc.Kill(s.PID, syscall.SIGTERM)
 	for i := 0; i < 150 && alive(s.PID); i++ {
 		time.Sleep(100 * time.Millisecond)
 	}
