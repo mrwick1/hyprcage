@@ -33,4 +33,4 @@ The task directory is under `$XDG_STATE_HOME/offstage/tasks`, or `~/.local/state
 
 ## Validation
 
-Package tests cover ownership checks, independent services, child-process cleanup through systemd, retained exit results, launcher restart recovery, redaction, output limits, retention, screen identity, and cleanup retry. MCP tests cover registration and task create/inspect/close. A live graphical screen journey is not covered by these tests.
+Package tests cover ownership checks, independent services, child-process cleanup through systemd, retained exit results, launcher restart recovery, redaction, output limits, retention, screen identity, and cleanup retry. MCP tests cover registration and task create/inspect/close. A separate live cage test passed on commit `97870c9`. It verified mapped native windows, task-owned app and compositor cleanup, survival of an unrelated screen, repeated close, and manual screen destruction followed by task close. Mirror visuals and the installed plugin were not verified.
