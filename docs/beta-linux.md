@@ -20,7 +20,7 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/beta/install.sh | OFFSTAGE_VERSION=v0.11.0-beta.4 bash -s -- --agents none
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/beta/install.sh | OFFSTAGE_VERSION=v0.11.0-beta.5 bash -s -- --agents none
 ```
 
 The installer installs the packages, puts the binary in `~/.local/bin`, and
@@ -54,6 +54,14 @@ the new plugin, and the plugin installs the matching offstage binary.
 
 To update at once instead, run `claude plugin update offstage@offstage-mrwick1`
 in a terminal, then restart Claude Code.
+
+offstage also checks the `beta` branch once a day, when a session starts.
+When a newer beta exists, it starts the update and shows a message. The new
+version loads after `/reload-plugins` or a restart of Claude Code. To turn
+the check off, set `OFFSTAGE_NO_UPDATE_CHECK=1`.
+
+What changed in each beta, and what to retest:
+[docs/beta-changes.md](beta-changes.md).
 
 Check the install:
 
