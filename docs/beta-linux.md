@@ -20,19 +20,29 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | OFFSTAGE_VERSION=v0.10.0-beta.1 bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | OFFSTAGE_VERSION=v0.10.0-beta.2 bash
 ```
 
 The installer installs the packages, puts the binary in `~/.local/bin`, and
 registers offstage with each agent it finds. To register no agent, add
 `bash -s -- --agents none` instead of `bash`.
 
-For Claude Code, install the plugin as well:
+For Claude Code, install the plugin from the `beta` branch as well. Run this
+in a terminal:
 
 ```
-/plugin marketplace add mrwick1/offstage
+claude plugin marketplace add mrwick1/offstage#beta
+```
+
+Then, in Claude Code:
+
+```
 /plugin install offstage@offstage-mrwick1
 ```
+
+The plugin pins the beta build. When a new beta comes out, run
+`/plugin marketplace update offstage-mrwick1`. On its next start, the plugin
+installs the new binary.
 
 Check the install:
 
@@ -43,9 +53,6 @@ offstage doctor
 If you had hyprcage before, remove its plugin first:
 `/plugin uninstall hyprcage@hyprcage-mrwick1`. The installer removes the old
 binary and moves the old config, state and browser profiles to the new name.
-
-To ask Arjun: which marketplace branch or ref do testers use for the plugin?
-The plan lists a `beta` branch as "to verify".
 
 ## Beta key
 
@@ -174,9 +181,14 @@ Two settings reduce what a report carries:
 Without a beta key, nothing is sent. Reports only queue in
 `~/.local/state/offstage/reports`.
 
-To ask Arjun: how does a tester turn reports off completely? No setting in
-`[report]` does it. The sources do not say whether to remove the key, remove
-the skill text, or something else.
+To stop sending reports completely, delete the key:
+
+```
+rm ~/.config/offstage/beta-key
+```
+
+Reports then stay in the queue on your machine. To send again, run
+`offstage report login`.
 
 ## Known limits
 
