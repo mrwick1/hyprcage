@@ -64,7 +64,7 @@ type Request struct {
 	Expected string
 	Actual   string
 	Screen   string // the agent screen, empty when the problem is not tied to one
-	Area     string // crash, isolation-leak, install, desktop, or empty
+	Area     string // crash, isolation-leak, install, desktop, bare, or empty
 	Type     string // bug (or empty), doubt, suggestion or feedback
 	Manual   bool   // filed by a human, not by an agent
 	Extra    map[string][]byte

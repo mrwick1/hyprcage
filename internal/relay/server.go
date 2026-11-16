@@ -39,7 +39,7 @@ const (
 var (
 	validFingerprint = regexp.MustCompile(fingerprintRe)
 	validRef         = regexp.MustCompile(`^[A-Z]{1,10}-[0-9]{1,9}$`)
-	areas            = map[string]bool{"crash": true, "isolation-leak": true, "install": true, "desktop": true}
+	areas            = map[string]bool{"crash": true, "isolation-leak": true, "install": true, "desktop": true, "bare": true}
 	types            = map[string]bool{"bug": true, "doubt": true, "suggestion": true, "feedback": true}
 	textExt          = map[string]bool{".txt": true, ".json": true, ".jsonl": true, ".log": true, ".md": true, ".toml": true}
 )
@@ -49,7 +49,7 @@ type Meta struct {
 	Title       string `json:"title"`
 	Platform    string `json:"platform"`              // linux or windows
 	Kind        string `json:"kind"`                  // agent or manual
-	Area        string `json:"area,omitempty"`        // crash, isolation-leak, install, desktop
+	Area        string `json:"area,omitempty"`        // crash, isolation-leak, install, desktop, bare
 	Type        string `json:"type,omitempty"`        // bug, doubt, suggestion, feedback; empty means bug
 	Fingerprint string `json:"fingerprint,omitempty"` // hex hash from the client
 	Version     string `json:"version"`
@@ -314,7 +314,7 @@ func (m *Meta) check() string {
 	case m.Kind != "agent" && m.Kind != "manual":
 		return "kind must be agent or manual"
 	case m.Area != "" && !areas[m.Area]:
-		return "area must be crash, isolation-leak, install or desktop"
+		return "area must be crash, isolation-leak, install, desktop or bare"
 	case m.Type != "" && !types[m.Type]:
 		return "type must be bug, doubt, suggestion or feedback"
 	case m.Fingerprint != "" && !validFingerprint.MatchString(m.Fingerprint):
