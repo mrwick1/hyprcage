@@ -250,6 +250,19 @@ Remove-Item $env:APPDATA\offstage\beta-key
 Reports then stay in the queue on your machine. To send again, run
 `offstage report login`.
 
+## bare: the e2e browser
+
+bare is a separate browser for scripted end-to-end journeys. It installs with
+offstage: the installer puts `bare-mcp.exe` and `bare-drive.exe` in
+`%LOCALAPPDATA%\offstage\bin`. It registers an MCP server named `bare` with
+Claude Code and Codex.
+
+- A bare that is already registered stays as it is.
+- To skip bare, pass `-NoBare` to the installer, or set `OFFSTAGE_NO_BARE=1`.
+- `offstage doctor` warns when `bare-mcp.exe` or `bare-drive.exe` is missing.
+  Rerun the installer to fix it.
+- The agent reports a bare problem with `report_issue` and the area `bare`.
+
 ## Uninstall
 
 Run the installer again with `-Uninstall`:
@@ -259,7 +272,7 @@ Run the installer again with `-Uninstall`:
 ```
 
 It removes the offstage registration from Claude Code and Codex, the binary and
-the state of offstage. Chrome and ffmpeg stay. For the plugin, also run
+the state of offstage. It also removes bare, if the installer put it there. Chrome and ffmpeg stay. For the plugin, also run
 `/plugin uninstall offstage@offstage-mrwick1` in Claude Code.
 
 ## Known limits

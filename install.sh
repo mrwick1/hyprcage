@@ -14,6 +14,10 @@
 #      verified against the SHA256SUMS published with it, into ~/.local/bin.
 #   3. the agents it finds: the MCP server for Claude Code, and the MCP server
 #      plus the skill for Codex, Cursor, Gemini CLI, Windsurf and OpenCode.
+#      bare, the e2e browser, comes with it: bare-mcp and bare-drive from the
+#      bare release, checksum verified, into the same directory. A bare
+#      download that fails is a warning: offstage still installs. The MCP
+#      server "bare" goes to each agent beside offstage.
 #   4. the user unit offstage-notifyd.service, which keeps 48 hours of
 #      desktop notifications for the notify tools.
 #   5. offstage doctor.
@@ -22,7 +26,8 @@
 #   --agents LIST            which agents to register, comma-separated among
 #                            claude, codex, gemini, cursor, windsurf, opencode,
 #                            or none (default: every agent found on the machine)
-#   --binary-only            step 2 only (what the plugin's launcher runs)
+#   --binary-only            step 2 only, bare included (what the plugin's launcher runs)
+#   --bare-only              bare only (what the plugin's bare launcher runs)
 #   --uninstall              remove the binary, the registrations and offstage's state
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the latest)
 #   OFFSTAGE_FROM_SOURCE=1|0 build with go (1) or download (0); default 1 in a
@@ -30,11 +35,21 @@
 #   OFFSTAGE_BIN_DIR=DIR     where the binary goes (default ~/.local/bin)
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests; default
 #                            the GitHub release of the version)
+#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
+#   OFFSTAGE_NO_BARE=1       do not install or register bare
+#   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
 set -euo pipefail
 
 REPO=${OFFSTAGE_REPO:-mrwick1/offstage}
 BIN_DIR=${OFFSTAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${OFFSTAGE_AGENTS:-all}
+# The bare release that this offstage ships with. Keep it equal to the default
+# in install.ps1.
+BARE_VERSION=${OFFSTAGE_BARE_VERSION:-v0.1.1}
+BARE_REPO=mrwick1/bare
+# Its file marks a bare that this installer put in BIN_DIR. Uninstall removes
+# only that one.
+BARE_MARK_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/offstage
 # The checkout this script runs from. Piped from curl, BASH_SOURCE is empty
 # and there is no checkout: the current directory is never taken for one.
 SRC_DIR=""
@@ -44,7 +59,8 @@ fi
 # package:proof. The proof is a binary in PATH, or a file when it starts with /.
 PACKAGES=(cage:cage ffmpeg:ffmpeg wl-clipboard:wl-copy tesseract:tesseract
   tesseract-data-eng:/usr/share/tessdata/eng.traineddata
-  at-spi2-core:/usr/share/dbus-1/services/org.a11y.Bus.service)
+  at-spi2-core:/usr/share/dbus-1/services/org.a11y.Bus.service
+  libxkbcommon:ldconfig:libxkbcommon.so.0)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -63,8 +79,9 @@ arch() {
 
 missing_packages() {
   local p c; for p in "${PACKAGES[@]}"; do
-    c=${p#*:}
+    c=${p#*:}  # the proof may hold colons: ldconfig:LIB
     case $c in
+      ldconfig:*) PATH=$PATH:/sbin:/usr/sbin ldconfig -p 2>/dev/null | grep -q "${c#ldconfig:}" || echo "${p%%:*}" ;;
       /*) [ -e "$c" ] || echo "${p%%:*}" ;;
       *) have "$c" || echo "${p%%:*}" ;;
     esac
@@ -76,6 +93,7 @@ zypper_name() {
   case $1 in
     tesseract) echo tesseract-ocr ;;
     tesseract-data-eng) echo tesseract-ocr-traineddata-english ;;
+    libxkbcommon) echo libxkbcommon0 ;;
     *) echo "$1" ;;
   esac
 }
@@ -153,6 +171,40 @@ install_binary() {
   say "installed $BIN_DIR/offstage ($("$BIN_DIR/offstage" version))"
 }
 
+# _install_bare TMPDIR: downloads, verifies and installs bare-mcp and bare-drive.
+# Every failure returns 1; install_bare turns it into a warning.
+_install_bare() {
+  local tmp=$1 a base m d want
+  a=$(arch) || return 1
+  m=bare-mcp-linux-$a; d=bare-drive-linux-$a
+  base=${OFFSTAGE_BARE_RELEASE_BASE:-"https://github.com/$BARE_REPO/releases/download/$BARE_VERSION"}
+  curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || return 1
+  want=$(awk -v n="$m" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS")
+  if [ -n "$want" ] && [ -x "$BIN_DIR/bare-drive" ] && [ -x "$BIN_DIR/bare-mcp" ] \
+    && [ "$(sha256sum "$BIN_DIR/bare-mcp" | cut -d' ' -f1)" = "$want" ]; then
+    say "bare $BARE_VERSION already in $BIN_DIR"; return 0
+  fi
+  say "downloading bare $BARE_VERSION for linux/$a"
+  curl -fsSL -o "$tmp/$m" "$base/$m" || return 1
+  curl -fsSL -o "$tmp/$d" "$base/$d" || return 1
+  # --ignore-missing passes when no line names a file, so check both are named.
+  grep -qE " \*?$m\$" "$tmp/SHA256SUMS" && grep -qE " \*?$d\$" "$tmp/SHA256SUMS" || { warn "no checksum for $m or $d in SHA256SUMS"; return 1; }
+  (cd "$tmp" && sha256sum -c --ignore-missing --quiet SHA256SUMS) || { warn "checksum mismatch for the bare assets: not installing"; return 1; }
+  mkdir -p "$BIN_DIR"
+  install -m 0755 "$tmp/$m" "$BIN_DIR/bare-mcp" || return 1
+  install -m 0755 "$tmp/$d" "$BIN_DIR/bare-drive" || return 1
+  mkdir -p "$BARE_MARK_DIR" && : >"$BARE_MARK_DIR/bare-installed"
+  say "installed bare-mcp and bare-drive in $BIN_DIR"
+}
+
+# install_bare: never fatal. offstage works without bare.
+install_bare() {
+  [ "${OFFSTAGE_NO_BARE:-0}" = 1 ] && { say "bare skipped (OFFSTAGE_NO_BARE=1)"; return 0; }
+  local tmp; tmp=$(mktemp -d)
+  _install_bare "$tmp" || warn "could not install bare $BARE_VERSION; offstage works without it. Rerun the installer later"
+  rm -rf "$tmp"
+}
+
 # The configuration file, every key at its default, so that a setting is a
 # line to edit rather than a key to discover. An existing file is kept.
 write_config() {
@@ -167,20 +219,23 @@ check_path() {
 
 # --- 3. agents -------------------------------------------------------------------
 
-# json_set FILE TOPKEY JSON: writes offstage's entry under TOPKEY in a JSON
-# config file, creating or preserving the rest of it.
+# json_set FILE TOPKEY JSON [NAME [keep]]: writes the entry NAME (default
+# offstage) under TOPKEY in a JSON config file, creating or preserving the
+# rest of it. With keep, an existing entry stays and the status is 3.
 json_set() {
   have python3 || { warn "python3 missing: add offstage by hand to $1 (see the README)"; return 1; }
-  python3 - "$1" "$2" "$3" <<'PY'
+  python3 - "$1" "$2" "$3" "${4:-offstage}" "${5:-}" <<'PY'
 import json, os, sys
-path, top, entry = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
+path, top, entry, name, keep = sys.argv[1], sys.argv[2], json.loads(sys.argv[3]), sys.argv[4], sys.argv[5]
 data = {}
 if os.path.exists(path):
     with open(path) as f:
         text = f.read().strip()
     if text:
         data = json.loads(text)
-data.setdefault(top, {})["offstage"] = entry
+if keep and name in data.get(top, {}):
+    sys.exit(3)
+data.setdefault(top, {})[name] = entry
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, "w") as f:
     json.dump(data, f, indent=2); f.write("\n")
@@ -257,6 +312,44 @@ register_agents() {
   [ $found = 1 ] || say "no selected agent found; any MCP client can run  $bin mcp  (see the README)"
 }
 
+# json_bare FILE TOPKEY JSON LABEL: adds the bare entry unless one exists.
+json_bare() {
+  local rc=0; json_set "$1" "$2" "$3" bare keep || rc=$?
+  case $rc in 0) say "$4: bare registered" ;; 3) say "$4: bare already registered, left alone" ;; esac
+}
+
+# register_bare: the MCP server bare, for each selected agent, with the env
+# that sends bare's problem reports through offstage's report_issue. A bare
+# that is already registered stays as it is.
+register_bare() {
+  local bin=$BIN_DIR/bare-mcp
+  [ "${OFFSTAGE_NO_BARE:-0}" = 1 ] && return 0
+  [ "$AGENTS" = none ] && return 0
+  [ -x "$bin" ] || { say "bare is not installed: bare registration skipped"; return 0; }
+  local env=BARE_MCP_REPORT=offstage
+  if wanted claude && have claude; then
+    if claude mcp get bare >/dev/null 2>&1; then say "claude: bare already registered, left alone"
+    elif claude mcp add --scope user bare -e "$env" -- "$bin" >/dev/null 2>&1; then say "claude: bare registered"
+    else warn "claude: run  claude mcp add --scope user bare -e $env -- $bin"; fi
+  fi
+  if wanted codex && have codex; then
+    if grep -qs '^\[mcp_servers\.bare\]' "$HOME/.codex/config.toml"; then say "codex: bare already registered, left alone"
+    elif codex mcp add --env "$env" bare -- "$bin" >/dev/null 2>&1; then say "codex: bare registered"
+    else warn "codex: run  codex mcp add --env $env bare -- $bin"; fi
+  fi
+  if wanted gemini && have gemini; then
+    if gemini mcp list 2>/dev/null | grep -qw bare; then say "gemini: bare already registered, left alone"
+    elif gemini mcp add -s user bare "$bin" -e "$env" >/dev/null 2>&1; then say "gemini: bare registered"
+    else warn "gemini: run  gemini mcp add -s user bare $bin -e $env"; fi
+  fi
+  local e="{\"command\":\"$bin\",\"env\":{\"BARE_MCP_REPORT\":\"offstage\"}}"
+  if wanted cursor && [ -d "$HOME/.cursor" ]; then json_bare "$HOME/.cursor/mcp.json" mcpServers "$e" cursor; fi
+  if wanted windsurf && [ -d "$HOME/.codeium/windsurf" ]; then json_bare "$HOME/.codeium/windsurf/mcp_config.json" mcpServers "$e" windsurf; fi
+  if wanted opencode && { have opencode || [ -d "$HOME/.config/opencode" ]; }; then
+    json_bare "$HOME/.config/opencode/opencode.json" mcp "{\"type\":\"local\",\"command\":[\"$bin\"],\"environment\":{\"BARE_MCP_REPORT\":\"offstage\"},\"enabled\":true}" opencode
+  fi
+}
+
 # unregister_agents [NAME]: removes the registrations named NAME (default offstage).
 unregister_agents() {
   local name=${1:-offstage}
@@ -268,7 +361,7 @@ unregister_agents() {
   json_unset "$HOME/.cursor/mcp.json" mcpServers "$name"
   json_unset "$HOME/.codeium/windsurf/mcp_config.json" mcpServers "$name"
   json_unset "$HOME/.config/opencode/opencode.json" mcp "$name"
-  local d; for d in .codex/skills .cursor/skills .codeium/windsurf/skills .config/opencode/skills; do rm -rf "${HOME:?}/$d/$name"; done
+  local d; for d in .codex/skills .cursor/skills .codeium/windsurf/skills .config/opencode/skills; do [ "$name" = bare ] || rm -rf "${HOME:?}/$d/$name"; done
   return 0
 }
 
@@ -310,6 +403,11 @@ install_notifyd() {
 uninstall() {
   say "removing offstage from the agents, the binary and offstage's state (the packages stay)"
   unregister_agents
+  # Only when this installer put bare there: a bare of the user's own stays.
+  if [ -e "$BARE_MARK_DIR/bare-installed" ]; then
+    unregister_agents bare
+    rm -f "$BIN_DIR/bare-mcp" "$BIN_DIR/bare-drive"
+  fi
   systemctl --user disable --now offstage-notifyd.service >/dev/null 2>&1 || true
   rm -f "$UNIT_DIR/offstage-notifyd.service"
   if [ -x "$BIN_DIR/offstage" ]; then "$BIN_DIR/offstage" gc --all >/dev/null 2>&1 || true; fi
@@ -324,15 +422,17 @@ mode=install
 while [ $# -gt 0 ]; do
   case $1 in
     --binary-only) mode=binary ;;
+    --bare-only) mode=bare ;;
     --uninstall) mode=uninstall ;;
     --agents) shift; AGENTS=${1:-}; [ -n "$AGENTS" ] || die "--agents needs a list" ;;
     --agents=*) AGENTS=${1#--agents=} ;;
-    *) die "usage: install.sh [--agents LIST] [--binary-only | --uninstall]" ;;
+    *) die "usage: install.sh [--agents LIST] [--binary-only | --bare-only | --uninstall]" ;;
   esac
   shift
 done
 case $mode in
-  binary) install_binary; write_config ;;
+  binary) install_binary; install_bare; write_config ;;
+  bare) install_bare ;;
   uninstall) uninstall ;;
   install)
     [ "$(uname -s)" = Linux ] || die "offstage runs on Linux with Hyprland"
@@ -340,9 +440,11 @@ case $mode in
     install_packages
     drop_old_name
     install_binary
+    install_bare
     write_config
     check_path
     register_agents
+    register_bare
     install_notifyd
     say "checking the installation"
     "$BIN_DIR/offstage" doctor || true

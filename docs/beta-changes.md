@@ -6,6 +6,21 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## Unreleased
+
+- New: the installers also install bare, a browser for scripted end-to-end
+  journeys (`bare-mcp` and `bare-drive`, release v0.1.1 of `mrwick1/bare`).
+  They check the files against the published SHA256SUMS, put them beside
+  offstage, and register an MCP server named `bare` with each agent. A bare
+  that is already registered stays as it is. The plugin starts bare through
+  its own launcher. On Linux, the installer also installs `libxkbcommon`.
+  Skip bare with `OFFSTAGE_NO_BARE=1` (Windows: `-NoBare`).
+- New: `offstage doctor` warns when `bare-mcp` or `bare-drive` is missing.
+- New: the agent reports a bare problem with `report_issue` and the area
+  `bare`.
+- Retest: run the installer again, then run `offstage doctor`. The line
+  `bare` must say `ok`. Ask the agent to open a page with a bare tool.
+
 ## v0.11.0-beta.5 (2026-11-16)
 
 - New: `report_issue` and `offstage report --type` take a type: `bug`

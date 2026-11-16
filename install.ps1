@@ -7,22 +7,35 @@
 #      SHA256SUMS published with it, and puts it in %LOCALAPPDATA%\offstage\bin.
 #   2. writes the configuration file with the defaults (an existing file stays).
 #   3. registers the MCP server with the agents it finds: Claude Code and Codex.
+#      bare, the e2e browser, comes with it: bare-mcp.exe and bare-drive.exe
+#      from the bare release, checksum verified, into the same directory. A
+#      bare download that fails is a warning: offstage still installs.
 #   4. warns when Chrome or ffmpeg is missing. It installs neither.
 #
 # Options and environment:
 #   -Agents LIST             claude, codex, or none (default: every agent found)
-#   -BinaryOnly              step 1 only (what the plugin's launcher runs)
+#   -NoBare                  do not install or register bare (or OFFSTAGE_NO_BARE=1)
+#   -BinaryOnly              step 1 only, bare included (what the plugin's launcher runs)
+#   -BareOnly                bare only (what the plugin's bare launcher runs)
 #   -Uninstall               remove the binary, the registrations and offstage's state
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the plugin's version, else the latest)
 #   OFFSTAGE_BIN_DIR=DIR     where offstage.exe goes (default %LOCALAPPDATA%\offstage\bin)
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests)
-param([string]$Agents = 'all', [switch]$BinaryOnly, [switch]$Uninstall)
+#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
+#   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
+param([string]$Agents = 'all', [switch]$BinaryOnly, [switch]$Uninstall, [switch]$NoBare, [switch]$BareOnly)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Repo = if ($env:OFFSTAGE_REPO) { $env:OFFSTAGE_REPO } else { 'mrwick1/offstage' }
 $Dir = Join-Path $env:LOCALAPPDATA 'offstage'
 $BinDir = if ($env:OFFSTAGE_BIN_DIR) { $env:OFFSTAGE_BIN_DIR } else { Join-Path $Dir 'bin' }
 $Exe = Join-Path $BinDir 'offstage.exe'
+$BareMcp = Join-Path $BinDir 'bare-mcp.exe'
+$BareDrive = Join-Path $BinDir 'bare-drive.exe'
+# The bare release that this offstage ships with. Keep it equal to the default
+# in install.sh.
+$BareVersion = if ($env:OFFSTAGE_BARE_VERSION) { $env:OFFSTAGE_BARE_VERSION } else { 'v0.1.1' }
+$SkipBare = $NoBare -or $env:OFFSTAGE_NO_BARE -eq '1'
 
 # Messages go to stderr: the plugin's launcher keeps stdout for MCP.
 function Say($m) { [Console]::Error.WriteLine("==> $m") }
@@ -75,6 +88,46 @@ function Install-Binary {
   Say "installed $Exe ($(& $Exe version | Select-Object -First 1))"
 }
 
+# Download, verify and install bare-mcp.exe and bare-drive.exe. A failure is a
+# warning: offstage works without bare.
+function Install-Bare {
+  if ($SkipBare) { Say 'bare skipped'; return }
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid())
+  New-Item -ItemType Directory $tmp | Out-Null
+  try {
+    $base = if ($env:OFFSTAGE_BARE_RELEASE_BASE) { $env:OFFSTAGE_BARE_RELEASE_BASE } else { "https://github.com/mrwick1/bare/releases/download/$BareVersion" }
+    $sums = "$tmp\SHA256SUMS"
+    Invoke-WebRequest "$base/SHA256SUMS" -OutFile $sums
+    function Want($asset) {
+      $l = Select-String -Path $sums -Pattern "\s\*?$([regex]::Escape($asset))$" | Select-Object -First 1
+      if (-not $l) { throw "no checksum for $asset in SHA256SUMS" }
+      ($l.Line -split '\s+')[0]
+    }
+    $mcp = 'bare-mcp-windows-amd64.exe'; $drive = 'bare-drive-windows-amd64.exe'
+    $wantMcp = Want $mcp; $wantDrive = Want $drive
+    if ((Test-Path $BareMcp) -and (Test-Path $BareDrive) -and (Get-FileHash $BareMcp -Algorithm SHA256).Hash -eq $wantMcp) {
+      Say "bare $BareVersion already in $BinDir"; return
+    }
+    Say "downloading bare $BareVersion for windows/amd64"
+    foreach ($p in @(@($mcp, $wantMcp, $BareMcp), @($drive, $wantDrive, $BareDrive))) {
+      Invoke-WebRequest "$base/$($p[0])" -OutFile "$tmp\$($p[0])"
+      if ((Get-FileHash "$tmp\$($p[0])" -Algorithm SHA256).Hash -ne $p[1]) { throw "checksum mismatch for $($p[0]): not installing" }
+    }
+    New-Item -ItemType Directory -Force $BinDir | Out-Null
+    foreach ($p in @(@($mcp, $BareMcp), @($drive, $BareDrive))) {
+      # A running exe cannot be overwritten, but it can be renamed.
+      if (Test-Path $p[1]) { Move-Item -Force $p[1] "$($p[1]).old" }
+      Move-Item "$tmp\$($p[0])" $p[1]
+      Remove-Item "$($p[1]).old" -ErrorAction SilentlyContinue
+    }
+    Say "installed bare-mcp.exe and bare-drive.exe in $BinDir"
+  } catch {
+    Warn "could not install bare ${BareVersion}: $($_.Exception.Message). offstage works without it; rerun the installer later"
+  } finally {
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+  }
+}
+
 # The configuration file, every key at its default. An existing file is kept.
 function Write-Config {
   try { $out = & $Exe config 2>$null; if ($out -match '^wrote') { Say $out } } catch {}
@@ -96,6 +149,21 @@ function Register-Agents {
     elseif (Try-Run codex mcp add offstage -- $Exe mcp) { Say 'codex: MCP server registered' }
     else { Warn "codex: run  codex mcp add offstage -- $Exe mcp" }
   }
+  # bare: its reports go through offstage's report_issue. A bare that is
+  # already registered stays as it is.
+  if (-not $SkipBare -and (Test-Path $BareMcp)) {
+    $env1 = 'BARE_MCP_REPORT=offstage'
+    if ((Wanted 'claude') -and (Have 'claude')) {
+      if (Try-Run claude mcp get bare) { Say 'claude: bare already registered, left alone' }
+      elseif (Try-Run claude mcp add --scope user bare -e $env1 -- $BareMcp) { Say 'claude: bare registered' }
+      else { Warn "claude: run  claude mcp add --scope user bare -e $env1 -- $BareMcp" }
+    }
+    if ((Wanted 'codex') -and (Have 'codex')) {
+      if (Select-String -Path (Join-Path $HOME '.codex\config.toml') -Pattern '^\[mcp_servers\.bare\]' -Quiet -ErrorAction SilentlyContinue) { Say 'codex: bare already registered, left alone' }
+      elseif (Try-Run codex mcp add --env $env1 bare -- $BareMcp) { Say 'codex: bare registered' }
+      else { Warn "codex: run  codex mcp add --env $env1 bare -- $BareMcp" }
+    }
+  }
   if (-not $found) { Say "no selected agent found; any MCP client can run  $Exe mcp  (see the README)" }
 }
 
@@ -112,13 +180,20 @@ function Remove-All {
   Say "removing offstage from the agents, the binary and offstage's state (Chrome and ffmpeg stay)"
   if (Have 'claude') { [void](Try-Run claude mcp remove --scope user offstage) }
   if (Have 'codex') { [void](Try-Run codex mcp remove offstage) }
+  # Only when this installer put bare there: a bare of the user's own stays.
+  if (Test-Path $BareMcp) {
+    if (Have 'claude') { [void](Try-Run claude mcp remove --scope user bare) }
+    if (Have 'codex') { [void](Try-Run codex mcp remove bare) }
+  }
   if (Test-Path $Exe) { [void](Try-Run $Exe gc --all) }
-  Remove-Item -Recurse -Force $Dir, (Join-Path $env:APPDATA 'offstage'), $Exe -ErrorAction SilentlyContinue
+  Remove-Item -Recurse -Force $Dir, (Join-Path $env:APPDATA 'offstage'), $Exe, $BareMcp, $BareDrive -ErrorAction SilentlyContinue
 }
 
 try {
   if ($Uninstall) { Remove-All; return }
+  if ($BareOnly) { Install-Bare; return }
   Install-Binary
+  Install-Bare
   Write-Config
   if (-not $BinaryOnly) { Register-Agents; Test-Tools }
 } catch {

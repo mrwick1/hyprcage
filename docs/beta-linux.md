@@ -210,6 +210,19 @@ rm ~/.config/offstage/beta-key
 Reports then stay in the queue on your machine. To send again, run
 `offstage report login`.
 
+## bare: the e2e browser
+
+bare is a separate browser for scripted end-to-end journeys. It installs with
+offstage: the installer puts `bare-mcp` and `bare-drive` in `~/.local/bin` and
+registers an MCP server named `bare` with each agent. The installer needs
+`libxkbcommon`, and it installs that package too.
+
+- A bare that is already registered stays as it is.
+- To skip bare, set `OFFSTAGE_NO_BARE=1` when you run the installer.
+- `offstage doctor` warns when `bare-mcp` or `bare-drive` is missing. Rerun
+  the installer to fix it.
+- The agent reports a bare problem with `report_issue` and the area `bare`.
+
 ## Known limits
 
 - On openSUSE, the `tesseract-ocr` package 5.5.3-2.1 crashes when it exits.
