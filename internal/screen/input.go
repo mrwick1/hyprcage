@@ -113,7 +113,7 @@ func ScrollAt(cl PointerInput, x, y int, direction string, amount int) error {
 }
 
 // Keys presses combinations one after the other.
-func Keys(cl *wl.Client, combos []string) error {
+func Keys(cl Surface, combos []string) error {
 	for _, combo := range combos {
 		if err := cl.Key(combo); err != nil {
 			return fmt.Errorf("key %q: %w", combo, err)
