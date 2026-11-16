@@ -183,7 +183,8 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 		return State{}, screen.Errf(screen.CodeCapture, "", "%v", err)
 	}
 	go func() { _ = cmd.Wait() }()
-	deadline := time.Now().Add(5 * time.Second)
+	// A first run on Windows waits for the virus scan of hyprcage and ffmpeg.
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		if s, err := Load(target); err == nil {
 			return s, nil

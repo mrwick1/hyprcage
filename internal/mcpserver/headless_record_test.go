@@ -37,9 +37,13 @@ func recordSetup(t *testing.T) (cs *mcp.ClientSession, rec *registry.Screen) {
 		}
 	}
 	// The recorder is `hyprcage _record`, and the test binary is not it.
-	exe := filepath.Join(t.TempDir(), "hyprcage")
-	if out, err := exec.Command("go", "build", "-o", exe, "github.com/hexadecimil/hyprcage/cmd/hyprcage").CombinedOutput(); err != nil {
-		t.Fatalf("go build: %v\n%s", err, out)
+	// HYPRCAGE_TEST_BIN names a prebuilt one, for a machine without Go.
+	exe := os.Getenv("HYPRCAGE_TEST_BIN")
+	if exe == "" {
+		exe = filepath.Join(t.TempDir(), "hyprcage")
+		if out, err := exec.Command("go", "build", "-o", exe, "github.com/hexadecimil/hyprcage/cmd/hyprcage").CombinedOutput(); err != nil {
+			t.Fatalf("go build: %v\n%s", err, out)
+		}
 	}
 	old := executable
 	executable = func() (string, error) { return exe, nil }
