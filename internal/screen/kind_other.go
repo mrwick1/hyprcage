@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 package screen
 
@@ -8,6 +8,6 @@ import (
 	"github.com/hexadecimil/hyprcage/internal/proc"
 )
 
-// pidAlive only tests that pid exists: start times need the Linux /proc.
-// Phase 3 of the Windows port replaces it.
+// pidAlive only tests that pid exists: start times need /proc on Linux and
+// the process times on Windows.
 func pidAlive(pid int, _ uint64) bool { return pid > 0 && proc.Kill(pid, syscall.Signal(0)) == nil }
