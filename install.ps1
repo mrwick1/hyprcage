@@ -34,7 +34,7 @@ $BareMcp = Join-Path $BinDir 'bare-mcp.exe'
 $BareDrive = Join-Path $BinDir 'bare-drive.exe'
 # The bare release that this offstage ships with. Keep it equal to the default
 # in install.sh.
-$BareVersion = if ($env:OFFSTAGE_BARE_VERSION) { $env:OFFSTAGE_BARE_VERSION } else { 'v0.1.0' }
+$BareVersion = if ($env:OFFSTAGE_BARE_VERSION) { $env:OFFSTAGE_BARE_VERSION } else { 'v0.1.1' }
 $SkipBare = $NoBare -or $env:OFFSTAGE_NO_BARE -eq '1'
 
 # Messages go to stderr: the plugin's launcher keeps stdout for MCP.

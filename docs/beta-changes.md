@@ -9,7 +9,7 @@ Each build is a GitHub pre-release with the same name. The plugin from the
 ## Unreleased
 
 - New: the installers also install bare, a browser for scripted end-to-end
-  journeys (`bare-mcp` and `bare-drive`, release v0.1.0 of `mrwick1/bare`).
+  journeys (`bare-mcp` and `bare-drive`, release v0.1.1 of `mrwick1/bare`).
   They check the files against the published SHA256SUMS, put them beside
   offstage, and register an MCP server named `bare` with each agent. A bare
   that is already registered stays as it is. The plugin starts bare through

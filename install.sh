@@ -45,7 +45,7 @@ BIN_DIR=${OFFSTAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${OFFSTAGE_AGENTS:-all}
 # The bare release that this offstage ships with. Keep it equal to the default
 # in install.ps1.
-BARE_VERSION=${OFFSTAGE_BARE_VERSION:-v0.1.0}
+BARE_VERSION=${OFFSTAGE_BARE_VERSION:-v0.1.1}
 BARE_REPO=mrwick1/bare
 # Its file marks a bare that this installer put in BIN_DIR. Uninstall removes
 # only that one.
