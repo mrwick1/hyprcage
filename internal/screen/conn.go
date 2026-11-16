@@ -27,6 +27,9 @@ func Open(rec *registry.Screen) (*wl.Client, error) {
 	if cl, ok := conns.m[rec.Name]; ok {
 		return cl, nil
 	}
+	if err := RefuseHeadless(rec, "a Wayland connection"); err != nil {
+		return nil, err
+	}
 	if rec.InnerDisplay == "" {
 		inner, err := registry.ReadInner(rec.Name)
 		if err != nil {
