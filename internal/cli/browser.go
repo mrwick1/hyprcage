@@ -1,36 +1,24 @@
 package cli
 
 import (
-	"github.com/hexadecimil/offstage/internal/browser"
-	"github.com/hexadecimil/offstage/internal/config"
-	"github.com/hexadecimil/offstage/internal/screen"
-	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/bare"
+	"os/exec"
 )
 
+// runBrowser serves the bundled browser protocol on stdin/stdout.
 func runBrowser(e *Env) int {
-	fs := e.flags("browser")
-	prof := fs.String("profile", "", "keep the Chrome profile under this name (a-z, 0-9, -)")
-	if err := e.parse(fs); err != nil {
-		return ExitUsage
+	if len(e.Args) != 0 {
+		return e.errorf("usage: offstage browser (Bare MCP on stdin/stdout); use browser_open through offstage mcp to open a page")
 	}
-	if fs.NArg() > 2 {
-		return e.errorf("usage: offstage browser [--profile name] [screen] [url]")
-	}
-	cfg, err := config.Load()
+	bin, err := bare.Find()
 	if err != nil {
 		return e.fail(err)
 	}
-	c, err := screen.Connect(cfg)
-	if err != nil {
+	cmd := exec.Command(bin)
+	cmd.Env = bare.Environment("")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = e.Stdin, e.Stdout, e.Stderr
+	if err := cmd.Run(); err != nil {
 		return e.fail(err)
 	}
-	rec, err := screen.Resolve(c, fs.Arg(0), session.Current())
-	if err != nil {
-		return e.fail(err)
-	}
-	info, err := browser.Open(c, rec, fs.Arg(1), *prof)
-	if err != nil {
-		return e.fail(err)
-	}
-	return e.printJSON(info)
+	return ExitOK
 }

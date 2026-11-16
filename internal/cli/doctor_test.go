@@ -10,8 +10,8 @@ import (
 func TestBareCheck(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	dir := t.TempDir()
-	if st, _ := bareCheck(dir); st != "warn" {
-		t.Fatalf("empty dir: status %q, want warn", st)
+	if st, _ := bareCheck(dir); st != "fail" {
+		t.Fatalf("empty dir: status %q, want fail", st)
 	}
 	ext := ""
 	if runtime.GOOS == "windows" {
@@ -22,8 +22,8 @@ func TestBareCheck(t *testing.T) {
 			t.Fatal(err)
 		}
 		if n == "bare-mcp" {
-			if st, d := bareCheck(dir); st != "warn" || d == "" {
-				t.Fatalf("one binary: %q %q, want warn", st, d)
+			if st, d := bareCheck(dir); st != "fail" || d == "" {
+				t.Fatalf("one binary: %q %q, want fail", st, d)
 			}
 		}
 	}

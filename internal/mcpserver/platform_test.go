@@ -45,7 +45,7 @@ func TestInstructionsOffLinux(t *testing.T) {
 	goos = "windows"
 	t.Cleanup(func() { goos = "linux" })
 	cs := connect(t)
-	if got := cs.InitializeResult().Instructions; !strings.Contains(got, "headless Chrome") || strings.Contains(got, "app_launch") {
+	if got := cs.InitializeResult().Instructions; !strings.Contains(got, "Bare") || strings.Contains(got, "app_launch") {
 		t.Errorf("instructions: %q", got)
 	}
 }

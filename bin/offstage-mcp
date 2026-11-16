@@ -34,4 +34,10 @@ if [ -z "$bin" ]; then
   bin=$(find_bin || true)
   [ -n "$bin" ] || { echo "offstage: binary still not found after installing" >&2; exit 1; }
 fi
+# An existing offstage binary can outlive a removed browser dependency.
+browser_dir=$(dirname "$bin")
+if [ ! -x "$browser_dir/bare-mcp" ] || [ ! -x "$browser_dir/bare-drive" ]; then
+  OFFSTAGE_BIN_DIR="$browser_dir" bash "$root/install.sh" --bare-only >&2 \
+    || { echo "offstage: could not install required Bare" >&2; exit 1; }
+fi
 exec "$bin" mcp
