@@ -36,6 +36,11 @@ func destroyHeadless(rec *registry.Screen) error {
 		for deadline := time.Now().Add(3 * time.Second); headlessAlive(rec) && time.Now().Before(deadline); {
 			time.Sleep(50 * time.Millisecond)
 		}
+	} else if rec.DebugPID > 0 && proc.Kill(rec.DebugPID, 0) != nil {
+		// Chrome died, but its children may live on and write to the
+		// profile. No process has its pid, so the pid still names only
+		// Chrome's group, which the system does not reuse while it has members.
+		proc.KillTree(rec.DebugPID)
 	}
 	// Chrome may hold files for a moment after it is killed.
 	for i := 0; i < 20; i++ {

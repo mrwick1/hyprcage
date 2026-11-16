@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/hexadecimil/hyprcage/internal/config"
+	"github.com/hexadecimil/hyprcage/internal/headless"
 	"github.com/hexadecimil/hyprcage/internal/registry"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 )
@@ -61,8 +62,8 @@ func chromeProcs(profile string) []string {
 
 func requireChrome(t *testing.T) {
 	t.Helper()
-	if _, err := os.Stat("/usr/bin/google-chrome-stable"); err != nil {
-		t.Skip("no /usr/bin/google-chrome-stable")
+	if _, err := headless.FindChrome(); err != nil {
+		t.Skip("no Chrome: " + err.Error())
 	}
 }
 
