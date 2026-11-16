@@ -83,8 +83,12 @@ func newServer(cfg config.Config) *Server { return &Server{cfg: cfg} }
 
 // mcpServer builds the MCP server with every tool registered.
 func (s *Server) mcpServer() *mcp.Server {
+	text := instructions
+	if goos != "linux" {
+		text = instructionsOffLinux
+	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "hyprcage", Version: version.Version},
-		&mcp.ServerOptions{Instructions: instructions})
+		&mcp.ServerOptions{Instructions: text})
 	s.register(srv)
 	return srv
 }
@@ -454,6 +458,9 @@ func tool[In any](s *Server, srv *mcp.Server, name, desc string, h handler[In]) 
 // handler that touches no Server state may use it, for example a long wait
 // on a file.
 func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
+	if !available(name) {
+		return
+	}
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			res, err := h(in)
