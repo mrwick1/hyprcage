@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -32,8 +33,15 @@ func lines(t *testing.T) []map[string]any {
 
 func TestPathUsesStateHome(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/s")
-	if got := Path(); got != "/s/hyprcage/actions.jsonl" {
-		t.Fatalf("got %s", got)
+	if got, want := Path(), filepath.Join("/s", "hyprcage", "actions.jsonl"); got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+	if runtime.GOOS == "windows" {
+		t.Setenv("XDG_STATE_HOME", "")
+		t.Setenv("LocalAppData", `C:\Users\a\AppData\Local`)
+		if got, want := Path(), `C:\Users\a\AppData\Local\hyprcage\actions.jsonl`; got != want {
+			t.Fatalf("got %s, want %s", got, want)
+		}
 	}
 }
 
