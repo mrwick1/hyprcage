@@ -21,7 +21,7 @@ type reportIn struct {
 	Confirmed bool   `json:"confirmed,omitempty" jsonschema:"true only after the human saw the preview and agreed to send it"`
 }
 
-const reportDesc = "Send a beta report about a problem in offstage itself, not in the app under test: a tool error the arguments did not cause, an action that returned success but did not happen, a tool that touched the human's desktop, cursor or focus, or a crash. One report per distinct problem. The report carries the tool calls on the screen, the logs, the element tree and a screenshot of the agent screen; private data is removed first. When the reply is a preview, show it to the human and call again with confirmed:true only after they agree."
+const reportDesc = "Send a beta report about offstage itself, never about the app under test. type bug (default): a tool error the arguments did not cause, an action that returned success but did not happen, a tool that touched the human's desktop, cursor or focus, or a crash. type doubt: you were unsure how to use offstage (which tool, what an argument means, an unclear error or doc). type suggestion: a tool or option that would have helped. type feedback: what worked well or badly, once at the end of a task that used offstage heavily; expected and actual may be empty for these three. One report per distinct item; do not repeat one you filed this session. The report carries the tool calls on the screen, the logs, the element tree and a screenshot of the agent screen; private data is removed first. When the reply is a preview, show it to the human and call again with confirmed:true only after they agree."
 
 func (s *Server) registerReport(srv *mcp.Server) {
 	tool(s, srv, "report_issue", reportDesc, s.reportIssue)

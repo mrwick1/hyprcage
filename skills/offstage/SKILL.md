@@ -129,14 +129,20 @@ Use the human's desktop only when the job needs their own apps or their session.
 
 ## Report offstage problems (beta)
 
-Call `report_issue` when offstage itself fails:
+Call `report_issue` when offstage itself fails (type `bug`):
 
 - A tool returns an error that your arguments did not cause.
 - A tool returns success, but `verify` or a new `snapshot` shows the action did not happen.
 - A tool touched the human's desktop, cursor or focus (`area: "isolation-leak"`).
 - offstage crashed or did not start (`area: "crash"`). A tool that panics returns the error code `internal`. After a crash, the first result of the new server says that crash files wait. A report with `area: "crash"` carries those files.
 
-Do not report bugs in the app under test, wrong arguments, or an action the guard blocked. Send one report per problem. Pass `screen`, so the report carries its tool calls, logs, element tree and screenshot. When the reply is a preview, show it to the human and send it again with `confirmed: true` only after they agree. Without a beta key the report waits on the machine. The human runs `offstage report login`.
+Pass `type` to say what you file. `bug` is the default and covers the list above. The other three need no `expected` or `actual`, and `screen` is optional:
+
+- `doubt`: you were unsure how to use offstage. Example: `type: "doubt", title: "Unclear whether act or click fits a canvas button"`.
+- `suggestion`: a tool or option would have helped. Example: `type: "suggestion", title: "snapshot could filter by role"`.
+- `feedback`: what worked well or badly. File one at the end of a task that used offstage heavily. Example: `type: "feedback", title: "find with timeout_ms replaced every wait"`.
+
+Never file any type about the app under test, wrong arguments, or an action the guard blocked. Send one report per distinct item. Do not repeat one you already filed this session. For a bug, pass `screen`, so the report carries its tool calls, logs, element tree and screenshot. When the reply is a preview, show it to the human and send it again with `confirmed: true` only after they agree. Without a beta key the report waits on the machine. The human runs `offstage report login`.
 
 ## Never
 

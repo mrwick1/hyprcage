@@ -49,7 +49,7 @@ The human's desktop: pass screen "desktop" (plus window, an address from desktop
 ` + reportNote
 
 // reportNote tells the agent when to file a beta report, on every platform.
-const reportNote = `Beta: when offstage itself misbehaves (an error your arguments did not cause, a success that did not happen, a touch on the human's desktop, cursor or focus, a crash), call report_issue once per problem with the screen. Not for bugs in the app under test, wrong arguments, or a guard block.`
+const reportNote = `Beta: when offstage itself misbehaves (an error your arguments did not cause, a success that did not happen, a touch on the human's desktop, cursor or focus, a crash), call report_issue once per problem with the screen. Also call it with type doubt when you were unsure how to use offstage (a tool, an argument, an unclear error or doc), type suggestion when a tool or option would have helped, and type feedback once at the end of a task that used offstage heavily. Never for the app under test, wrong arguments or a guard block. One report per distinct item; do not repeat one you filed this session.`
 
 // Server holds the per-session state.
 type Server struct {
