@@ -53,7 +53,7 @@ Status on 2026-11-16:
 | B0 | Done. Spike A failed. Spike C (headless Chrome) set the v1 scope. See the rulings file. |
 | B1 to B3 | Done for the v1 scope: a headless Chrome screen, not native apps. PR #39. |
 | B5 | Done. `install.ps1`, `bin/offstage-mcp.cmd`, the Windows asset in `make dist`, and `docs/beta-windows.md` (PR #39). Release `v0.11.0-beta.1`. `v0.11.0-beta.2` adds the beta report rule to the Windows agent instructions (PR #41). |
-| B6 | Started 2026-11-16. Aswin and Joel received setup prompts and keys that day. Aswin runs Windows build 10.0.26300 (reported by his agent as real hardware). `v0.11.0-beta.5` adds report types, richer report logs and a daily update check. Releases and retests: `docs/beta-changes.md`. |
+| B6 | Started 2026-11-16. Aswin and Joel received setup prompts and keys that day. Aswin runs Windows build 10.0.26300 (reported by his agent as real hardware). `v0.11.0-beta.5` adds report types, richer report logs and a daily update check. `v0.11.0-beta.6` installs bare, the e2e browser. Releases and retests: `docs/beta-changes.md`. |
 
 Checks run for the Windows release:
 

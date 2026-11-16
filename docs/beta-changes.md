@@ -6,7 +6,7 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
-## Unreleased
+## v0.11.0-beta.6 (2026-11-16)
 
 - New: the installers also install bare, a browser for scripted end-to-end
   journeys (`bare-mcp` and `bare-drive`, release v0.1.1 of `mrwick1/bare`).
