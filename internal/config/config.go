@@ -131,7 +131,7 @@ func Default() Config {
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
 			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
 		},
-		Report: Report{URL: "https://beta.mrwick.dev", Confirm: true, Screenshots: true},
+		Report: Report{URL: "https://beta.mrwick.dev", Screenshots: true},
 	}
 }
 
