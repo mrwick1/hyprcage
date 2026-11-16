@@ -20,12 +20,15 @@ The beta is a pre-release. The installer skips pre-releases unless you pin the
 version. Set `OFFSTAGE_VERSION`:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/main/install.sh | OFFSTAGE_VERSION=v0.10.0-beta.2 bash
+curl -fsSL https://raw.githubusercontent.com/mrwick1/offstage/beta/install.sh | OFFSTAGE_VERSION=v0.10.0-beta.2 bash -s -- --agents none
 ```
 
 The installer installs the packages, puts the binary in `~/.local/bin`, and
-registers offstage with each agent it finds. To register no agent, add
-`bash -s -- --agents none` instead of `bash`.
+starts `offstage-notifyd.service` for the notification tools. `--agents none`
+keeps it from registering offstage with Claude Code: the plugin below does
+that, and two registrations would give the agent two offstage servers. To use
+offstage with another agent as well (Codex, Cursor, Gemini CLI, Windsurf,
+OpenCode), name it, for example `--agents codex`.
 
 For Claude Code, install the plugin from the `beta` branch as well. Run this
 in a terminal:
