@@ -107,7 +107,7 @@ Scope, measured on `main` at `51f7c52`: about 1065 uses of "hyprcage" in 165 fil
 2. An MCP tool `report_issue`. It calls the same code. Arguments: `title`, `expected`, `actual`, `screen` (optional), `step` (optional, default: the last failed call).
 3. A CLI command `offstage replay <bundle>`. It runs the trace of a bundle on a new screen and compares the result with the recorded one.
 4. Instructions in the MCP server text and in the skill that tell the agent when to call `report_issue`.
-5. Crash capture: a panic handler writes a crash bundle. The next start of the MCP server tells the agent in the first tool result that a crash bundle waits.
+5. Crash capture: a panic handler writes a crash bundle. The next start of the MCP server tells the agent in the first tool result that a crash bundle waits. Built: a panic in a tool returns `internal` and writes `crashes/crash-*.txt` under the state directory. A fatal crash in any goroutine goes to `crashes/live-<pid>.log` through `debug.SetCrashOutput`, and the next start renames it. `report_issue` with `area: "crash"` attaches the crash files, takes the fingerprint from the panic message and the first offstage frame, and removes the files once the report is sent or queued.
 6. The relay and the Plane setup (sections below).
 
 ### When the agent files

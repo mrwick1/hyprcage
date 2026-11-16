@@ -34,6 +34,7 @@ const (
 	CodeNoAction     Code = "no_action"
 	CodeNotifydDown  Code = "notifyd_down"
 	CodeAckRequired  Code = "ack_required" // a guarded action needs an ack argument that says why
+	CodeInternal     Code = "internal"     // offstage itself failed, for example a panic in a tool
 )
 
 // Error carries a code, a message and a hint for the caller.

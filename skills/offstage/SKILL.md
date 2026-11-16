@@ -124,7 +124,7 @@ Call `report_issue` when offstage itself fails:
 - A tool returns an error that your arguments did not cause.
 - A tool returns success, but `verify` or a new `snapshot` shows the action did not happen.
 - A tool touched the human's desktop, cursor or focus (`area: "isolation-leak"`).
-- offstage crashed or did not start (`area: "crash"`).
+- offstage crashed or did not start (`area: "crash"`). A tool that panics returns the error code `internal`. After a crash, the first result of the new server says that crash files wait. A report with `area: "crash"` carries those files.
 
 Do not report bugs in the app under test, wrong arguments, or an action the guard blocked. Send one report per problem. Pass `screen`, so the report carries its tool calls, logs, element tree and screenshot. When the reply is a preview, show it to the human and send it again with `confirmed: true` only after they agree. Without a beta key the report waits on the machine. The human runs `offstage report login`.
 
