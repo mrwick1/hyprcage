@@ -29,7 +29,7 @@ bash "$R/install.sh" > ~/install.log 2>&1 && pass "install.sh exits 0" || { fail
 command -v cage >/dev/null && pass "cage installed" || fail "cage not installed"
 
 [ -x ~/.local/bin/offstage ] && pass "binary in ~/.local/bin ($(offstage version))" || fail "binary missing"
-grep -q 'plugin marketplace add' ~/install.log && pass "Claude Code: plugin commands printed (~/.claude present, no claude CLI)" || fail "plugin step: $(grep -i plugin ~/install.log | head -2)"
+grep -q 'claude mcp add --scope user offstage' ~/install.log && pass "Claude Code: registration command printed (~/.claude present, no claude CLI)" || fail "Claude Code step: $(grep -i claude ~/install.log | head -2)"
 grep -q '^offstage  *ok' ~/install.log && pass "doctor ran at the end" || fail "doctor did not run: $(tail -3 ~/install.log)"
 [ -s ~/.config/offstage/config.toml ] && grep -q '^group = "session"' ~/.config/offstage/config.toml && pass "config written with the defaults" || fail "config: $(head -3 ~/.config/offstage/config.toml 2>&1)"
 grep -q 'wrote .*config.toml' ~/install.log && pass "install.sh said where the config is" || fail "install.sh silent about the config"
