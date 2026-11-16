@@ -102,6 +102,8 @@ After every action, read the result. A click that returns no error does not prov
 
 Where the kit is installed, `~/coding/personal/kit/bin/offstage-jev` covers steps 3 to 5 and plans form fills (`state`, `verify`, `check`, `fill`, `console`, `notify`, `find`). It sends the text to an outside model. Use it on your own test pages, not on client data or on a real tray.
 
+For a scripted end-to-end journey, use the tools of the `bare` MCP server when it is available. Use offstage `browser_open` for a page that bare cannot render. Report a bare problem with `report_issue` and the area `bare`.
+
 ## Review a whole app
 
 To map an app and find what is broken, run `~/coding/personal/kit/bin/offstage-map URL` where the kit is installed. Do not click through the pages by hand.
