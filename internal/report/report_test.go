@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
 )
@@ -249,5 +251,101 @@ func TestBuildType(t *testing.T) {
 	}
 	if _, err := Build(Request{Title: "t", Type: "rant"}); err == nil {
 		t.Error("an unknown type was accepted")
+	}
+}
+
+func TestEnvHasVersionsAndEffectiveConfig(t *testing.T) {
+	home(t)
+	env := Env()
+	for _, key := range []string{"offstage ", "os: ", "go: go", "chrome: ", "effective config:", "DefaultWidth = 1280", "Guard.Enabled = ", "Report.URL = "} {
+		if !strings.Contains(env, key) {
+			t.Errorf("env.txt has no %q:\n%s", key, env)
+		}
+	}
+}
+
+func TestRecentLogIsCapped(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	var b strings.Builder
+	b.WriteString(now.Add(-time.Hour).Format(time.RFC3339Nano) + " too old (restored)\n")
+	for i := 0; i < 400; i++ {
+		fmt.Fprintf(&b, "%s line %d (restored)\n", now.Add(-time.Minute).Format(time.RFC3339Nano), i)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "restore.log"), []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var plain strings.Builder
+	for i := 0; i < 500; i++ {
+		fmt.Fprintf(&plain, "frame %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "record-hc-a.log"), []byte(plain.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := RecentLog(dir, "hc-a", now)
+	if strings.Contains(got, "too old") || strings.Contains(got, "line 99 ") || !strings.Contains(got, "line 399 ") {
+		t.Errorf("restore.log not cut to the recent 300 lines:\n%s", got)
+	}
+	if strings.Contains(got, "frame 199\n") || !strings.Contains(got, "frame 200\n") || !strings.Contains(got, "frame 499\n") {
+		t.Errorf("record log is not its last 300 lines")
+	}
+	if n := strings.Count(got, "\n"); n != 300+300+2 {
+		t.Errorf("%d lines", n)
+	}
+	huge := strings.Repeat("x", 1000) + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "restore.log"), []byte(strings.Repeat(huge, 299)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := RecentLog(dir, "", now); len(got) > maxLogTxt+8 {
+		t.Errorf("log.txt is %d bytes", len(got))
+	}
+}
+
+func TestTimelineHasOneLinePerCallAndIsCapped(t *testing.T) {
+	var trace []audit.Entry
+	for i := 0; i < 250; i++ {
+		trace = append(trace, audit.Entry{Time: "2026-11-16T10:00:00Z", Tool: "click", Ms: 12})
+	}
+	trace[249].Error = "capture_failed"
+	trace[249].Ms = 0
+	tl := Timeline(trace)
+	lines := strings.Split(strings.TrimRight(tl, "\n"), "\n")
+	if len(lines) != timelineLines || lines[0] != "2026-11-16T10:00:00Z click 12ms ok" || lines[199] != "2026-11-16T10:00:00Z click - capture_failed" {
+		t.Errorf("%d lines, first %q, last %q", len(lines), lines[0], lines[len(lines)-1])
+	}
+}
+
+func TestBuildAddsLogAndTimelineRedacted(t *testing.T) {
+	root := home(t)
+	logDir := filepath.Join(root, "state", "offstage", "log")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(audit.Path(), []byte(logText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := user.Current()
+	line := time.Now().UTC().Format(time.RFC3339Nano) + " moved /home/" + u.Username + "/win for jane.doe@example.com (restored)\n"
+	if err := os.WriteFile(filepath.Join(logDir, "restore.log"), []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Build(Request{Title: "t", Screen: "hc-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, _ := zip.NewReader(bytes.NewReader(b.Zip), int64(len(b.Zip)))
+	got := map[string]string{}
+	for _, f := range zr.File {
+		rc, _ := f.Open()
+		data, _ := io.ReadAll(rc)
+		rc.Close()
+		got[f.Name] = string(data)
+	}
+	if !strings.Contains(got["timeline.txt"], "app_launch") || !strings.Contains(got["timeline.txt"], "click - capture_failed") {
+		t.Errorf("timeline.txt:\n%s", got["timeline.txt"])
+	}
+	log := got["log.txt"]
+	if !strings.Contains(log, "restored") || strings.Contains(log, "jane.doe@example.com") || (len(u.Username) > 2 && strings.Contains(log, u.Username)) {
+		t.Errorf("log.txt not redacted:\n%s", log)
 	}
 }
