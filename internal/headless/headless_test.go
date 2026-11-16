@@ -263,3 +263,56 @@ func TestAttach(t *testing.T) {
 		t.Error("original browser still alive")
 	}
 }
+
+const motionPage = `<!doctype html><body style="margin:0;background:#fff">
+<style>@keyframes m{from{left:0}to{left:1000px}}</style>
+<div style="position:absolute;top:300px;width:200px;height:200px;background:#c00;animation:m 2s linear infinite alternate"></div>`
+
+func TestScreencastFramesAndDetach(t *testing.T) {
+	b := start(t)
+	if err := b.Navigate(context.Background(), dataURL(motionPage)); err != nil {
+		t.Fatal(err)
+	}
+	// A second connection, as the recorder has: Detach must leave Chrome alone.
+	w, err := Attach(context.Background(), b.Port(), b.PID(), 1280, 800)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cast, err := w.StartScreencast()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := cast.Capture(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Bounds().Size().X != 1280 || first.Bounds().Size().Y != 800 {
+		t.Errorf("frame size %v", first.Bounds().Size())
+	}
+	changed, deadline := 0, time.Now().Add(time.Second)
+	prev := first
+	for time.Now().Before(deadline) {
+		img, err := cast.Capture(true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if img != prev {
+			changed++
+			prev = img
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Logf("%d new frames in 1 s", changed)
+	if changed < 10 {
+		t.Errorf("only %d new frames in 1 s of animation", changed)
+	}
+	if err := w.Detach(); err != nil {
+		t.Fatal(err)
+	}
+	if !b.Alive() {
+		t.Error("Detach ended Chrome")
+	}
+	if _, err := b.Capture(false); err != nil {
+		t.Errorf("the owner cannot capture after Detach: %v", err)
+	}
+}
