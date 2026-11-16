@@ -15,13 +15,12 @@ import (
 	"image/png"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/hexadecimil/hyprcage/internal/cdp"
+	"github.com/hexadecimil/hyprcage/internal/proc"
 	"github.com/hexadecimil/hyprcage/internal/screen"
 	"github.com/hexadecimil/hyprcage/internal/wl"
 )
@@ -40,7 +39,8 @@ const navigateTimeout = 15 * time.Second
 
 // Browser is one headless Chrome and the page it drives.
 type Browser struct {
-	cmd         *exec.Cmd
+	pid         int
+	cmd         *exec.Cmd // nil when Attach found Chrome already running
 	conn        *cdp.Conn
 	port        int
 	width       int
@@ -48,7 +48,7 @@ type Browser struct {
 	profile     string
 	ownsProfile bool
 	loaded      chan string   // session ids of Page.loadEventFired
-	exited      chan struct{} // closes when Chrome has been reaped
+	exited      chan struct{} // closes when Chrome has been reaped; nil after Attach
 	closeOnce   sync.Once
 
 	mu             sync.Mutex // guards everything below, and serialises input
@@ -68,15 +68,8 @@ func FindChrome() (string, error) {
 			return p, nil
 		}
 	}
-	if runtime.GOOS == "windows" {
-		for _, env := range []string{"ProgramFiles", "ProgramFiles(x86)", "LocalAppData"} {
-			if base := os.Getenv(env); base != "" {
-				p := filepath.Join(base, "Google", "Chrome", "Application", "chrome.exe")
-				if _, err := os.Stat(p); err == nil {
-					return p, nil
-				}
-			}
-		}
+	if p := installedChrome(); p != "" {
+		return p, nil
 	}
 	return "", errors.New("headless: no Chrome found (looked for google-chrome, google-chrome-stable, chromium, chromium-browser)")
 }
@@ -117,11 +110,12 @@ func Start(ctx context.Context, o Options) (*Browser, error) {
 	b.cmd = exec.Command(o.Chrome, "--headless=new", "--no-first-run", "--no-default-browser-check",
 		"--remote-debugging-port="+strconv.Itoa(b.port), "--user-data-dir="+b.profile,
 		fmt.Sprintf("--window-size=%d,%d", o.Width, o.Height), "about:blank")
-	setupCmd(b.cmd)
+	proc.Detach(b.cmd)
 	if err := b.cmd.Start(); err != nil {
 		b.removeProfile()
 		return nil, fmt.Errorf("headless: start %s: %w", o.Chrome, err)
 	}
+	b.pid = b.cmd.Process.Pid
 	b.exited = make(chan struct{})
 	go func() { b.cmd.Wait(); close(b.exited) }()
 	if err := b.attach(ctx); err != nil {
@@ -129,6 +123,31 @@ func Start(ctx context.Context, o Options) (*Browser, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// Attach drives a Chrome that Start launched, maybe in another process: pid
+// is its process id, port its DevTools port, and w and h the size Start
+// gave it. Close kills that Chrome, as it does for a Browser from Start.
+func Attach(ctx context.Context, port, pid, w, h int) (*Browser, error) {
+	b := &Browser{pid: pid, port: port, width: w, height: h,
+		loaded: make(chan string, 16), ids: map[string]uint32{}, targets: map[uint32]string{}}
+	if err := b.attach(ctx); err != nil {
+		if b.conn != nil {
+			b.conn.Close()
+		}
+		return nil, err
+	}
+	return b, nil
+}
+
+// Alive reports whether the DevTools connection still works.
+func (b *Browser) Alive() bool {
+	select {
+	case <-b.conn.Done():
+		return false
+	default:
+		return true
+	}
 }
 
 // attach waits for DevTools, then attaches to the first page.
@@ -205,7 +224,7 @@ func (b *Browser) onEvent(e cdp.Event) {
 func (b *Browser) Port() int { return b.port }
 
 // PID is the process id of Chrome.
-func (b *Browser) PID() int { return b.cmd.Process.Pid }
+func (b *Browser) PID() int { return b.pid }
 
 // Close ends Chrome and its children and removes the temp profile.
 func (b *Browser) Close() error {
@@ -213,8 +232,10 @@ func (b *Browser) Close() error {
 		if b.conn != nil {
 			b.conn.Close()
 		}
-		killTree(b.cmd)
-		<-b.exited
+		proc.KillTree(b.pid)
+		if b.exited != nil {
+			<-b.exited
+		}
 		b.removeProfile()
 	})
 	return nil
