@@ -50,3 +50,27 @@ Spike A fails check 8. A Windows 11 client edition allows one interactive sessio
 ## Decision
 
 The plan says: if spike A fails check 8 and spike B passes checks 1 to 4 with Chrome, choose B. Spike B passes checks 1, 3 and 4 with Chrome. Check 2 is partial: XAML content does not capture. The isolation model is B, the hidden desktop. Its open items: two screens at once (check 5), closing single-instance packaged apps (check 6), capture time for non-browser windows (check 7), and Calculator and Settings (check 2).
+
+## Spike C: headless Chrome through CDP only
+
+Setup: the same VM, Chrome 157. The spike `tests/windows/spike-headless` starts Chrome with `--headless=new` and a DevTools port and drives it with `internal/cdp`. A test page has a form, a link and a moving box. It ran twice: from SSH (session 0, which has no desktop) and in the interactive session through a scheduled task.
+
+| Check | Session 0 | Interactive session |
+| --- | --- | --- |
+| Text and Enter (`Input.insertText`, `Input.dispatchKeyEvent`) submit the form | Pass | Pass |
+| A click (`Input.dispatchMouseEvent`) reaches the link's handler | Pass | Pass |
+| Screenshot (`Page.captureScreenshot`, 1280x800 PNG) | 82 ms | 61 ms |
+| Screencast (`Page.startScreencast`, JPEG frames with ack) | 238 frames in 3.97 s, 59.8 fps | 311 frames in 6.00 s, 51.7 fps |
+| Chrome processes after close | 0 | 0 |
+| Human cursor before and after | n/a | 646,406 both |
+
+- The frames from session 0 encode with ffmpeg on the host into a 1280x800 H.264 video of 3.97 s. The box moves between frames.
+- No Chrome window appeared on the human's desktop. The only window was the console of the test launcher.
+- The foreground check is weak: the "before" value was read after the launcher's console opened.
+- The link's `href="#next"` did not change `location.hash` on the `data:` page. The click handler ran. Hypothesis: fragment navigation does not apply to a `data:` URL in a new target. Not checked on an `http` page.
+- Screencast frames come only when the page repaints. A still page gives few frames, so a recorder must repeat the last frame to keep a fixed frame rate.
+- Not tested: ffmpeg on Windows, file chooser, downloads, permission prompts, JS dialogs, two Chrome instances at once.
+
+### Ruling
+
+A headless browser on Windows needs no desktop, no RDP and no hidden desktop. Input, screenshots and recording work through CDP. Version 1 for Windows is the headless browser. The hidden desktop (spike B) comes after v1, for native apps.
