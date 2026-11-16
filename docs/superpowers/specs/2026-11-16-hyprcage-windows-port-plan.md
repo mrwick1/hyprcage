@@ -10,15 +10,15 @@ An agent on Windows gets a screen of its own. The agent launches applications on
 
 ## Decisions (2026-11-16)
 
-1. Isolation model: spike B, the hidden desktop. Spike A (loopback RDP session) failed: Windows 11 Pro refuses a second interactive session. See the rulings file.
+1. Isolation model: v1 needs none. A headless Chrome has no window (spike C). For native apps after v1: spike B, the hidden desktop. Spike A (loopback RDP session) failed: Windows 11 Pro refuses a second interactive session. See the rulings file.
 2. Code home: this repository. Windows code goes in `*_windows.go` files behind interfaces. Linux behavior does not change.
-3. v1 scope: agent screens only. Desktop control (`desktop_*`), notifications (`notify_*`) and recording come after v1.
+3. v1 scope (changed 2026-11-16): a headless browser screen. A screen on Windows is one headless Chrome. `screenshot`, `click`, `type`, `key`, `scroll`, `drag`, `move` and `record_*` go through CDP. `snapshot`, `act`, `find`, `read_page` and `devtools_*` work as on Linux. Native apps, the hidden desktop, `desktop_*` and `notify_*` come after v1.
 4. Test machine: a Windows 11 Pro VM under QEMU/KVM on archMachine. GPU behavior in a VM differs from real hardware. Each GPU result from the VM is marked "VM only" until a real machine confirms it.
 
 ## Non-goals for v1
 
-- `desktop_*`, `notify_*`, `record_*`, `mirror` placement rules, waybar.
-- Windows 10. Windows Home, unless the chosen isolation model works there.
+- Native apps (`app_launch` of anything but Chrome), `desktop_*`, `notify_*`, `mirror`, waybar.
+- Windows 10.
 - ARM64 Windows.
 - Isolation from the system. A Linux screen isolates the graphical session only. A Windows screen does the same.
 
@@ -105,12 +105,15 @@ Each phase is one PR. Each PR keeps `make test` and the Linux VM suite green.
 
 Run both spikes. Write the results as a rulings file next to this plan. Choose the isolation model.
 
+Status: phase 0 and phase 1 are done. Spike C (headless Chrome) changed the v1 scope. Phases 4 to 6 below are the v1 path. The old screen-backend phases move to "After v1".
+
 ### Phase 2: backend seam on Linux
 
-- Add an interface in `internal/screen` for the operations the MCP tools use: create, launch, destroy, alive, capture frame, pointer, keys, type, clipboard, list windows, close window, wait title.
+- Add an interface in `internal/screen` for the operations the MCP tools use: create, destroy, alive, capture frame, pointer, keys, type, scroll, clipboard, record.
 - The Linux implementation wraps the current cage and `wl` code. No behavior change.
-- `GOOS=windows go build ./...` compiles, with stubs that answer `unsupported_platform`.
-- Check: `make test` and the Linux VM suite pass unchanged.
+- A second kind of screen, "headless browser", implements the same interface with CDP only. It can run on Linux too, which gives a test path without the VM.
+- `GOOS=windows go build ./...` compiles. Tools that v1 does not have answer `unsupported_platform`.
+- Check: `make test` and the Linux VM suite pass unchanged. The headless browser screen passes its own tests on Linux.
 
 ### Phase 3: platform services on Windows
 
@@ -121,27 +124,28 @@ Run both spikes. Write the results as a rulings file next to this plan. Choose t
 - `config`: Windows default path `%APPDATA%\hyprcage\config.toml`.
 - Check: unit tests run on Windows in the VM (`go test ./...`).
 
-### Phase 4: Windows screen backend
+### Phase 4: headless browser screen on Windows
 
-- Implement the seam with the chosen isolation model.
-- Capture: Windows.Graphics.Capture or DXGI duplication for spike A, `PrintWindow` for spike B.
-- Input: `SendInput` (A) or window messages (B). Unicode text through `KEYEVENTF_UNICODE`.
-- Tools that work after this phase: `screen_create`, `screen_destroy`, `screen_list`, `app_launch`, `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`, `move`, `wait`, `windows`, `clipboard_get`, `clipboard_set`.
-- Check: a Windows e2e script drives Notepad on an agent screen. It also confirms that the human's cursor and foreground window stayed the same.
+- `screen_create` on Windows starts one headless Chrome (`--headless=new`, a DevTools port, a profile per screen, 1280x800 through `Emulation.setDeviceMetricsOverride`). A Job Object holds its processes.
+- `browser_open` navigates that Chrome. The Chrome path comes from the registry or the standard install folders.
+- Input: `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` and `Input.insertText`. Coordinates are page pixels.
+- Capture: `Page.captureScreenshot`.
+- Native pop-ups have no window. Handle them through CDP: `Page.setInterceptFileChooserDialog`, `Browser.setDownloadBehavior`, `Browser.grantPermissions`, `Page.handleJavaScriptDialog`.
+- Tools that work after this phase: `screen_create`, `screen_destroy`, `screen_list`, `browser_open`, `screenshot`, `click`, `double_click`, `type`, `key`, `scroll`, `drag`, `move`, `wait`, `clipboard_get`, `clipboard_set` (page clipboard, to verify).
+- Check: a Windows e2e script fills a form, follows a link and takes a screenshot. It confirms that no window appears and the human's cursor stays the same.
 
-### Phase 5: perception on Windows
+### Phase 5: perception and DevTools on Windows
 
-- A UIA source in `internal/perceive` that implements `Source`, next to the AT-SPI source.
-- CDP perception for Chrome works as on Linux.
-- OCR: Windows.Media.Ocr first. tesseract is the fallback if Windows OCR gives worse results on the existing test images.
-- Tools: `snapshot`, `act`, `find`, `read_page`, `read_selection`, `watch`.
-- Check: the Linux perception tests that do not depend on AT-SPI run on Windows. A UIA test reads Notepad and Calculator.
-
-### Phase 6: browser and DevTools
-
-- `browser_open` with a Windows Chrome path and a profile per screen.
+- `snapshot`, `act`, `find`, `read_page`, `read_selection` and `watch` use the CDP source, as on Linux.
 - `devtools_*` work without change, because they use CDP over a port.
-- Check: `devtools_eval`, `devtools_console` and `devtools_network` on a page on an agent screen.
+- OCR is not needed in v1: a page has a DOM and an accessibility tree.
+- Check: the CDP perception tests run on Windows. `devtools_eval`, `devtools_console` and `devtools_network` work on a page.
+
+### Phase 6: recording
+
+- `record_start` uses `Page.startScreencast` and acknowledges each frame. A recorder repeats the last frame to keep a fixed frame rate, because frames come only on repaint.
+- Encoding: ffmpeg reads the frames on a pipe. To verify: whether hyprcage bundles ffmpeg on Windows or asks the user to install it.
+- Check: a 10 s recording of a page with motion has the expected duration and frame rate.
 
 ### Phase 7: plugin and install
 
@@ -153,16 +157,17 @@ Run both spikes. Write the results as a rulings file next to this plan. Choose t
 
 ### After v1
 
+- Native apps on a hidden desktop (spike B): `app_launch`, `PrintWindow` capture, input through window messages, a UIA source in `internal/perceive`, Windows.Media.Ocr. Open items from spike B: two desktops at once, closing single-instance packaged apps, capture time over 200 ms, Calculator and Settings.
+- bare as the headless browser, when its CDP support covers the v1 tools. It used 8 to 16 MiB per page in the VM, against 540 to 690 MiB for headless Chrome.
 - Mirror window (Win32 window that paints frames).
-- Recording with ffmpeg `ddagrab` or `gdigrab`, or by encoding captured frames.
 - `desktop_*` on the human's desktop through UIA and `SendInput`.
 - `notify_*` through `UserNotificationListener`.
 - A test on real Windows hardware.
 
 ## Risks
 
-- Spike A may need edition or policy changes that most users cannot make. This limits who can install it.
-- Spike B may not render Chrome. Chrome is the main app agents drive.
+- Headless Chrome can differ from a windowed Chrome: some sites detect headless mode and block or change the page.
+- v1 drives only web pages. An agent task that needs a native app fails on Windows until the hidden desktop lands.
 - A Windows VM hides GPU problems. A real machine is needed before release.
 - The name "hyprcage" means Hyprland. A Windows release under that name may confuse users. The name stays until v1 works.
 - `wl` and `screen` are large and well tested. The seam in phase 2 must not change Linux behavior. The Linux VM suite is the guard.
