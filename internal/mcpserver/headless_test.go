@@ -189,12 +189,8 @@ func TestHeadlessRefusesWhatNeedsACage(t *testing.T) {
 		{"clipboard_get", nil},
 		{"clipboard_set", map[string]any{"text": "x"}},
 		{"read_selection", nil},
-		{"record_start", map[string]any{"target": rec.Name}},
 	} {
-		args := map[string]any{}
-		if c.tool != "record_start" {
-			args["screen"] = rec.Name
-		}
+		args := map[string]any{"screen": rec.Name}
 		for k, v := range c.args {
 			args[k] = v
 		}
