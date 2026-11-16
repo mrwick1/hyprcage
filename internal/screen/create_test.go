@@ -17,6 +17,7 @@ func TestAtoi(t *testing.T) {
 func TestRemoveProfiles(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("TMPDIR", tmp)
+	t.Setenv("TMP", tmp) // the temp directory on Windows
 	mine := filepath.Join(tmp, "hc-chrome-hc-a-123")
 	other := filepath.Join(tmp, "hc-chrome-hc-a-b-456")
 	unrelated := filepath.Join(tmp, "hc-a-789")
@@ -41,6 +42,7 @@ func TestRemoveProfiles(t *testing.T) {
 func TestRemoveProfilesKeepsNamedProfile(t *testing.T) {
 	tmp, data := t.TempDir(), t.TempDir()
 	t.Setenv("TMPDIR", tmp)
+	t.Setenv("TMP", tmp) // the temp directory on Windows
 	t.Setenv("XDG_DATA_HOME", data)
 	named := filepath.Join(data, "hyprcage", "profiles", "hc-chrome-hc-a-123")
 	if err := os.MkdirAll(named, 0o700); err != nil {
