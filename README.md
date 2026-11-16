@@ -78,7 +78,7 @@ Install from PowerShell. It needs no admin rights and changes no system
 setting:
 
 ```
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/hexadecimil/offstage/main/install.ps1)))
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mrwick1/offstage/main/install.ps1)))
 ```
 
 The script puts `offstage.exe` in `%LOCALAPPDATA%\offstage\bin`, writes the
