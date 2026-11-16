@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -54,6 +55,9 @@ func runDoctor(e *Env) int {
 	default:
 		add("config", "ok", fmt.Sprintf("defaults (no %s, `offstage config` writes one)", cfg.Path))
 	}
+	exe, _ := os.Executable()
+	bst, bdetail := bareCheck(filepath.Dir(exe))
+	add("bare", bst, bdetail)
 	if runtime.GOOS != "linux" {
 		// Off Linux a screen is one headless Chrome. The Hyprland, cage and
 		// desktop checks do not apply.
@@ -170,6 +174,34 @@ func runDoctor(e *Env) int {
 	add("notifyd", st, detail)
 
 	return printChecks(e, checks, *asJSON)
+}
+
+// bareCheck reports whether bare-mcp and bare-drive, the e2e browser that the
+// installer ships, are in dir (the directory of offstage) or in PATH. A
+// missing one is a warning: offstage works without bare.
+func bareCheck(dir string) (string, string) {
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".exe"
+	}
+	var missing []string
+	var mcp string
+	for _, name := range []string{"bare-mcp", "bare-drive"} {
+		p := filepath.Join(dir, name+ext)
+		if _, err := os.Stat(p); err != nil {
+			if p, err = exec.LookPath(name); err != nil {
+				missing = append(missing, name)
+				continue
+			}
+		}
+		if name == "bare-mcp" {
+			mcp = p
+		}
+	}
+	if len(missing) > 0 {
+		return "warn", strings.Join(missing, " and ") + " not found; the e2e browser needs both: rerun the installer"
+	}
+	return "ok", mcp
 }
 
 // printChecks prints the checks and returns ExitDependency when one failed.
