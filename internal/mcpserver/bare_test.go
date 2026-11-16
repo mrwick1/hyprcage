@@ -119,6 +119,10 @@ func TestBareBrowser(t *testing.T) {
 	if strings.Contains(string(raw), "Arjun") || strings.Contains(string(raw), page.URL) {
 		t.Fatal("browser arguments leaked into audit log")
 	}
+	failed, failure := cs.CallTool(ctx, &mcp.CallToolParams{Name: "browser_snapshot", Arguments: map[string]any{"screen": ""}})
+	if failure != nil || failed == nil || !failed.IsError {
+		t.Fatalf("Bare bridge errors need isError=true: result=%v error=%v", failed, failure)
+	}
 	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "screen_create", Arguments: map[string]any{"kind": "headless"}})
 	if err != nil || !res.IsError || !strings.Contains(text(res), "Bare") {
 		t.Fatalf("old headless API: %v %v", res, err)

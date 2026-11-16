@@ -302,7 +302,7 @@ func (s *Server) afterAction(rec *registry.Screen, cl screen.Surface, want bool,
 // --- tool inputs ------------------------------------------------------------
 
 type createIn struct {
-	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; default hc-<random>"`
+	Name   string `json:"name,omitempty" jsonschema:"optional screen name matching [a-z0-9-]{1,32}; the configured prefix is added; use the returned screen name in later calls"`
 	Size   string `json:"size,omitempty" jsonschema:"WxH in pixels, default 1280x800 (configurable); keep every side at or below 2000"`
 	Mirror *bool  `json:"mirror,omitempty" jsonschema:"open a mirror window on one of the human's workspaces so they can watch. Leave it out to follow the human's configuration, which is what they want by default. Pass true when they asked to see the work or when showing it is the point, false for a screen they have no reason to watch"`
 	Kind   string `json:"kind,omitempty" jsonschema:"cage: a compositor for native apps and visible Bare sessions. Headless browsing uses browser_open without a screen"`
@@ -323,11 +323,11 @@ type listIn struct {
 
 type launchIn struct {
 	Screen       string            `json:"screen,omitempty" jsonschema:"screen name; optional when the session owns exactly one screen"`
-	Command      []string          `json:"command" jsonschema:"argv of the application, e.g. [\"chromium\",\"--ozone-platform=wayland\",\"--user-data-dir=/tmp/hc-profile\",\"--no-first-run\",\"https://example.org\"]"`
+	Command      []string          `json:"command" jsonschema:"argv of a native application, e.g. [\"foot\"]; use browser_open for web pages"`
 	Cwd          string            `json:"cwd,omitempty" jsonschema:"working directory"`
 	Env          map[string]string `json:"env,omitempty" jsonschema:"extra environment variables"`
 	WaitWindowMs *int              `json:"wait_window_ms,omitempty" jsonschema:"wait up to this long for a new window (default 10000, 0 = return immediately)"`
-	Debug        bool              `json:"debug,omitempty" jsonschema:"Chromium or Electron app: open the DevTools port that snapshot, act and find read"`
+	Debug        bool              `json:"debug,omitempty" jsonschema:"Electron app: open the DevTools port that snapshot, act and find read"`
 	Workspace    int               `json:"workspace,omitempty" jsonschema:"desktop only: workspace to launch on, without switching to it (default: the active workspace)"`
 }
 

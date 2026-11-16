@@ -54,7 +54,15 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 		if hasWindow {
 			props["window"] = map[string]any{"type": "boolean", "description": "Managed by offstage: pass screen to show the browser in a cage; headless otherwise"}
 		}
-		srv.AddTool(&copy, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		srv.AddTool(&copy, func(ctx context.Context, req *mcp.CallToolRequest) (result *mcp.CallToolResult, err error) {
+			// Handler errors are tool failures, not JSON-RPC protocol failures.
+			defer func() {
+				if err != nil {
+					result = plain(err.Error())
+					result.IsError = true
+					err = nil
+				}
+			}()
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			var args map[string]any
@@ -65,7 +73,7 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 				args = map[string]any{}
 			}
 			start := time.Now()
-			result, err := s.callBare(ctx, original, args, hasWindow)
+			result, err = s.callBare(ctx, original, args, hasWindow)
 			var failed error
 			if err != nil || result != nil && result.IsError {
 				failed = fmt.Errorf("Bare tool failed")

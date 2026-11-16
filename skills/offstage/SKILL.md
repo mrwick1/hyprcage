@@ -47,7 +47,8 @@ Do not launch Chrome or use it as a fallback. Report unsupported pages with
 
 To show the browser on Linux, first call `screen_create`. Pass `screen` and
 `session` to every `browser_*` call. offstage binds that browser process to the
-screen's Wayland socket. Use one browser session per screen. Close the browser,
+screen's Wayland socket. Use the screen name returned by `screen_create`; a
+configured prefix can change the name you supplied. Use one browser session per screen. Close the browser,
 then call `screen_destroy`. Destroying the screen also closes its browser process.
 Use `record_start` with `crop: "none"` to record a visible browser screen.
 
