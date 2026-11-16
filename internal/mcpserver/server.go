@@ -513,13 +513,18 @@ var crashNotice atomic.Pointer[string]
 // add registers a handler and writes its audit line with the options it
 // returns.
 func add[In any](srv *mcp.Server, name, desc string, h func(In) (*mcp.CallToolResult, []audit.Option, error)) {
+	addContext(srv, name, desc, func(_ context.Context, in In) (*mcp.CallToolResult, []audit.Option, error) { return h(in) })
+}
+
+// addContext preserves request cancellation for handlers that wait outside the UI lock.
+func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Context, In) (*mcp.CallToolResult, []audit.Option, error)) {
 	if !available(name) {
 		return
 	}
 	mcp.AddTool(srv, &mcp.Tool{Name: name, Description: desc},
 		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 			start := time.Now()
-			res, opts, err := safely(name, h, in)
+			res, opts, err := safely(name, func(in In) (*mcp.CallToolResult, []audit.Option, error) { return h(ctx, in) }, in)
 			opts = append(opts, audit.WithDuration(time.Since(start)))
 			failed := err
 			if failed == nil && res != nil && res.IsError {
@@ -568,6 +573,8 @@ func (s *Server) register(srv *mcp.Server) {
 	s.registerReport(srv)
 	s.registerWatch(srv)
 	s.registerTasks(srv)
+	s.registerConditions(srv)
+	s.registerScreenConditions(srv)
 }
 
 // --- handlers ---------------------------------------------------------------

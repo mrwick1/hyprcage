@@ -3,7 +3,9 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
@@ -278,4 +280,22 @@ func TestCloseReleasesPortAndPreservesExternalServer(t *testing.T) {
 		t.Fatal("external server stopped", err)
 	}
 	resp.Body.Close()
+}
+
+func TestInspectionCancellationWhileLocked(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	a, err := Create(owner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, release, err := load(a.ID, owner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := InspectContext(ctx, a.ID, owner()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("lock ignored cancellation", err)
+	}
 }

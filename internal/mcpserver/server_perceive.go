@@ -206,6 +206,9 @@ func (s *Server) snapshot(in snapIn) (*mcp.CallToolResult, error) {
 }
 
 func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
+	return s.actContext(context.Background(), in)
+}
+func (s *Server) actContext(parent context.Context, in actIn) (*mcp.CallToolResult, error) {
 	if err := noWindow(in.Screen, in.Window); err != nil {
 		return nil, err
 	}
@@ -215,7 +218,7 @@ func (s *Server) act(in actIn) (*mcp.CallToolResult, error) {
 	if !perceive.ValidOp(in.Op) {
 		return nil, fmt.Errorf("unknown op %q (click, double_click, type, key, hover, scroll)", in.Op)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), perceiveTimeout)
+	ctx, cancel := context.WithTimeout(parent, perceiveTimeout)
 	defer cancel()
 	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction}
 	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ref: in.Ref, Op: in.Op, Keys: in.Keys, Ack: in.Ack}); err != nil {
