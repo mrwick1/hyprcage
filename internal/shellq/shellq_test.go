@@ -21,8 +21,8 @@ func TestQuote(t *testing.T) {
 }
 
 func TestJoin(t *testing.T) {
-	got := Join([]string{"systemd-run", "--user", "--", "env", "HYPRCAGE_SCREEN=hc-1a2b3c", "cage", "-d", "--", "/opt/x y/hyprcage", "_holder", "hc-1a2b3c"})
-	want := "systemd-run --user -- env HYPRCAGE_SCREEN=hc-1a2b3c cage -d -- '/opt/x y/hyprcage' _holder hc-1a2b3c"
+	got := Join([]string{"systemd-run", "--user", "--", "env", "OFFSTAGE_SCREEN=hc-1a2b3c", "cage", "-d", "--", "/opt/x y/offstage", "_holder", "hc-1a2b3c"})
+	want := "systemd-run --user -- env OFFSTAGE_SCREEN=hc-1a2b3c cage -d -- '/opt/x y/offstage' _holder hc-1a2b3c"
 	if got != want {
 		t.Errorf("Join = %s\nwant %s", got, want)
 	}

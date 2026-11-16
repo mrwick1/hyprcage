@@ -3,7 +3,7 @@ package desktop
 import (
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/hypr"
 )
 
 func TestVisible(t *testing.T) {

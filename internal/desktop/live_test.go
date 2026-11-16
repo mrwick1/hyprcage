@@ -9,12 +9,12 @@ import (
 
 // TestLiveCapture times a window capture and an output capture on the
 // nested Hyprland that tests/e2e-desktop.py starts. It never runs without
-// HYPRCAGE_DESKTOP_INSTANCE (the nested instance) and HYPRCAGE_LIVE_WINDOW (a
+// OFFSTAGE_DESKTOP_INSTANCE (the nested instance) and OFFSTAGE_LIVE_WINDOW (a
 // window address of that instance), so it cannot reach the human's screens.
 func TestLiveCapture(t *testing.T) {
-	addr := os.Getenv("HYPRCAGE_LIVE_WINDOW")
-	if addr == "" || os.Getenv("HYPRCAGE_DESKTOP_INSTANCE") == "" {
-		t.Skip("set HYPRCAGE_DESKTOP_INSTANCE and HYPRCAGE_LIVE_WINDOW (see tests/e2e-desktop.py)")
+	addr := os.Getenv("OFFSTAGE_LIVE_WINDOW")
+	if addr == "" || os.Getenv("OFFSTAGE_DESKTOP_INSTANCE") == "" {
+		t.Skip("set OFFSTAGE_DESKTOP_INSTANCE and OFFSTAGE_LIVE_WINDOW (see tests/e2e-desktop.py)")
 	}
 	h, err := Instance(nil)
 	if err != nil || h == nil {

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 func TestValidateName(t *testing.T) {
@@ -36,15 +36,15 @@ func TestNewName(t *testing.T) {
 
 func TestOrphanScreenName(t *testing.T) {
 	cases := map[string]string{
-		"hyprcage-hc_1a2b3c.slice":               "hc-1a2b3c",
-		"hyprcage-hc_1a2b3c-cage.scope":          "hc-1a2b3c",
-		"hyprcage-hc_1a2b3c-mirror.scope":        "hc-1a2b3c",
-		"hyprcage-hc_1a2b3c-app-4242-7.scope":    "hc-1a2b3c",
-		"hyprcage-hc_1a2b3c-mirror-4242-1.scope": "hc-1a2b3c",
-		"hyprcage-gc-hc_1a2b3c.timer":            "hc-1a2b3c",
-		"hyprcage-gc-hc_1a2b3c.service":          "hc-1a2b3c",
+		"offstage-hc_1a2b3c.slice":               "hc-1a2b3c",
+		"offstage-hc_1a2b3c-cage.scope":          "hc-1a2b3c",
+		"offstage-hc_1a2b3c-mirror.scope":        "hc-1a2b3c",
+		"offstage-hc_1a2b3c-app-4242-7.scope":    "hc-1a2b3c",
+		"offstage-hc_1a2b3c-mirror-4242-1.scope": "hc-1a2b3c",
+		"offstage-gc-hc_1a2b3c.timer":            "hc-1a2b3c",
+		"offstage-gc-hc_1a2b3c.service":          "hc-1a2b3c",
 		"app-Hyprland-firefox-1.scope":           "",
-		"hyprcage-notifyd.service":               "",
+		"offstage-notifyd.service":               "",
 	}
 	for in, want := range cases {
 		if got := orphanScreenName(in); got != want {

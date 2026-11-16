@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func lines(t *testing.T) []map[string]any {
@@ -32,7 +32,7 @@ func lines(t *testing.T) []map[string]any {
 
 func TestPathUsesStateHome(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/s")
-	if got := Path(); got != "/s/hyprcage/actions.jsonl" {
+	if got := Path(); got != "/s/offstage/actions.jsonl" {
 		t.Fatalf("got %s", got)
 	}
 }

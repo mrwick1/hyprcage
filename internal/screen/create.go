@@ -8,13 +8,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/lock"
-	"github.com/hexadecimil/hyprcage/internal/notify"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/notify"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // CreateOptions are the parameters of screen_create (cahier F1).
@@ -30,7 +30,7 @@ type CreateOptions struct {
 	Owner  registry.Owner
 }
 
-// RecordVersion is the format of the records this hyprcage writes.
+// RecordVersion is the format of the records this offstage writes.
 const RecordVersion = 3
 
 // mirrorWanted resolves the two opinions about the human's mirror window.
@@ -63,7 +63,7 @@ func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 		return nil, errf(CodeLimit, "screen.max_width / screen.max_height in config.toml", "size %dx%d is outside 320x240 .. %dx%d", opts.Width, opts.Height, cfg.MaxWidth, cfg.MaxHeight)
 	}
 	if _, err := exec.LookPath("cage"); err != nil {
-		return nil, errf(CodeCage, "run `hyprcage setup` (or the setup tool): it installs cage after the human enters their password", "cage not found in PATH")
+		return nil, errf(CodeCage, "run `offstage setup` (or the setup tool): it installs cage after the human enters their password", "cage not found in PATH")
 	}
 	exe, err := os.Executable()
 	if err != nil {
@@ -103,7 +103,7 @@ func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 		if opts.Mirror == nil {
 			// Without a compositor that places windows, a mirror would open
 			// on whatever the human is looking at: only on explicit request.
-			mirrorNote = "no Hyprland to place the window on, open one with `hyprcage mirror " + opts.Name + "`"
+			mirrorNote = "no Hyprland to place the window on, open one with `offstage mirror " + opts.Name + "`"
 		} else {
 			wsMirror = -1 // wanted, unplaced
 		}
@@ -197,14 +197,14 @@ func Create(c *Ctx, opts CreateOptions) (*registry.Screen, error) {
 
 // startCage launches cage on the headless backend in the screen's scope,
 // with an environment built rather than inherited: what wlroots reads must
-// be exactly what hyprcage decided, and nothing must point cage at the
+// be exactly what offstage decided, and nothing must point cage at the
 // human's compositor.
 func startCage(c *Ctx, rec *registry.Screen, exe, renderer string, useSystemd bool) error {
 	env := map[string]string{
 		"WLR_BACKENDS":         "headless",
 		"WLR_HEADLESS_OUTPUTS": "1",
 		"WLR_RENDERER":         renderer,
-		"HYPRCAGE_SCREEN":      rec.Name,
+		"OFFSTAGE_SCREEN":      rec.Name,
 	}
 	if rec.RenderDevice != "" {
 		env["WLR_RENDER_DRM_DEVICE"] = rec.RenderDevice
@@ -289,7 +289,7 @@ func probeCapture(cl *wl.Client) error {
 }
 
 // humanDisplay is the Wayland socket of the human's compositor: the
-// environment's, or the Hyprland instance's when hyprcage runs from a
+// environment's, or the Hyprland instance's when offstage runs from a
 // place that has no WAYLAND_DISPLAY (a service, an ssh session).
 func humanDisplay(c *Ctx) string {
 	if d := os.Getenv("WAYLAND_DISPLAY"); d != "" {

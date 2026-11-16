@@ -1,4 +1,4 @@
-// Package mcpserver exposes hyprcage as an MCP server on stdio (cahier §6.2):
+// Package mcpserver exposes offstage as an MCP server on stdio (cahier §6.2):
 // one process per agent session, blocked on stdin, no Hyprland or Wayland
 // connection until a screen exists (N1).
 package mcpserver
@@ -20,22 +20,22 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/audit"
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/devtools"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/record"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/setup"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
-	"github.com/hexadecimil/hyprcage/internal/version"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/audit"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/devtools"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/record"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/setup"
+	"github.com/hexadecimil/offstage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/version"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
-const instructions = `hyprcage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
+const instructions = `offstage gives you a virtual screen on the human's Hyprland desktop. Anything graphical you run for yourself goes there, never on the human's screens.
 Workflow: screen_create -> app_launch -> screenshot / click / type / key / scroll / drag / wait -> screen_destroy as soon as you are done.
 Read a screen as text first: snapshot, then act by ref, and find (with timeout_ms) instead of wait plus screenshot. Launch Chromium and Electron apps with debug=true. Take a screenshot only when the snapshot does not explain the screen.
 Coordinates are screen pixels (1280x800 by default). A screenshot costs ~1300 tokens: ask for screenshot_after only when you need to see the result, and prefer wait (stable_ms or title) over blind delays.
@@ -80,7 +80,7 @@ func newServer(cfg config.Config) *Server { return &Server{cfg: cfg} }
 
 // mcpServer builds the MCP server with every tool registered.
 func (s *Server) mcpServer() *mcp.Server {
-	srv := mcp.NewServer(&mcp.Implementation{Name: "hyprcage", Version: version.Version},
+	srv := mcp.NewServer(&mcp.Implementation{Name: "offstage", Version: version.Version},
 		&mcp.ServerOptions{Instructions: instructions})
 	s.register(srv)
 	return srv
@@ -232,7 +232,7 @@ func shotResult(res *screen.ShotResult, name, path string) (*mcp.CallToolResult,
 		if err != nil {
 			dir = os.TempDir()
 		}
-		path = filepath.Join(dir, "hyprcage", "shots", fmt.Sprintf("%s-%s.%s", name, time.Now().Format("20060102-150405"), ext))
+		path = filepath.Join(dir, "offstage", "shots", fmt.Sprintf("%s-%s.%s", name, time.Now().Format("20060102-150405"), ext))
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
@@ -312,7 +312,7 @@ type shotIn struct {
 	Cursor   *bool        `json:"cursor,omitempty" jsonschema:"draw the pointer (default true)"`
 	SettleMs int          `json:"settle_ms,omitempty" jsonschema:"wait this long before capturing, for a toast or an animation to settle (default 0)"`
 	Window   string       `json:"window,omitempty" jsonschema:"screen desktop only: capture this window (address from desktop_windows), on any workspace"`
-	Path     string       `json:"path,omitempty" jsonschema:"write the image to this file and return the path as text, with no inline image; auto picks <cache dir>/hyprcage/shots/<screen>-<time>.png"`
+	Path     string       `json:"path,omitempty" jsonschema:"write the image to this file and return the path as text, with no inline image; auto picks <cache dir>/offstage/shots/<screen>-<time>.png"`
 }
 
 type clickIn struct {
@@ -462,7 +462,7 @@ func unlocked[In any](srv *mcp.Server, name, desc string, h handler[In]) {
 }
 
 func (s *Server) register(srv *mcp.Server) {
-	tool(s, srv, "setup", "Install what hyprcage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
+	tool(s, srv, "setup", "Install what offstage needs on this machine (cage, ffmpeg, wl-clipboard, and tesseract with its English data for the OCR snapshot) through the package manager. A password dialog opens on the human's screen: tell the human before calling it. Use it when screen_create fails with cage_missing, or when recording, the clipboard or the OCR snapshot fails because ffmpeg, wl-clipboard or tesseract is missing, then retry.", s.setup)
 	tool(s, srv, "screen_create", "Create a virtual screen for yourself: a compositor with an output of its own, invisible to the human's desktop. Returns its name; use it in every other tool. Destroy it when done. The reply carries mirror_note when there is no mirror window for the human, and why.", s.screenCreate)
 	tool(s, srv, "screen_destroy", "Close a screen you created: its applications, its mirror window and its compositor.", s.screenDestroy)
 	tool(s, srv, "screen_list", "List your screens (or every session's with all=true).", s.screenList)

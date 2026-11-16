@@ -2,8 +2,8 @@
 # Waybar module: the number of agent screens, a dot while anything records,
 # and the class recording-desktop while the human's desktop is recorded.
 set -uo pipefail
-screens=$(hyprcage list --all --json 2>/dev/null) || screens='[]'
-recs=$(hyprcage record status --json 2>/dev/null) || recs='[]'
+screens=$(offstage list --all --json 2>/dev/null) || screens='[]'
+recs=$(offstage record status --json 2>/dev/null) || recs='[]'
 n=$(jq length <<<"$screens")
 r=$(jq length <<<"$recs")
 desk=$(jq '[.[] | select(.target == "desktop")] | length' <<<"$recs")

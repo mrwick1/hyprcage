@@ -314,7 +314,7 @@ func MainDevice(display string) (uint64, error) {
 
 // MainDevice returns the DRM device the compositor renders with, as the
 // dev_t of its node, through the linux-dmabuf feedback. It is how a client
-// learns which GPU to allocate on, and how hyprcage learns which GPU cage
+// learns which GPU to allocate on, and how offstage learns which GPU cage
 // should render on to stay on the human's. Zero when the compositor does
 // not say (linux-dmabuf older than version 4).
 func (c *Client) MainDevice() (uint64, error) {

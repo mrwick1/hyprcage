@@ -10,13 +10,13 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 var profileName = regexp.MustCompile(`^[a-z0-9-]{1,40}$`)
 
 // ProfilesDir is where named browser profiles live:
-// $XDG_DATA_HOME/hyprcage/profiles, else ~/.local/share/hyprcage/profiles.
+// $XDG_DATA_HOME/offstage/profiles, else ~/.local/share/offstage/profiles.
 func ProfilesDir() (string, error) {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" || !filepath.IsAbs(base) {
@@ -26,7 +26,7 @@ func ProfilesDir() (string, error) {
 		}
 		base = filepath.Join(home, ".local", "share")
 	}
-	return filepath.Join(base, "hyprcage", "profiles"), nil
+	return filepath.Join(base, "offstage", "profiles"), nil
 }
 
 // ProfilePath checks name and returns the profile directory. The name
@@ -46,7 +46,7 @@ func ProfilePath(name string) (string, error) {
 // browser_open calls cannot both pass the in-use check before either Chrome
 // has made its SingletonLock. It fails at once when another process holds it.
 func lockProfile(path string) (unlock func(), err error) {
-	f, err := os.OpenFile(filepath.Join(path, ".hyprcage.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	f, err := os.OpenFile(filepath.Join(path, ".offstage.lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func RemoveProfile(name string) error {
 		return err
 	}
 	if _, err := os.Stat(path); err != nil {
-		return screen.Errf(screen.CodeNotFound, "run: hyprcage profile list", "no profile %q", name)
+		return screen.Errf(screen.CodeNotFound, "run: offstage profile list", "no profile %q", name)
 	}
 	unlock, err := lockProfile(path)
 	if err == nil {

@@ -14,12 +14,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Desktop is the target name of the human's own screen.
@@ -40,7 +40,7 @@ type State struct {
 
 // ownerEnv carries the owner from Start to the detached recorder, which
 // writes the state file.
-const ownerEnv = "HYPRCAGE_REC_OWNER"
+const ownerEnv = "OFFSTAGE_REC_OWNER"
 
 func ownerFromEnv() registry.Owner {
 	var o registry.Owner
@@ -58,7 +58,7 @@ func CheckOwner(s State, id session.Identity) error {
 	if o.SessionID == "" || id.SessionID == "" || o.SessionID == id.SessionID || !ownerAlive(o.PID, o.PIDStart) {
 		return nil
 	}
-	return screen.Errf(screen.CodeNotOwner, "from a terminal: hyprcage record stop "+s.Target, "the recording of %s belongs to another session", s.Target)
+	return screen.Errf(screen.CodeNotOwner, "from a terminal: offstage record stop "+s.Target, "the recording of %s belongs to another session", s.Target)
 }
 
 // StopSession stops the desktop recorder when sessionID owns it. The
@@ -122,7 +122,7 @@ func List() ([]State, error) {
 }
 
 // Start runs `exe _record target out` detached and waits for its state
-// file. A screen's recorder carries HYPRCAGE_SCREEN, so destroying the
+// file. A screen's recorder carries OFFSTAGE_SCREEN, so destroying the
 // screen sends it SIGTERM and the file is finalised. An empty crop records
 // the whole frame.
 func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.Config, crop image.Rectangle) (State, error) {
@@ -144,13 +144,13 @@ func Start(exe, target string, isScreen bool, owner registry.Owner, cfg config.C
 	cmd := exec.Command(exe, args...)
 	ownerJSON, _ := json.Marshal(owner)
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "HYPRCAGE_SCREEN=") && !strings.HasPrefix(kv, ownerEnv+"=") {
+		if !strings.HasPrefix(kv, "OFFSTAGE_SCREEN=") && !strings.HasPrefix(kv, ownerEnv+"=") {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}
 	cmd.Env = append(cmd.Env, ownerEnv+"="+string(ownerJSON))
 	if isScreen {
-		cmd.Env = append(cmd.Env, "HYPRCAGE_SCREEN="+target)
+		cmd.Env = append(cmd.Env, "OFFSTAGE_SCREEN="+target)
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	// The child's own errors go to its log; O_APPEND keeps them and
@@ -201,7 +201,7 @@ func Stop(target string) (State, error) {
 	return s, nil
 }
 
-// RunChild is the body of `hyprcage _record`: capture display, pipe the
+// RunChild is the body of `offstage _record`: capture display, pipe the
 // frames to ffmpeg, stop on ctx, max or a capture error.
 func RunChild(ctx context.Context, target, display, out string, crop image.Rectangle, cfg config.Config) error {
 	_ = os.MkdirAll(screen.LogDir(), 0o700)
@@ -221,10 +221,10 @@ func RunChild(ctx context.Context, target, display, out string, crop image.Recta
 	b := first.Bounds()
 	argv := FFmpegArgs(b.Dx(), b.Dy(), cfg.RecordFPS, crop, Encoder(string(encs)), out)
 	ff := exec.Command(argv[0], argv[1:]...)
-	// ffmpeg must not carry HYPRCAGE_SCREEN: destroy signals the recorder,
+	// ffmpeg must not carry OFFSTAGE_SCREEN: destroy signals the recorder,
 	// which closes ffmpeg's input so that the file is finalised.
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "HYPRCAGE_SCREEN=") {
+		if !strings.HasPrefix(kv, "OFFSTAGE_SCREEN=") {
 			ff.Env = append(ff.Env, kv)
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/hypr"
 )
 
 // Verdict says whether an action did what its target implies.
@@ -94,7 +94,7 @@ var dialogRoles = map[string]bool{"dialog": true, "alert": true, "file chooser":
 
 // hasDialog reports whether objs hold a top-level object of the application
 // of w, with a dialog role and the title of w. Without a title match the
-// answer is false: hyprcage does not guess a role.
+// answer is false: offstage does not guess a role.
 func hasDialog(objs []accessible, w hypr.Client) bool {
 	role := make(map[string]string, len(objs))
 	for _, o := range objs {

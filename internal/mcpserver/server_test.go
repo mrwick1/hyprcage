@@ -12,11 +12,11 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/notifyd"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/notifyd"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func connect(t *testing.T) *mcp.ClientSession { return connectCfg(t, config.Default()) }
@@ -302,7 +302,7 @@ func TestDesktopLaunchRefusesDebug(t *testing.T) {
 func TestActRefusesNotLatest(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	path := filepath.Join(t.TempDir(), "n.jsonl")
-	t.Setenv("HYPRCAGE_NOTIFY_FILE", path)
+	t.Setenv("OFFSTAGE_NOTIFY_FILE", path)
 	now := time.Now()
 	for _, e := range []notifyd.Entry{
 		{ID: 1, Event: "notify", Actions: []string{"ok", "OK"}, Time: now},
@@ -323,7 +323,7 @@ func TestActRefusesNotLatest(t *testing.T) {
 
 func TestNotifydDown(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
-	t.Setenv("HYPRCAGE_NOTIFY_FILE", filepath.Join(t.TempDir(), "missing.jsonl"))
+	t.Setenv("OFFSTAGE_NOTIFY_FILE", filepath.Join(t.TempDir(), "missing.jsonl"))
 	cs := connect(t)
 	for _, c := range []struct {
 		tool string
@@ -367,7 +367,7 @@ func TestShotResultPath(t *testing.T) {
 			t.Fatal(err)
 		}
 		if path == "auto" {
-			if want := filepath.Join(cache, "hyprcage", "shots", "hc1-"); !strings.HasPrefix(got.Path, want) || !strings.HasSuffix(got.Path, ".png") {
+			if want := filepath.Join(cache, "offstage", "shots", "hc1-"); !strings.HasPrefix(got.Path, want) || !strings.HasSuffix(got.Path, ".png") {
 				t.Errorf("auto path %q, want prefix %q and .png", got.Path, want)
 			}
 		} else if got.Path != explicit {
@@ -398,7 +398,7 @@ func TestToolCallsAreAudited(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hyprcage", "actions.jsonl"))
+	raw, err := os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "offstage", "actions.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +427,7 @@ func TestToolCallsAreAudited(t *testing.T) {
 
 // TestMain keeps the tests away from the real action log.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "hyprcage-state")
+	dir, err := os.MkdirTemp("", "offstage-state")
 	if err != nil {
 		panic(err)
 	}

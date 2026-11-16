@@ -7,11 +7,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/lock"
-	"github.com/hexadecimil/hyprcage/internal/notify"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/notify"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 // Destroy closes a screen: its applications, its mirror, then cage, in that

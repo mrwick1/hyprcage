@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 func TestStateRoundTripAndDeadCleanup(t *testing.T) {
@@ -88,7 +88,7 @@ func TestStartPassesOwnerAndStripsScreen(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", dir)
 	t.Setenv("XDG_STATE_HOME", dir)
-	t.Setenv("HYPRCAGE_SCREEN", "hc-inherited")
+	t.Setenv("OFFSTAGE_SCREEN", "hc-inherited")
 	old := lockedFn
 	lockedFn = func() bool { return false }
 	defer func() { lockedFn = old }()
@@ -101,8 +101,8 @@ func TestStartPassesOwnerAndStripsScreen(t *testing.T) {
 	cfg.RecordDir = filepath.Join(dir, "rec")
 	_, _ = Start(exe, Desktop, false, registry.Owner{SessionID: "s1", PID: 42}, cfg, image.Rectangle{})
 	data, _ := os.ReadFile(envOut)
-	if strings.Contains(string(data), "HYPRCAGE_SCREEN=") {
-		t.Error("the desktop recorder inherits HYPRCAGE_SCREEN")
+	if strings.Contains(string(data), "OFFSTAGE_SCREEN=") {
+		t.Error("the desktop recorder inherits OFFSTAGE_SCREEN")
 	}
 	if !strings.Contains(string(data), ownerEnv+`={"session_id":"s1"`) {
 		t.Errorf("the recorder lacks the owner: %q", data)

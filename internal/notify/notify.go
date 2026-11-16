@@ -9,5 +9,5 @@ func Send(summary, body string) {
 	if _, err := exec.LookPath("notify-send"); err != nil {
 		return
 	}
-	_ = exec.Command("notify-send", "-u", "low", "-a", "hyprcage", summary, body).Run()
+	_ = exec.Command("notify-send", "-u", "low", "-a", "offstage", summary, body).Run()
 }

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/shellq"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/shellq"
 )
 
 // Name is the screen argument that targets the human's desktop.
@@ -25,16 +25,16 @@ const Name = "desktop"
 // IsDesktop reports whether a screen argument names the desktop.
 func IsDesktop(name string) bool { return name == Name }
 
-// Instance returns the desktop's Hyprland instance: HYPRCAGE_DESKTOP_INSTANCE
+// Instance returns the desktop's Hyprland instance: OFFSTAGE_DESKTOP_INSTANCE
 // when set, otherwise fallback. It refuses a signature with a path separator
 // and an instance that does not answer.
 func Instance(fallback *hypr.Instance) (*hypr.Instance, error) {
-	sig := os.Getenv("HYPRCAGE_DESKTOP_INSTANCE")
+	sig := os.Getenv("OFFSTAGE_DESKTOP_INSTANCE")
 	if sig == "" {
 		return fallback, nil
 	}
 	if strings.Contains(sig, "/") || strings.Contains(sig, "..") {
-		return nil, screen.Errf(screen.CodeInvalidName, "give a signature from $XDG_RUNTIME_DIR/hypr", "HYPRCAGE_DESKTOP_INSTANCE=%q is not a signature", sig)
+		return nil, screen.Errf(screen.CodeInvalidName, "give a signature from $XDG_RUNTIME_DIR/hypr", "OFFSTAGE_DESKTOP_INSTANCE=%q is not a signature", sig)
 	}
 	rt, err := hypr.RuntimeDir()
 	if err != nil {
@@ -42,7 +42,7 @@ func Instance(fallback *hypr.Instance) (*hypr.Instance, error) {
 	}
 	inst := &hypr.Instance{Signature: sig, Dir: filepath.Join(rt, "hypr", sig)}
 	if !inst.Alive() {
-		return nil, screen.Errf(screen.CodeHyprland, "", "HYPRCAGE_DESKTOP_INSTANCE=%s does not answer", sig)
+		return nil, screen.Errf(screen.CodeHyprland, "", "OFFSTAGE_DESKTOP_INSTANCE=%s does not answer", sig)
 	}
 	return inst, nil
 }
@@ -179,7 +179,7 @@ func (d Desktop) send(addr string, keys []key) error {
 	return nil
 }
 
-// Windows lists the human's windows, hyprcage's own mirrors left out.
+// Windows lists the human's windows, offstage's own mirrors left out.
 func (d Desktop) Windows() ([]hypr.Client, error) {
 	if err := d.session(); err != nil {
 		return nil, err
@@ -197,9 +197,9 @@ func (d Desktop) Windows() ([]hypr.Client, error) {
 	return out, nil
 }
 
-// own reports whether c is hyprcage's own window: a mirror. An agent
+// own reports whether c is offstage's own window: a mirror. An agent
 // screen's cage runs on the headless backend and has no window here.
-func own(c hypr.Client) bool { return c.Class == "hyprcage-mirror" }
+func own(c hypr.Client) bool { return c.Class == "offstage-mirror" }
 
 // Focus gives keyboard focus to a window. This one moves the human's focus
 // on purpose.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/hypr"
 )
 
 func TestATSPIDesktopOffset(t *testing.T) {

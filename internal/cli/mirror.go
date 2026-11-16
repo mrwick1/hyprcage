@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/mirror"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/mirror"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
-// runMirror is the mirror process (hyprcage _mirror <screen>): it shows the
+// runMirror is the mirror process (offstage _mirror <screen>): it shows the
 // screen in a window on the human's compositor and exits when the window is
 // closed or a side goes away. It is normally launched by StartMirror, on a
 // workspace chosen by the exec rules, but it can be run by hand too.
 func runMirror(e *Env) int {
 	if len(e.Args) != 1 {
-		return e.errorf("usage: hyprcage _mirror <screen>")
+		return e.errorf("usage: offstage _mirror <screen>")
 	}
 	name := e.Args[0]
 	if err := screen.ValidateName(name); err != nil {
@@ -44,7 +44,7 @@ func runMirror(e *Env) int {
 	})
 }
 
-// runMirrorOpen is the user-facing `hyprcage mirror <screen>`: open (default)
+// runMirrorOpen is the user-facing `offstage mirror <screen>`: open (default)
 // or close (-close) the mirror of a screen without touching the screen.
 func runMirrorOpen(e *Env) int {
 	fs := e.flags("mirror")
@@ -53,7 +53,7 @@ func runMirrorOpen(e *Env) int {
 		return ExitUsage
 	}
 	if fs.NArg() != 1 {
-		return e.errorf("usage: hyprcage mirror [-close] <screen>")
+		return e.errorf("usage: offstage mirror [-close] <screen>")
 	}
 	cfg, err := config.Load()
 	if err != nil {

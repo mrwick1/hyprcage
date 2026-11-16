@@ -10,12 +10,12 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 type snapIn struct {

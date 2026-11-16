@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/cdp"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/cdp"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // fake answers commands from reply and records them. Its onCall runs

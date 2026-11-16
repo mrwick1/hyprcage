@@ -4,15 +4,15 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 // Get loads a record and checks that its cage still runs.
 func Get(c *Ctx, name string) (*registry.Screen, error) {
 	rec, err := registry.Load(name)
 	if errors.Is(err, registry.ErrNotFound) {
-		return nil, errf(CodeNotFound, "hyprcage list --all", "no screen named %s", name)
+		return nil, errf(CodeNotFound, "offstage list --all", "no screen named %s", name)
 	}
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func Get(c *Ctx, name string) (*registry.Screen, error) {
 		dead = !Alive(rec)
 	}
 	if dead {
-		return rec, errf(CodeDead, "hyprcage destroy "+name+" then create a new one", "screen %s is dead: its cage is gone", name)
+		return rec, errf(CodeDead, "offstage destroy "+name+" then create a new one", "screen %s is dead: its cage is gone", name)
 	}
 	return rec, nil
 }
@@ -46,7 +46,7 @@ func Resolve(c *Ctx, name string, id session.Identity) (*registry.Screen, error)
 	}
 	switch len(mine) {
 	case 0:
-		return nil, errf(CodeNotFound, "hyprcage create", "this session has no screen")
+		return nil, errf(CodeNotFound, "offstage create", "this session has no screen")
 	case 1:
 		return Get(c, mine[0].Name)
 	}

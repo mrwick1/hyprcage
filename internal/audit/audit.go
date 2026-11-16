@@ -1,5 +1,5 @@
 // Package audit appends one JSON line per tool call to the action log,
-// $XDG_STATE_HOME/hyprcage/actions.jsonl (default ~/.local/state/hyprcage).
+// $XDG_STATE_HOME/offstage/actions.jsonl (default ~/.local/state/offstage).
 //
 // Every line has time and tool. The fields screen, args, error, ack and
 // verdict appear only when set, so a later field never changes the meaning
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 // Entry is one line of the log.
@@ -50,7 +50,7 @@ func Path() string {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".local", "state")
 	}
-	return filepath.Join(dir, "hyprcage", "actions.jsonl")
+	return filepath.Join(dir, "offstage", "actions.jsonl")
 }
 
 // Record appends one line for a tool call with input in and result err.

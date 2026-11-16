@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/session"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/session"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 // hookInput is the JSON Claude Code passes to hooks on stdin.
@@ -82,7 +82,7 @@ func runSessionEnd(e *Env) int {
 	}
 }
 
-// gcSession schedules `hyprcage gc --session ID`, detached: the hook budget
+// gcSession schedules `offstage gc --session ID`, detached: the hook budget
 // is not guaranteed, so it never waits for the work itself.
 func gcSession(e *Env, sessionID string, after time.Duration) int {
 	exe, err := os.Executable()

@@ -8,13 +8,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/config"
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/record"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/session"
+	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/record"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/session"
 )
 
 // recordTarget resolves "" or a screen name to a screen, and keeps "desktop".
@@ -44,7 +44,7 @@ func runRecord(e *Env) int {
 	if err := e.parse(fs); err != nil {
 		return ExitUsage
 	}
-	usage := "usage: hyprcage record start|stop [screen|desktop] [--crop x,y,w,h] [--json] | record status [--json]"
+	usage := "usage: offstage record start|stop [screen|desktop] [--crop x,y,w,h] [--json] | record status [--json]"
 	if fs.NArg() < 1 || fs.NArg() > 2 {
 		return e.errorf(usage)
 	}
@@ -107,10 +107,10 @@ func runRecord(e *Env) int {
 	return ExitOK
 }
 
-// runRecordChild is `hyprcage _record <target> <out>`.
+// runRecordChild is `offstage _record <target> <out>`.
 func runRecordChild(e *Env) int {
 	if len(e.Args) != 2 && len(e.Args) != 3 {
-		return e.errorf("usage: hyprcage _record <target> <out> [x,y,w,h]")
+		return e.errorf("usage: offstage _record <target> <out> [x,y,w,h]")
 	}
 	target, out := e.Args[0], e.Args[1]
 	var crop image.Rectangle

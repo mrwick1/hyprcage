@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/perceive"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/screen"
 )
 
 func TestTableFileFollowsScreenInstance(t *testing.T) {

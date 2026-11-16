@@ -3,9 +3,9 @@ package mcpserver
 import (
 	"strings"
 
-	"github.com/hexadecimil/hyprcage/internal/desktop"
-	"github.com/hexadecimil/hyprcage/internal/guard"
-	"github.com/hexadecimil/hyprcage/internal/perceive"
+	"github.com/hexadecimil/offstage/internal/desktop"
+	"github.com/hexadecimil/offstage/internal/guard"
+	"github.com/hexadecimil/offstage/internal/perceive"
 )
 
 // labelRadius is how far from a click the guard looks for the element that

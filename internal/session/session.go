@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 // Info is what the SessionStart hook records about a Claude Code session,

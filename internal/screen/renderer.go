@@ -27,13 +27,13 @@ func rendererStatePath() string {
 	if base == "" {
 		base = filepath.Join(os.Getenv("HOME"), ".local", "state")
 	}
-	return filepath.Join(base, "hyprcage", "renderer")
+	return filepath.Join(base, "offstage", "renderer")
 }
 
 // KnownRenderer returns the renderer learnt by a previous creation ("" when
 // the default GLES renderer works or nothing is known yet).
 func KnownRenderer(configured string) string {
-	if v := os.Getenv("HYPRCAGE_RENDERER"); v != "" {
+	if v := os.Getenv("OFFSTAGE_RENDERER"); v != "" {
 		return strings.ToLower(strings.TrimSpace(v))
 	}
 	if configured != "" && configured != "auto" {

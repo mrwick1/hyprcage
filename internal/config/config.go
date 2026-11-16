@@ -1,5 +1,5 @@
 // Package config holds the settings of cahier §6.3: built-in defaults,
-// overridden by ~/.config/hyprcage/config.toml when that file exists.
+// overridden by ~/.config/offstage/config.toml when that file exists.
 package config
 
 import (
@@ -47,7 +47,7 @@ type Config struct {
 	ProtectedMin  int
 	ProtectedMax  int
 	Notify        bool
-	Renderer      string // cage renderer: auto, gles or pixman (HYPRCAGE_RENDERER wins)
+	Renderer      string // cage renderer: auto, gles or pixman (OFFSTAGE_RENDERER wins)
 	RenderDevice  string // DRM render node cage renders on, empty to detect
 	MirrorFPS     int    // ceiling on the mirror's frame rate
 	// MirrorGroup says what shares a mirror workspace: "session" puts every
@@ -126,8 +126,8 @@ func Default() Config {
 	}
 }
 
-// Path is the config file: $XDG_CONFIG_HOME/hyprcage/config.toml, that is
-// ~/.config/hyprcage/config.toml by default.
+// Path is the config file: $XDG_CONFIG_HOME/offstage/config.toml, that is
+// ~/.config/offstage/config.toml by default.
 func Path() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
@@ -137,7 +137,7 @@ func Path() string {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "hyprcage", "config.toml")
+	return filepath.Join(base, "offstage", "config.toml")
 }
 
 // Load returns the defaults overridden by the config file when it exists.
@@ -169,7 +169,7 @@ func LoadFile(path string) (Config, error) {
 func Fallback() Config {
 	cfg, err := Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "hyprcage: %v; using the defaults\n", err)
+		fmt.Fprintf(os.Stderr, "offstage: %v; using the defaults\n", err)
 		d := Default()
 		d.Path = cfg.Path
 		return d

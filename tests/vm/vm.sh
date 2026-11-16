@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase-0 VM for hyprcage: a vanilla Arch Linux guest built from the official
+# Phase-0 VM for offstage: a vanilla Arch Linux guest built from the official
 # cloud image, driven over SSH, with no window on the host desktop. Everything
 # that could disturb a desktop (outputs, compositors, input injection) runs
 # in here, never on a personal machine.
@@ -15,13 +15,13 @@
 #   tests/vm/vm.sh stop         shut the VM down
 #   tests/vm/vm.sh reset        drop the overlay disk (keeps the base image)
 #
-# HYPRCAGE_VM_PROFILE=name keeps a separate overlay disk, pid, serial log and
+# OFFSTAGE_VM_PROFILE=name keeps a separate overlay disk, pid, serial log and
 # host key per profile (e.g. "omarchy"), sharing the base image and the seed.
-# Two profiles run at once only with distinct HYPRCAGE_VM_SSH_PORT values.
+# Two profiles run at once only with distinct OFFSTAGE_VM_SSH_PORT values.
 set -euo pipefail
 
-VMDIR=${HYPRCAGE_VM_DIR:-$HOME/Work/hyprcage-vm}
-PROFILE=${HYPRCAGE_VM_PROFILE:-default}
+VMDIR=${OFFSTAGE_VM_DIR:-$HOME/Work/offstage-vm}
+PROFILE=${OFFSTAGE_VM_PROFILE:-default}
 SUFFIX=; [ "$PROFILE" = default ] || SUFFIX=-$PROFILE
 HERE=$(cd "$(dirname "$0")" && pwd)
 MIRROR=${ARCH_MIRROR:-https://geo.mirror.pkgbuild.com/images/latest}
@@ -30,16 +30,16 @@ BASE=$VMDIR/base.qcow2
 DISK=$VMDIR/disk$SUFFIX.qcow2
 KEY=$VMDIR/id_ed25519
 SEED=$VMDIR/seed
-SSHPORT=${HYPRCAGE_VM_SSH_PORT:-2222}
-HTTPPORT=${HYPRCAGE_VM_HTTP_PORT:-8123}
+SSHPORT=${OFFSTAGE_VM_SSH_PORT:-2222}
+HTTPPORT=${OFFSTAGE_VM_HTTP_PORT:-8123}
 QMP=$VMDIR/qmp$SUFFIX.sock
 PIDF=$VMDIR/qemu$SUFFIX.pid
 HTTPPID=$VMDIR/http.pid
 SERIAL=$VMDIR/serial$SUFFIX.log
 KNOWN=$VMDIR/known_hosts$SUFFIX
-MEM=${HYPRCAGE_VM_MEM:-4096}
-CPUS=${HYPRCAGE_VM_CPUS:-4}
-DISKSIZE=${HYPRCAGE_VM_DISK:-20G}
+MEM=${OFFSTAGE_VM_MEM:-4096}
+CPUS=${OFFSTAGE_VM_CPUS:-4}
+DISKSIZE=${OFFSTAGE_VM_DISK:-20G}
 SSH_OPTS=(-i "$KEY" -p "$SSHPORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile="$KNOWN" -o LogLevel=ERROR -o ConnectTimeout=5)
 
 die() { echo "vm: $*" >&2; exit 1; }
@@ -78,9 +78,9 @@ fetch() {
 init() {
   [ -f "$BASE" ] || die "run fetch first"
   mkdir -p "$SEED"
-  [ -f "$KEY" ] || ssh-keygen -q -t ed25519 -N '' -C hyprcage-vm -f "$KEY"
+  [ -f "$KEY" ] || ssh-keygen -q -t ed25519 -N '' -C offstage-vm -f "$KEY"
   [ -f "$DISK" ] || qemu-img create -q -f qcow2 -b "$BASE" -F qcow2 "$DISK" "$DISKSIZE"
-  printf 'instance-id: hyprcage-vm\nlocal-hostname: hyprcage-vm\n' > "$SEED/meta-data"
+  printf 'instance-id: offstage-vm\nlocal-hostname: offstage-vm\n' > "$SEED/meta-data"
   sed "s|@PUBKEY@|$(cat "$KEY.pub")|" "$HERE/user-data.tmpl" > "$SEED/user-data"
   : > "$SEED/vendor-data"
   echo "initialised in $VMDIR"
@@ -97,12 +97,12 @@ start() {
   start_http
   rm -f "$QMP"
   local gpu_args=(-device virtio-vga -display none)
-  if [ "${HYPRCAGE_VM_GPU:-0}" = 1 ]; then
+  if [ "${OFFSTAGE_VM_GPU:-0}" = 1 ]; then
     # Hardware GL passed to the guest through virtio-gpu + virglrenderer,
     # rendered offscreen on the host GPU render node. No window on the host.
-    gpu_args=(-device virtio-gpu-gl -display "egl-headless,rendernode=${HYPRCAGE_VM_RENDERNODE:-/dev/dri/renderD128}")
+    gpu_args=(-device virtio-gpu-gl -display "egl-headless,rendernode=${OFFSTAGE_VM_RENDERNODE:-/dev/dri/renderD128}")
   fi
-  qemu-system-x86_64 -name "hyprcage-vm$SUFFIX" -enable-kvm -cpu host -smp "$CPUS" -m "$MEM" \
+  qemu-system-x86_64 -name "offstage-vm$SUFFIX" -enable-kvm -cpu host -smp "$CPUS" -m "$MEM" \
     -drive "file=$DISK,if=virtio,format=qcow2" \
     "${gpu_args[@]}" \
     -device virtio-rng-pci \

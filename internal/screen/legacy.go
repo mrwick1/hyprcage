@@ -8,16 +8,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/lock"
-	"github.com/hexadecimil/hyprcage/internal/notify"
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/notify"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 // Before 0.3 a screen was a Hyprland output with cage in a window on it.
 // This file tears such screens down: a record without a version, written
-// by an older hyprcage still in memory when the binary was updated, and an
+// by an older offstage still in memory when the binary was updated, and an
 // output carrying the prefix without any record. Removing an output makes
 // Hyprland migrate its workspaces and can warp the cursor, so the human's
 // state is captured before and put back after, for as long as Hyprland and
@@ -101,7 +101,7 @@ func removeOutputRestoring(c *Ctx, name string) error {
 }
 
 // traceRestore appends what an output removal moved, and whether it was put
-// back, to ~/.local/state/hyprcage/log/restore.log.
+// back, to ~/.local/state/offstage/log/restore.log.
 func traceRestore(what string, restored bool) {
 	f, err := os.OpenFile(filepath.Join(LogDir(), "restore.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -138,7 +138,7 @@ func hasMonitor(h *hypr.Instance, name string) bool {
 	return false
 }
 
-// destroyLegacy tears down a screen recorded by a hyprcage before 0.3.
+// destroyLegacy tears down a screen recorded by a offstage before 0.3.
 func destroyLegacy(c *Ctx, rec *registry.Screen) error {
 	release, err := lock.Acquire(30 * time.Second)
 	if err != nil {

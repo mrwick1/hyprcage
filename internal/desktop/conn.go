@@ -4,9 +4,9 @@ import (
 	"image"
 	"strconv"
 
-	"github.com/hexadecimil/hyprcage/internal/hypr"
-	"github.com/hexadecimil/hyprcage/internal/screen"
-	"github.com/hexadecimil/hyprcage/internal/wl"
+	"github.com/hexadecimil/offstage/internal/hypr"
+	"github.com/hexadecimil/offstage/internal/screen"
+	"github.com/hexadecimil/offstage/internal/wl"
 )
 
 // Conn is a Wayland connection to the desktop instance.

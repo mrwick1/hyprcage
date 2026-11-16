@@ -1,12 +1,12 @@
 {
-  "name": "hyprcage-mrwick1",
+  "name": "offstage-mrwick1",
   "owner": {
     "name": "mrwick1",
-    "url": "https://github.com/mrwick1/hyprcage"
+    "url": "https://github.com/mrwick1/offstage"
   },
   "plugins": [
     {
-      "name": "hyprcage",
+      "name": "offstage",
       "source": "./",
       "description": "A caged desktop for AI agents on Hyprland: hidden screens the agent drives by text refs (snapshot, act, find over CDP, AT-SPI or OCR), plus recording, clipboard and the human's windows."
     }

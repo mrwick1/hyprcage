@@ -8,8 +8,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/hexadecimil/hyprcage/internal/registry"
-	"github.com/hexadecimil/hyprcage/internal/sysd"
+	"github.com/hexadecimil/offstage/internal/registry"
+	"github.com/hexadecimil/offstage/internal/sysd"
 )
 
 var launchSeq int
@@ -37,7 +37,7 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 		"MOZ_ENABLE_WAYLAND":           "1",
 		"ELECTRON_OZONE_PLATFORM_HINT": "auto",
 		"SDL_VIDEODRIVER":              "wayland",
-		"HYPRCAGE_SCREEN":              rec.Name,
+		"OFFSTAGE_SCREEN":              rec.Name,
 		// Qt and GTK build their accessibility tree only when asked.
 		"QT_LINUX_ACCESSIBILITY_ALWAYS_ON": "1",
 		"ACCESSIBILITY_ENABLED":            "1",
@@ -132,7 +132,7 @@ func LogDir() string {
 	if base == "" {
 		base = filepath.Join(os.Getenv("HOME"), ".local", "state")
 	}
-	return filepath.Join(base, "hyprcage", "log")
+	return filepath.Join(base, "offstage", "log")
 }
 
 // AppLogPath returns the log file of the n-th launch on a screen by this process.

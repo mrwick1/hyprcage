@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The virtual keyboard needs a keymap before any key event. hyprcage builds
+// The virtual keyboard needs a keymap before any key event. offstage builds
 // one itself (the wtype method): one keycode per distinct keysym, which makes
 // typing independent of the human's layout and covers the whole of Unicode.
 //
@@ -219,7 +219,7 @@ func (c *Client) sendKeymap(km *keymap) error {
 		return c.keyboardErr()
 	}
 	data := km.render()
-	f, err := runtimeTempFile("hyprcage-keymap-*")
+	f, err := runtimeTempFile("offstage-keymap-*")
 	if err != nil {
 		return err
 	}
