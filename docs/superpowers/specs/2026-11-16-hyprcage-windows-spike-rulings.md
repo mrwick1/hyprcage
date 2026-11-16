@@ -74,3 +74,13 @@ Setup: the same VM, Chrome 157. The spike `tests/windows/spike-headless` starts 
 ### Ruling
 
 A headless browser on Windows needs no desktop, no RDP and no hidden desktop. Input, screenshots and recording work through CDP. Version 1 for Windows is the headless browser. The hidden desktop (spike B) comes after v1, for native apps.
+
+## Finding: Chrome locks the Windows account (2026-11-16)
+
+During the phase 3 tests, the account `Quickemu` was locked out. The Security log showed event 4625 (logon type 2, status `0xc000006d`/`0xc000006a`) from `chrome.exe` for each headless Chrome start, then event 4740. The VM policy locks an account after 10 failures in 10 minutes. This is the Windows default.
+
+Cause: Chrome's password manager tests for a blank Windows password with `LogonUser(user, ".", "", LOGON32_LOGON_INTERACTIVE)` (`chrome/browser/password_manager/password_manager_util_win.cc`). It skips the test when `Local State` has `password_manager.os_password_last_changed` at or after the time of the last password change. A new profile has no `Local State`, so each screen costs one failed logon.
+
+Fix: `internal/headless` writes `Local State` with `os_password_blank = false` and `os_password_last_changed` at the largest int64 into each new profile before Chrome starts. Check: the `internal/headless` and `mcpserver` headless tests in the VM gave 0 new 4625 events.
+
+Not tested: Chrome on a domain-joined machine (Chrome skips the test there) and Chrome versions after 157.
