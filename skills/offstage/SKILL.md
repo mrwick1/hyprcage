@@ -27,7 +27,7 @@ tell the human that a password dialog is about to open, call `setup`, then
 retry. Nothing else to install. `capture_failed` is a different answer: cage
 is there and the screen could not be captured, often a machine too busy to
 answer in time. Retry once, then tell the human. Calling `setup` for it
-installs nothing and asks them for a password for nothing.
+installs nothing and asks them for a password for nothing. `cage_failed` means cage is installed but did not start: read the cage log named in the error, and do not call `setup`.
 
 ## Browser: Bare
 
