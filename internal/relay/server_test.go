@@ -287,3 +287,34 @@ func TestAreaBareAcceptedUnknownRejected(t *testing.T) {
 		t.Errorf("filed %d work items, want 1", len(fp.created))
 	}
 }
+
+func TestPingRecordsLastSeen(t *testing.T) {
+	s, _ := setup(t)
+	ping := func(key, body string) int {
+		req := httptest.NewRequest("POST", "/v1/ping", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+key)
+		rec := httptest.NewRecorder()
+		s.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := ping("osk_wrong", `{}`); code != 401 {
+		t.Errorf("unknown key: code %d, want 401", code)
+	}
+	if code := ping("osk_joel", `not json`); code != 400 {
+		t.Errorf("bad body: code %d, want 400", code)
+	}
+	if code := ping("osk_joel", `{"version":"0.11.0-beta.7","platform":"linux"}`); code != 204 {
+		t.Fatalf("ping: code %d, want 204", code)
+	}
+	again, err := OpenStore(s.Store.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := again.d.Seen["joel"]
+	if got.Version != "0.11.0-beta.7" || got.Platform != "linux" || got.At.IsZero() {
+		t.Errorf("seen = %+v", got)
+	}
+	if _, ok := again.d.Seen["aswin"]; ok {
+		t.Error("aswin seen without a ping")
+	}
+}
