@@ -53,6 +53,7 @@ func runSessionStart(e *Env) int {
 	if err != nil {
 		return e.errorf("session-start: %v", err)
 	}
+	syncAgentRule()
 	pid := cliPID()
 	prev, _ := session.Read(pid)
 	_ = session.Write(session.Info{

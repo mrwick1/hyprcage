@@ -38,6 +38,7 @@ type Report struct {
 	URL         string // the beta relay
 	Confirm     bool   // report_issue shows the report and sends it only on a second call with confirmed
 	Screenshots bool   // a report carries a screenshot and the element tree of the agent screen
+	AgentRule   bool   // keep the beta reporting rule in the agents' instruction files
 }
 
 // Config is the effective configuration. It holds slices, so compare it
@@ -142,7 +143,7 @@ func Default() Config {
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
 			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
 		},
-		Report: Report{URL: "https://beta.mrwick.dev", Screenshots: true},
+		Report: Report{URL: "https://beta.mrwick.dev", Screenshots: true, AgentRule: true},
 	}
 }
 
@@ -258,6 +259,7 @@ type file struct {
 		URL         *string `toml:"url"`
 		Confirm     *bool   `toml:"confirm"`
 		Screenshots *bool   `toml:"screenshots"`
+		AgentRule   *bool   `toml:"agent_rule"`
 	} `toml:"report"`
 }
 
@@ -371,6 +373,9 @@ func Apply(cfg *Config, text string) error {
 	}
 	if f.Report.Screenshots != nil {
 		cfg.Report.Screenshots = *f.Report.Screenshots
+	}
+	if f.Report.AgentRule != nil {
+		cfg.Report.AgentRule = *f.Report.AgentRule
 	}
 	return cfg.Validate()
 }

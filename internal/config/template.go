@@ -72,6 +72,7 @@ prompt_classes = []   # extra app ids of password prompts. No input tool acts on
 url = "https://beta.mrwick.dev" # the beta relay that report_issue and offstage report send to
 confirm = false       # true: report_issue shows you the report first and sends it only after you agree
 screenshots = true    # a report carries a screenshot and the element tree of the agent screen, never of your desktop
+agent_rule = true     # keep the beta reporting rule in ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md; false removes it at the next session start
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and

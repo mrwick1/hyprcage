@@ -109,6 +109,14 @@ The agent calls `report_issue` when offstage itself fails:
 The agent does not report bugs in the app under test, wrong arguments, or an
 action that the guard blocked on purpose. It files one report per problem.
 
+The installer and each Claude Code session start add a short reporting rule to
+`~/.claude/CLAUDE.md` and to `~/.codex/AGENTS.md`, when those directories
+exist. The rule tells the agent to file at once and to continue its task. It
+sits between `<!-- offstage:beta-reporting` markers. offstage never changes
+text outside the markers. A symlinked file is never edited: `offstage doctor`
+warns, and `offstage agent-rule print` shows the block to add by hand.
+`offstage agent-rule remove` takes the block out, and the uninstaller does too.
+
 After a crash, the next tool result tells the agent that crash files wait. The
 agent then files a report with the crash files.
 
@@ -169,6 +177,7 @@ with the defaults, run `offstage config`.
 url = "https://beta.mrwick.dev"
 confirm = false
 screenshots = true
+agent_rule = true
 ```
 
 | Key | Default | Effect |
@@ -176,6 +185,7 @@ screenshots = true
 | `url` | `https://beta.mrwick.dev` | The relay. Do not change it. |
 | `confirm` | `false` | `true`: the agent shows you the report and sends it only after you agree. |
 | `screenshots` | `true` | `false`: reports carry no screenshot and no element tree. |
+| `agent_rule` | `true` | `false`: the next session start removes the reporting rule from the instruction files. |
 
 Build a report and see it without sending it:
 
