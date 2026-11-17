@@ -132,8 +132,10 @@ A report is a zip bundle. It holds:
 
 - `trace.jsonl`: the tool calls on the screen, in order. The calls carry
   arguments, results and error codes.
-- `env.txt`: the offstage version, OS, kernel, Hyprland, cage and GPU, and your
-  `config.toml`.
+- `env.txt`: the offstage version, OS, kernel, Hyprland, cage, cage renderer,
+  GPU, agent client name, Bare browser binary and your `config.toml`.
+- `session-trace.jsonl`: the tool calls of the whole agent session, up to 500.
+- `blocks.jsonl`: the failed tool calls of the session, up to 200.
 - `logs/`: the last 200 lines of up to 6 logs of the screen.
 - `snapshot.txt` and `screenshot.png`: the element tree and a screenshot of the
   agent screen. Never of your own desktop.
@@ -155,7 +157,7 @@ and notification text in a trace. Check a report with a dry run if that worries
 you.
 
 The bundle stays under 4 MB. If it is larger, offstage drops the screenshot,
-then the logs.
+then the logs, then the session trace, then the block log.
 
 ## Settings
 
