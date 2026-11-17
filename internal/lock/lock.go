@@ -71,3 +71,28 @@ func releaseFn() {
 		file = nil
 	}
 }
+
+// File takes an exclusive lock on the file at path, waiting up to timeout.
+// Unlike Acquire it is not reentrant and does not touch the registry lock.
+func File(path string, timeout time.Duration) (release func(), err error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		held, ferr := tryLock(f)
+		if ferr != nil {
+			f.Close()
+			return nil, ferr
+		}
+		if held {
+			return func() { unlock(f); f.Close() }, nil
+		}
+		if time.Now().After(deadline) {
+			f.Close()
+			return nil, ErrBusy
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}

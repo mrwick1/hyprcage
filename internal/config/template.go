@@ -73,6 +73,9 @@ url = "https://beta.mrwick.dev" # the beta relay that report_issue and offstage 
 confirm = false       # true: report_issue shows you the report first and sends it only after you agree
 screenshots = true    # a report carries a screenshot and the element tree of the agent screen, never of your desktop
 agent_rule = true     # keep the beta reporting rule in ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md; false removes it at the next session start
+
+[update]
+auto = true          # the MCP server updates itself to the newest beta about once an hour and restarts when idle; false turns it off
 `
 
 // WriteDefault writes Template at Path() when no file is there yet and

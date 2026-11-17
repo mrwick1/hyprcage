@@ -585,3 +585,19 @@ func prune() error {
 	}
 	return nil
 }
+
+// Active reports whether owner's session has a task that is not closed.
+func Active(owner registry.Owner) bool {
+	dirs, _ := filepath.Glob(filepath.Join(root(), "task-*", "manifest.json"))
+	for _, m := range dirs {
+		b, err := os.ReadFile(m)
+		var t Task
+		if err != nil || json.Unmarshal(b, &t) != nil || t.State == "closed" {
+			continue
+		}
+		if t.Owner == owner || (owner.SessionID != "" && t.Owner.SessionID == owner.SessionID) {
+			return true
+		}
+	}
+	return false
+}
