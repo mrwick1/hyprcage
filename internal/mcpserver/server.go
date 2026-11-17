@@ -89,6 +89,8 @@ func Run() error {
 	defer s.closeBare()
 	stop := make(chan struct{})
 	go s.heartbeat(stop)
+	go flushReports(cfg.Report.URL, stop)
+	wakeReports() // reports an earlier session left in the queue
 	err = srv.Run(context.Background(), &mcp.StdioTransport{})
 	close(stop)
 	screen.CloseAll()
@@ -539,6 +541,9 @@ func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Conte
 				opts = append(opts, audit.WithVerdict(v))
 			}
 			e := audit.Record(name, in, failed, opts...)
+			if failed != nil {
+				logBlock(e, err, res)
+			}
 			for _, server := range servers {
 				server.recordTimeline(e, res)
 			}
