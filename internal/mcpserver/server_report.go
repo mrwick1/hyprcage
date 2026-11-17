@@ -72,11 +72,15 @@ func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
 			"next":    "Show the preview and the file list to the human. Send it with the same arguments and confirmed:true only after they agree. Private data (home paths, user and host names, tokens, URL queries, emails, typed text) is already removed.",
 		}), nil
 	}
-	msg, err := report.Deliver(s.cfg.Report.URL, b)
-	if err != nil {
-		return nil, screen.Errf(screen.CodeUnsupported, "run: offstage report login", "%v", err)
+	if _, err := report.Save(b); err != nil {
+		return nil, screen.Errf(screen.CodeUnsupported, "", "queue the report: %v", err)
 	}
 	report.ClearCrashes(b.Crashes)
+	wakeReports()
+	msg := "queued; it is sent in the background. Continue your task."
+	if report.Key() == "" {
+		msg = "queued; it is sent when the human runs offstage report login. Continue your task."
+	}
 	return textResult(map[string]string{"result": msg}), nil
 }
 

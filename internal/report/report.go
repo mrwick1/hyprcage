@@ -684,32 +684,54 @@ func SaveTo(root string, b *Bundle) (string, error) {
 	return dir, os.WriteFile(filepath.Join(dir, "bundle.zip"), b.Zip, 0o600)
 }
 
+// A flush claims a bundle by renaming it with sendingSuffix, so that two
+// processes never send the same bundle. A claim older than staleClaim was
+// left by a process that died while sending; the next flush takes it back.
+const (
+	sendingSuffix = ".sending"
+	staleClaim    = 5 * time.Minute
+)
+
 // Flush sends the queued bundles, oldest first. It stops at the first
 // bundle that fails for a reason a retry can fix.
 func Flush(url, key string) ([]Result, error) {
+	claims, _ := filepath.Glob(filepath.Join(QueueDir(), "*"+sendingSuffix))
+	for _, c := range claims {
+		if st, err := os.Stat(c); err == nil && time.Since(st.ModTime()) > staleClaim {
+			_ = os.Rename(c, strings.TrimSuffix(c, sendingSuffix))
+		}
+	}
 	dirs, _ := filepath.Glob(filepath.Join(QueueDir(), "*"))
 	sort.Strings(dirs)
 	var sent []Result
 	for _, d := range dirs {
-		if strings.HasSuffix(d, ".rejected") {
+		if strings.HasSuffix(d, ".rejected") || strings.HasSuffix(d, sendingSuffix) {
 			continue
 		}
+		claim := d + sendingSuffix
+		if os.Rename(d, claim) != nil {
+			continue // another flush took it
+		}
+		now := time.Now()
+		_ = os.Chtimes(claim, now, now)
 		var b Bundle
-		meta, err := os.ReadFile(filepath.Join(d, "meta.json"))
+		meta, err := os.ReadFile(filepath.Join(claim, "meta.json"))
 		if err != nil || json.Unmarshal(meta, &b.Meta) != nil {
+			_ = os.Rename(claim, d)
 			continue
 		}
-		b.Zip, _ = os.ReadFile(filepath.Join(d, "bundle.zip"))
+		b.Zip, _ = os.ReadFile(filepath.Join(claim, "bundle.zip"))
 		res, err := Send(url, key, &b)
 		if err != nil {
 			if Retry(err) {
+				_ = os.Rename(claim, d)
 				return sent, err
 			}
-			_ = os.Rename(d, d+".rejected")
+			_ = os.Rename(claim, d+".rejected")
 			continue
 		}
 		sent = append(sent, res)
-		_ = os.RemoveAll(d)
+		_ = os.RemoveAll(claim)
 	}
 	return sent, nil
 }

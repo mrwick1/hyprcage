@@ -12,6 +12,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -347,5 +348,69 @@ func TestBuildAddsLogAndTimelineRedacted(t *testing.T) {
 	log := got["log.txt"]
 	if !strings.Contains(log, "restored") || strings.Contains(log, "jane.doe@example.com") || (len(u.Username) > 2 && strings.Contains(log, u.Username)) {
 		t.Errorf("log.txt not redacted:\n%s", log)
+	}
+}
+
+func TestConcurrentFlushesSendEachBundleOnce(t *testing.T) {
+	home(t)
+	var mu sync.Mutex
+	sent := map[string]int{}
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(20 * time.Millisecond)
+		_ = r.ParseMultipartForm(1 << 20)
+		mu.Lock()
+		sent[r.FormValue("meta")]++
+		mu.Unlock()
+		_, _ = io.WriteString(w, `{"id":"OFS-1"}`)
+	}))
+	defer relay.Close()
+	for i := range 5 {
+		b, _ := Build(Request{Title: fmt.Sprintf("r%d", i), Manual: true})
+		if _, err := Save(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() { _, _ = Flush(relay.URL, "osk_abcdefghijklmnopqrstuvwxyz") })
+	}
+	wg.Wait()
+	if len(sent) != 5 {
+		t.Errorf("sent %d distinct bundles, want 5", len(sent))
+	}
+	for m, n := range sent {
+		if n != 1 {
+			t.Errorf("sent %d times: %s", n, m)
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(QueueDir(), "*")); len(left) != 0 {
+		t.Errorf("queue not empty: %v", left)
+	}
+}
+
+func TestFlushReclaimsAStaleClaim(t *testing.T) {
+	home(t)
+	sent := 0
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent++
+		_, _ = io.WriteString(w, `{"id":"OFS-2"}`)
+	}))
+	defer relay.Close()
+	b, _ := Build(Request{Title: "orphan", Manual: true})
+	dir, err := Save(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := dir + sendingSuffix
+	if err := os.Rename(dir, claim); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-2 * staleClaim)
+	_ = os.Chtimes(claim, old, old)
+	if _, err := Flush(relay.URL, "osk_abcdefghijklmnopqrstuvwxyz"); err != nil {
+		t.Fatal(err)
+	}
+	if sent != 1 {
+		t.Errorf("sent %d, want the stale claim sent once", sent)
 	}
 }
