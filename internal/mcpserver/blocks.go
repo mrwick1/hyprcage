@@ -12,9 +12,9 @@ import (
 // identity is this server's session, read once for the block log.
 var identity = sync.OnceValue(session.Current)
 
-// logBlock writes a failed call to the block log. A write error is dropped:
-// the log must never fail a tool call.
-func logBlock(e audit.Entry, err error, res *mcp.CallToolResult) {
+// logBlock writes a failed call to the block log and returns its error
+// text. A write error is dropped: the log must never fail a tool call.
+func logBlock(e audit.Entry, err error, res *mcp.CallToolResult) string {
 	msg := ""
 	if err != nil {
 		msg = err.Error()
@@ -26,4 +26,5 @@ func logBlock(e audit.Entry, err error, res *mcp.CallToolResult) {
 		Time: e.Time, Session: id.SessionID, Client: id.Client, ActionID: e.ActionID,
 		Tool: e.Tool, Screen: e.Screen, Code: e.Error, Message: msg,
 	})
+	return msg
 }
