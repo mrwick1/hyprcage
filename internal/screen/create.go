@@ -236,6 +236,9 @@ func checkFree(c *Ctx, opts CreateOptions) error {
 // be exactly what offstage decided, and nothing must point cage at the
 // human's compositor.
 func startCage(c *Ctx, rec *registry.Screen, exe, renderer string, useSystemd bool) error {
+	if os.Getenv("XDG_RUNTIME_DIR") == "" {
+		return errf(CodeCageFailed, "run offstage from a session with XDG_RUNTIME_DIR set (the user's login session)", "XDG_RUNTIME_DIR is not set")
+	}
 	env := map[string]string{
 		"WLR_BACKENDS":         "headless",
 		"WLR_HEADLESS_OUTPUTS": "1",
@@ -278,7 +281,7 @@ func startCage(c *Ctx, rec *registry.Screen, exe, renderer string, useSystemd bo
 		defer f.Close()
 	}
 	if err := cmd.Start(); err != nil {
-		return errf(CodeCage, "", "starting cage: %v", err)
+		return errf(CodeCageFailed, "see "+CageLogPath(rec.Name), "starting cage: %v", err)
 	}
 	go func() { _ = cmd.Wait() }()
 	return nil
@@ -293,7 +296,7 @@ func readyScreen(rec *registry.Screen, width, height int) (*wl.Client, error) {
 		return nil, err
 	}
 	if err := cl.SetMode(width, height, 60, 1); err != nil {
-		return nil, errf(CodeCage, "see "+CageLogPath(rec.Name), "cage did not take the size %dx%d: %v", width, height, err)
+		return nil, errf(CodeCageFailed, "see "+CageLogPath(rec.Name), "cage did not take the size %dx%d: %v", width, height, err)
 	}
 	if err := probeCapture(cl); err != nil {
 		return nil, err
@@ -432,7 +435,7 @@ func waitInner(name string, timeout time.Duration) (map[string]string, error) {
 			return m, nil
 		}
 		if time.Now().After(deadline) {
-			return nil, errf(CodeCage, "see "+CageLogPath(name), "cage did not publish its socket within %s", timeout)
+			return nil, errf(CodeCageFailed, "see "+CageLogPath(name), "cage did not publish its socket within %s", timeout)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

@@ -1,9 +1,12 @@
 package screen
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/hexadecimil/offstage/internal/registry"
 )
 
 func TestAtoi(t *testing.T) {
@@ -51,5 +54,17 @@ func TestRemoveProfilesKeepsNamedProfile(t *testing.T) {
 	removeProfiles("hc-a")
 	if _, err := os.Stat(named); err != nil {
 		t.Errorf("named profile is gone: %v", err)
+	}
+}
+
+// Cage inherits XDG_RUNTIME_DIR. Without it, cage cannot publish a socket,
+// so startCage answers at once instead of after the 5 s wait.
+func TestStartCageNeedsRuntimeDir(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	os.Unsetenv("XDG_RUNTIME_DIR")
+	err := startCage(nil, &registry.Screen{Name: "hc-x"}, "offstage", "pixman", false)
+	var e *Error
+	if !errors.As(err, &e) || e.Code != CodeCageFailed {
+		t.Fatalf("got %v, want code %s", err, CodeCageFailed)
 	}
 }

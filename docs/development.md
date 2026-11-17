@@ -197,6 +197,7 @@ delay a capture that works, and a renderer that was remembered and then
 failed is forgotten again, so one bad night never pins a machine to software
 rendering. A probe that times out answers `capture_failed`, never
 `cage_missing`, which is the code that sends an agent to `setup`.
+A cage that is installed but did not start answers `cage_failed`: read the cage log, and do not call `setup`.
 
 ## Debugging the protocol
 
