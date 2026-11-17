@@ -11,6 +11,12 @@ import (
 // Get loads a record and checks that its cage still runs.
 func Get(c *Ctx, name string) (*registry.Screen, error) {
 	rec, err := registry.Load(name)
+	// create adds the prefix, so an agent may pass the name without it.
+	if p := Prefixed(name, c.Cfg.OutputPrefix); errors.Is(err, registry.ErrNotFound) && p != name {
+		if r, e := registry.Load(p); e == nil {
+			rec, err, name = r, nil, p
+		}
+	}
 	if errors.Is(err, registry.ErrNotFound) {
 		return nil, errf(CodeNotFound, "offstage list --all", "no screen named %s", name)
 	}
