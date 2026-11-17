@@ -541,6 +541,9 @@ func addContext[In any](srv *mcp.Server, name, desc string, h func(context.Conte
 				opts = append(opts, audit.WithVerdict(v))
 			}
 			e := audit.Record(name, in, failed, opts...)
+			if failed != nil {
+				logBlock(e, err, res)
+			}
 			for _, server := range servers {
 				server.recordTimeline(e, res)
 			}
