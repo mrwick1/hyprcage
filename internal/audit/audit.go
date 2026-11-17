@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -28,6 +29,7 @@ import (
 type Entry struct {
 	ScreenInstance string         `json:"screen_instance,omitempty"`
 	ActionID       string         `json:"action_id,omitempty"`
+	Session        string         `json:"session,omitempty"` // the agent session that made the call
 	TaskID         string         `json:"task_id,omitempty"`
 	Time           string         `json:"time"`
 	Screen         string         `json:"screen,omitempty"`
@@ -48,6 +50,27 @@ type Target struct {
 	Name string `json:"name,omitempty"`
 	X    int    `json:"x,omitempty"` // centre of the element, screen pixels
 	Y    int    `json:"y,omitempty"`
+}
+
+var (
+	sessionMu     sync.Mutex
+	sessionID     string
+	sessionClient string
+)
+
+// SetSession sets the agent session id and client name that Record puts on
+// every line.
+func SetSession(id, client string) {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	sessionID, sessionClient = id, client
+}
+
+// Session returns the id and client name set by SetSession.
+func Session() (id, client string) {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	return sessionID, sessionClient
 }
 
 // Option sets an optional field of an Entry.
@@ -92,7 +115,7 @@ func Path() string {
 // Record appends one line for a tool call with input in and result err, and
 // returns the line. It never fails the call: a write error is dropped.
 func Record(tool string, in any, err error, opts ...Option) Entry {
-	e := Entry{ActionID: rand.Text(), Time: time.Now().UTC().Format(time.RFC3339Nano), Tool: tool}
+	e := Entry{ActionID: rand.Text(), Session: sessionIDOnly(), Time: time.Now().UTC().Format(time.RFC3339Nano), Tool: tool}
 	if b, jerr := json.Marshal(in); jerr == nil {
 		var args map[string]any
 		if json.Unmarshal(b, &args) == nil {
@@ -232,3 +255,5 @@ func loggableKey(k string) bool {
 	}
 	return false
 }
+
+func sessionIDOnly() string { id, _ := Session(); return id }

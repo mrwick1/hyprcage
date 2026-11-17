@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
+	"github.com/hexadecimil/offstage/internal/bare"
 	"github.com/hexadecimil/offstage/internal/config"
 	"github.com/hexadecimil/offstage/internal/headless"
 	"github.com/hexadecimil/offstage/internal/redact"
@@ -102,10 +103,18 @@ func Build(r Request) (*Bundle, error) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
 		return nil, fmt.Errorf("reports are for linux and windows, not %s", runtime.GOOS)
 	}
-	trace := Trace(audit.Path(), r.Screen)
+	entries := readEntries(audit.Path())
+	trace := traceOf(entries, r.Screen)
 	files := map[string][]byte{
 		"trace.jsonl": joinLines(trace),
 		"env.txt":     []byte(Env()),
+	}
+	id, _ := audit.Session()
+	if st := sessionTrace(entries, id); len(st) > 0 {
+		files["session-trace.jsonl"] = joinLines(st)
+	}
+	if bl := sessionBlocks(BlocksPath(), id); len(bl) > 0 {
+		files["blocks.jsonl"] = bl
 	}
 	for name, data := range Logs(screen.LogDir(), r.Screen) {
 		files["logs/"+name] = data
@@ -201,9 +210,9 @@ func isText(name string) bool {
 }
 
 // zipFiles writes the files in name order. Over the size limit it drops the
-// screenshot first, then the logs.
+// screenshot first, then the logs, the session trace and the block log.
 func zipFiles(files map[string][]byte) ([]byte, []string, error) {
-	for _, drop := range []string{"", "screenshot.png", "logs/"} {
+	for _, drop := range []string{"", "screenshot.png", "logs/", "session-trace.jsonl", "blocks.jsonl"} {
 		if drop != "" {
 			for name := range files {
 				if name == drop || (strings.HasSuffix(drop, "/") && strings.HasPrefix(name, drop)) {
@@ -235,12 +244,15 @@ func zipFiles(files map[string][]byte) ([]byte, []string, error) {
 			return buf.Bytes(), names, nil
 		}
 	}
-	return nil, nil, errors.New("the bundle is over 4 MB even without the screenshot and the logs")
+	return nil, nil, errors.New("the bundle is over 4 MB even without the screenshot, the logs, the session trace and the block log")
 }
 
 // Trace returns the action log lines of a screen, from the screen_create
 // call before its first line. With no screen it returns the last calls.
-func Trace(logPath, name string) []audit.Entry {
+func Trace(logPath, name string) []audit.Entry { return traceOf(readEntries(logPath), name) }
+
+// readEntries returns every line of the action log that parses.
+func readEntries(logPath string) []audit.Entry {
 	f, err := os.Open(logPath)
 	if err != nil {
 		return nil
@@ -255,6 +267,10 @@ func Trace(logPath, name string) []audit.Entry {
 			all = append(all, e)
 		}
 	}
+	return all
+}
+
+func traceOf(all []audit.Entry, name string) []audit.Entry {
 	if name == "" {
 		return all[max(0, len(all)-recentEvents):]
 	}
@@ -482,6 +498,11 @@ func Env() string {
 	} else {
 		b.WriteString("chrome: not found\n")
 	}
+	cfg, cerr := config.Load()
+	if cerr != nil {
+		cfg = config.Default()
+		cfg.Path = config.Path()
+	}
 	if runtime.GOOS == "linux" {
 		if k, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
 			fmt.Fprintf(&b, "kernel: %s", k)
@@ -503,11 +524,24 @@ func Env() string {
 			}
 		}
 	}
-	cfg, cerr := config.Load()
+	if _, client := audit.Session(); client != "" {
+		fmt.Fprintf(&b, "client: %s\n", client)
+	}
+	if runtime.GOOS == "linux" {
+		r := screen.KnownRenderer(cfg.Renderer)
+		if r == "" {
+			r = "default"
+		}
+		fmt.Fprintf(&b, "cage renderer: %s\n", r)
+	}
+	// bare-mcp has no --version flag: it prints its usage line, so only the path is shown.
+	if p, err := bare.Find(); err == nil {
+		fmt.Fprintf(&b, "bare-mcp: %s\n", p)
+	} else {
+		b.WriteString("bare-mcp: not found\n")
+	}
 	if cerr != nil {
 		fmt.Fprintf(&b, "\nconfig error: %v\n", cerr)
-		cfg = config.Default()
-		cfg.Path = config.Path()
 	}
 	b.WriteString("\neffective config:\n")
 	b.WriteString(render(reflect.ValueOf(cfg), ""))
