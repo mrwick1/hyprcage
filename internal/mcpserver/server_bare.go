@@ -83,8 +83,9 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 			start := time.Now()
 			result, err = s.callBare(ctx, original, args, hasWindow)
 			normalizeBareResult(original, result)
-			var failed error
-			if err != nil || result != nil && result.IsError {
+			// The audit keeps only the code of err, never its text.
+			failed := err
+			if err == nil && result != nil && result.IsError {
 				failed = fmt.Errorf("Bare tool failed")
 			}
 			// Bare arguments can contain credentials and scripts. Log metadata only.
