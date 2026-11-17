@@ -13,10 +13,15 @@ type fakeCap struct {
 	img   *image.RGBA
 	calls int
 	grow  int // after this many calls, return a bigger image (0 = never)
+	late  int // this call takes delay (0 = none)
+	delay time.Duration
 }
 
 func (f *fakeCap) Capture(bool) (*image.RGBA, error) {
 	f.calls++
+	if f.calls == f.late {
+		time.Sleep(f.delay)
+	}
 	if f.grow > 0 && f.calls >= f.grow {
 		return image.NewRGBA(image.Rect(0, 0, 8, 8)), nil
 	}
@@ -168,5 +173,21 @@ func TestLoopKeepsFFmpegStart(t *testing.T) {
 	}
 	if n < 9 || n > 12 {
 		t.Errorf("%d frames for 500 ms at 20 fps with a 300 ms ffmpeg start, want about 10", n)
+	}
+}
+
+func TestLoopStopsDuringCatchUp(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	// The second capture comes 1 s late, so the loop writes about 50 frames
+	// of catch-up at 20 ms each; the cancel falls inside them.
+	c := &fakeCap{img: img, late: 2, delay: time.Second}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(1200 * time.Millisecond); cancel() }()
+	start := time.Now()
+	if _, err := Loop(ctx, c, slowWriter{20 * time.Millisecond}, 50, time.Hour, 0, 0, nil, img); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > 1400*time.Millisecond {
+		t.Errorf("Loop took %v to stop after a cancel at 1.2 s", d)
 	}
 }

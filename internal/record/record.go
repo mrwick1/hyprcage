@@ -87,6 +87,9 @@ func Loop(ctx context.Context, c Capturer, w io.Writer, fps int, max, idle time.
 	for {
 		due := int(time.Since(start)/period) + 1
 		for ; written < due; written++ {
+			if ctx.Err() != nil { // a stop does not wait for a catch-up
+				return written, nil
+			}
 			if err := writeFrame(w, img); err != nil {
 				return written, err
 			}
