@@ -16,7 +16,26 @@ type Prompts interface {
 	IsPrompt(w Window) bool
 }
 
+// Dialogs keeps the file dialog of an application in its screen, away from
+// the human's desktop.
+type Dialogs interface {
+	Env() map[string]string
+}
+
 // Set holds the backends of this system.
 type Set struct {
 	Prompts Prompts
+	Dialogs Dialogs
+}
+
+// LaunchEnv returns the environment that the backends add to an application
+// that starts in the screen.
+func (s Set) LaunchEnv(screen string) map[string]string {
+	env := map[string]string{}
+	if s.Dialogs != nil {
+		for k, v := range s.Dialogs.Env() {
+			env[k] = v
+		}
+	}
+	return env
 }

@@ -23,6 +23,7 @@ max_height = 2160     # refuse a taller one
 max_per_session = 4   # screens one agent session may hold at once, 0 lifts the limit
 mirror = true         # open the window you watch a screen through, unless the agent says otherwise
 notify = true         # tell you, through your desktop notifications, when a screen opens or closes
+dialogs = "cage"      # cage: GTK and Qt file dialogs of screen apps open in the screen; host: on your desktop. Electron dialogs still open on your desktop
 
 [workspaces]
 mirror = [6, 9]       # the mirror windows land here, never on a workspace holding something else

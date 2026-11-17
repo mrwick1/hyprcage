@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hexadecimil/offstage/internal/osfeat"
 	"github.com/hexadecimil/offstage/internal/proc"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/sysd"
@@ -53,6 +54,11 @@ func Launch(c *Ctx, rec *registry.Screen, command []string, cwd string, extraEnv
 	// when the environment has none, overridable through env.
 	if os.Getenv("LANG") == "" && os.Getenv("LC_ALL") == "" && os.Getenv("LC_CTYPE") == "" {
 		env["LANG"] = "C.UTF-8"
+	}
+	if c != nil {
+		for k, v := range osfeat.Detect(c.Cfg).LaunchEnv(rec.Name) {
+			env[k] = v
+		}
 	}
 	for k, v := range extraEnv {
 		env[k] = v
