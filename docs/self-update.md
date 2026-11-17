@@ -18,7 +18,7 @@ The new file is written next to the binary as a temp file, verified, then rename
 
 ## Windows
 
-A running `.exe` cannot be overwritten but can be renamed. The server renames the old file to `offstage.exe.old-<ticks>` and moves the new one in. If the move fails, it renames the old file back. The next start removes `*.old-*` files (the same scheme as `install.ps1`). Bare uses the same steps. Windows is amd64 only. Windows was checked with `GOOS=windows go vet`; it was not run in the Windows VM.
+A running `.exe` cannot be overwritten but can be renamed. The server renames the old file to `offstage.exe.old-<ticks>` and moves the new one in. If the move fails, it renames the old file back. The next start removes `*.old-*` files (the same scheme as `install.ps1`). Bare uses the same steps. Windows is amd64 only. In the Windows VM (2026-11-17), a running server replaced its own `offstage.exe`, exited with status 0, and the next start removed the `.old-*` file. `install.ps1 -BinaryOnly` kept a binary newer than the plugin pin. That check costs about 2 s at each server start, because `offstage-mcp.cmd` runs it whenever the versions differ.
 
 ## Restart
 
