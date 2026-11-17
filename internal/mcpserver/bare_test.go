@@ -14,6 +14,7 @@ import (
 
 	"github.com/hexadecimil/offstage/internal/bare"
 	"github.com/hexadecimil/offstage/internal/config"
+	"github.com/hexadecimil/offstage/internal/report"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -133,6 +134,32 @@ func TestBareBrowser(t *testing.T) {
 	}
 	if lines := strings.Split(strings.TrimSpace(string(raw)), "\n"); !strings.Contains(lines[len(lines)-1], `"error":"screen_not_found"`) {
 		t.Fatalf("last audit entry %s, want error screen_not_found", lines[len(lines)-1])
+	}
+	// A failed Bare call goes to the block log, like a native tool.
+	blocks, err := os.ReadFile(report.BlocksPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(string(blocks)), "\n"); !strings.Contains(lines[len(lines)-1], `"tool":"browser_snapshot"`) || !strings.Contains(lines[len(lines)-1], `"code":"screen_not_found"`) {
+		t.Fatalf("last block %s, want browser_snapshot screen_not_found", lines[len(lines)-1])
+	}
+	// Three failures of one tool on one screen in a row file an automatic report.
+	autoEnabled = true
+	defer func() { autoEnabled = false }()
+	for range autoStreak {
+		if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "browser_snapshot", Arguments: map[string]any{"screen": "hc-no-such-screen"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var metas []string
+	for deadline := time.Now().Add(5 * time.Second); len(metas) == 0 && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		metas, _ = filepath.Glob(filepath.Join(report.QueueDir(), "*", "meta.json"))
+	}
+	if len(metas) != 1 {
+		t.Fatalf("automatic reports %v, want 1", metas)
+	}
+	if meta, _ := os.ReadFile(metas[0]); !strings.Contains(string(meta), `"title": "[auto] `) || !strings.Contains(string(meta), "browser_snapshot") {
+		t.Fatalf("meta: %s", meta)
 	}
 	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "screen_create", Arguments: map[string]any{"kind": "headless"}})
 	if err != nil || !res.IsError || !strings.Contains(text(res), "Bare") {

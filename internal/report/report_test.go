@@ -417,12 +417,12 @@ func TestFlushReclaimsAStaleClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	claim := dir + sendingSuffix
-	if err := os.Rename(dir, claim); err != nil {
+	lock := dir + lockSuffix
+	if err := os.WriteFile(lock, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	old := time.Now().Add(-2 * staleClaim)
-	_ = os.Chtimes(claim, old, old)
+	_ = os.Chtimes(lock, old, old)
 	if _, err := Flush(relay.URL, "osk_abcdefghijklmnopqrstuvwxyz"); err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -15,6 +16,8 @@ import (
 
 func TestFailedCallsGoToTheBlockLog(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	goos = "linux" // test tools are registered on Linux only
+	t.Cleanup(func() { goos = runtime.GOOS })
 	srv := mcp.NewServer(&mcp.Implementation{Name: "t"}, nil)
 	type in struct {
 		Screen string `json:"screen,omitempty"`
