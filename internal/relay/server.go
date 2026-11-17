@@ -115,6 +115,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.withTester(w, r, s.file)
 	case strings.HasPrefix(r.URL.Path, "/v1/reports/") && r.Method == http.MethodGet:
 		s.withTester(w, r, s.status)
+	case r.URL.Path == "/v1/ping" && r.Method == http.MethodPost:
+		s.withTester(w, r, s.ping)
 	default:
 		reply(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -154,6 +156,24 @@ func (s *Server) allow(tester string) bool {
 	}
 	s.calls[tester] = append(kept, s.now())
 	return true
+}
+
+// ping records that a tester's agent started a session today.
+func (s *Server) ping(w http.ResponseWriter, r *http.Request, tester string) {
+	var p struct {
+		Version  string `json:"version"`
+		Platform string `json:"platform"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&p); err != nil || len(p.Version) > 64 || len(p.Platform) > 16 {
+		reply(w, http.StatusBadRequest, map[string]string{"error": "want {\"version\":...,\"platform\":...}"})
+		return
+	}
+	if err := s.Store.See(tester, s.now().UTC(), p.Version, p.Platform); err != nil {
+		s.fail(w, err)
+		return
+	}
+	log.Printf("ping %s %s %s", tester, p.Version, p.Platform)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {

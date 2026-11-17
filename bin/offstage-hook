@@ -14,6 +14,17 @@ if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
     mkdir -p "$(dirname "$stamp")" && echo "$now" > "$stamp"
     ver() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1; }
     have=$(ver < "$root/.claude-plugin/plugin.json")
+    # Beta testers tell the relay once a day that they use offstage: the
+    # version and the platform, nothing else.
+    cfg=${XDG_CONFIG_HOME:-}
+    [ -z "$cfg" ] && [ -n "${APPDATA:-}" ] && cfg=$(cygpath -u "$APPDATA" 2>/dev/null)
+    key=${OFFSTAGE_BETA_KEY:-$(cat "${cfg:-$HOME/.config}/offstage/beta-key" 2>/dev/null)}
+    if [ -n "$key" ] && [ -n "$have" ]; then
+      case $(uname -s) in MINGW* | MSYS* | CYGWIN*) os=windows ;; *) os=linux ;; esac
+      (printf 'Authorization: Bearer %s\n' "$key" | curl -fsS -m 5 -o /dev/null -H @- \
+        -H 'Content-Type: application/json' -d "{\"version\":\"$have\",\"platform\":\"$os\"}" \
+        https://beta.mrwick.dev/v1/ping >/dev/null 2>&1 &)
+    fi
     latest=$(curl -fsS -m 2 https://raw.githubusercontent.com/mrwick1/offstage/beta/.claude-plugin/plugin.json 2>/dev/null | ver)
     # The beta branch pins the current beta; any other version is stale.
     if [ -n "$latest" ] && [ -n "$have" ] && [ "$latest" != "$have" ]; then

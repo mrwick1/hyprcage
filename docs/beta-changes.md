@@ -6,6 +6,12 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## Next build
+
+- New: when a beta key is stored, the daily update check also pings the
+  relay with the plugin version and the platform. Arjun then sees who uses
+  offstage. `OFFSTAGE_NO_UPDATE_CHECK=1` turns the ping off too.
+
 ## v0.11.0-beta.7 (2026-11-16)
 
 - New: Linux task tools group owned server processes, screens, and local

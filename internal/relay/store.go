@@ -6,11 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Store keeps what the relay must remember across restarts: which work item
 // holds each fingerprint, which tester filed each report, and the daily
-// count of each key. It is one JSON file.
+// count of each key, and when each tester was last seen. It is one JSON file.
 type Store struct {
 	path string
 	mu   sync.Mutex
@@ -21,6 +22,13 @@ type storeData struct {
 	Fingerprints map[string]string   `json:"fingerprints"` // fingerprint -> work item id
 	Reports      map[string]report   `json:"reports"`      // work item id -> report
 	Daily        map[string]dayCount `json:"daily"`        // tester -> count today
+	Seen         map[string]seen     `json:"seen"`         // tester -> last ping
+}
+
+type seen struct {
+	At       time.Time `json:"at"`
+	Version  string    `json:"version"`
+	Platform string    `json:"platform"`
 }
 
 type report struct {
@@ -53,6 +61,9 @@ func OpenStore(path string) (*Store, error) {
 	}
 	if s.d.Daily == nil {
 		s.d.Daily = map[string]dayCount{}
+	}
+	if s.d.Seen == nil {
+		s.d.Seen = map[string]seen{}
 	}
 	return s, nil
 }
@@ -143,4 +154,12 @@ func (s *Store) Ref(id string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.d.Reports[id].Ref
+}
+
+// See records a tester's ping.
+func (s *Store) See(tester string, at time.Time, version, platform string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.d.Seen[tester] = seen{At: at, Version: version, Platform: platform}
+	return s.save()
 }
