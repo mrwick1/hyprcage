@@ -126,10 +126,33 @@ func (b *Browser) HoldModifiers(mods []string) error {
 	return nil
 }
 
-// Type inserts text at the focus.
+// Type inserts text at the focus. \n presses Return and \t presses Tab as
+// real keys, so key handlers see them, as on a Wayland screen.
 func (b *Browser) Type(text string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	_, err := b.conn.Call(context.Background(), b.session, "Input.insertText", map[string]any{"text": text})
-	return err
+	for text != "" {
+		i := strings.IndexAny(text, "\n\t")
+		if i < 0 {
+			i = len(text)
+		}
+		if i > 0 {
+			b.mu.Lock()
+			_, err := b.conn.Call(context.Background(), b.session, "Input.insertText", map[string]any{"text": text[:i]})
+			b.mu.Unlock()
+			if err != nil {
+				return err
+			}
+		}
+		if i == len(text) {
+			return nil
+		}
+		key := "Return"
+		if text[i] == '\t' {
+			key = "Tab"
+		}
+		if err := b.Key(key); err != nil {
+			return err
+		}
+		text = text[i+1:]
+	}
+	return nil
 }
