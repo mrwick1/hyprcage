@@ -4,6 +4,7 @@
 # plugin can start before the MCP launcher has fetched the binary).
 # On session-start it also checks, at most once a day, whether the beta
 # branch pins another plugin version, and starts the update in the background.
+# It also brings bare to its newest release in the background.
 root=$(cd "$(dirname "$0")/.." && pwd)
 note=
 if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
@@ -25,6 +26,11 @@ if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
         -H 'Content-Type: application/json' -d "{\"version\":\"$have\",\"platform\":\"$os\"}" \
         https://beta.mrwick.dev/v1/ping >/dev/null 2>&1 &)
     fi
+    # The installer compares checksums: a current bare costs one small download.
+    case $(uname -s) in
+      MINGW* | MSYS* | CYGWIN*) (powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/install.ps1")" -BareOnly </dev/null >/dev/null 2>&1 &) ;;
+      *) (bash "$root/install.sh" --bare-only </dev/null >/dev/null 2>&1 &) ;;
+    esac
     latest=$(curl -fsS -m 2 https://raw.githubusercontent.com/mrwick1/offstage/beta/.claude-plugin/plugin.json 2>/dev/null | ver)
     # The beta branch pins the current beta; any other version is stale.
     if [ -n "$latest" ] && [ -n "$have" ] && [ "$latest" != "$have" ]; then
