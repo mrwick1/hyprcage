@@ -433,6 +433,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("XDG_STATE_HOME", dir)
+	autoEnabled = false // tests of automatic reports turn it on
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

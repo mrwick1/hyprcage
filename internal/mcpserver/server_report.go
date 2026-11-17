@@ -28,6 +28,11 @@ func (s *Server) registerReport(srv *mcp.Server) {
 }
 
 func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
+	return s.fileReport(in, report.QueueDir())
+}
+
+// fileReport builds the report and saves it in queue.
+func (s *Server) fileReport(in reportIn, queue string) (*mcp.CallToolResult, error) {
 	if desktop.IsDesktop(in.Screen) {
 		return nil, screen.Errf(screen.CodeUnsupported, "name the agent screen, or leave screen empty", "a report never reads the human's desktop")
 	}
@@ -72,7 +77,7 @@ func (s *Server) reportIssue(in reportIn) (*mcp.CallToolResult, error) {
 			"next":    "Show the preview and the file list to the human. Send it with the same arguments and confirmed:true only after they agree. Private data (home paths, user and host names, tokens, URL queries, emails, typed text) is already removed.",
 		}), nil
 	}
-	if _, err := report.Save(b); err != nil {
+	if _, err := report.SaveTo(queue, b); err != nil {
 		return nil, screen.Errf(screen.CodeUnsupported, "", "queue the report: %v", err)
 	}
 	report.ClearCrashes(b.Crashes)
