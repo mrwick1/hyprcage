@@ -2,19 +2,23 @@
 # Hook shim shipped in the plugin: runs the offstage hook when the binary is
 # there and stays silent otherwise (the first session after installing the
 # plugin can start before the MCP launcher has fetched the binary).
-# On session-start it also checks, at most once a day, whether the beta
+# On session-start it also checks, at most once an hour, whether the beta
 # branch pins another plugin version, and starts the update in the background.
-# It also brings bare to its newest release in the background.
+# Once a day it brings bare to its newest release in the background.
 root=$(cd "$(dirname "$0")/.." && pwd)
 note=
 if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
-  stamp=${XDG_STATE_HOME:-$HOME/.local/state}/offstage/update-check
-  now=$(date +%s); last=$(cat "$stamp" 2>/dev/null || echo 0)
-  case $last in '' | *[!0-9]*) last=0 ;; esac
-  if [ $((now - last)) -ge 86400 ]; then
-    mkdir -p "$(dirname "$stamp")" && echo "$now" > "$stamp"
-    ver() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1; }
-    have=$(ver < "$root/.claude-plugin/plugin.json")
+  state=${XDG_STATE_HOME:-$HOME/.local/state}/offstage
+  now=$(date +%s)
+  # due STAMP SECONDS: true when the last run is older; it then records this run.
+  due() {
+    last=$(cat "$state/$1" 2>/dev/null || echo 0)
+    case $last in '' | *[!0-9]*) last=0 ;; esac
+    [ $((now - last)) -ge "$2" ] && mkdir -p "$state" && echo "$now" > "$state/$1"
+  }
+  ver() { sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1; }
+  have=$(ver < "$root/.claude-plugin/plugin.json")
+  if due daily-check 86400; then
     # Beta testers tell the relay once a day that they use offstage: the
     # version and the platform, nothing else.
     cfg=${XDG_CONFIG_HOME:-}
@@ -31,6 +35,8 @@ if [ "${1:-}" = session-start ] && [ -z "${OFFSTAGE_NO_UPDATE_CHECK:-}" ]; then
       MINGW* | MSYS* | CYGWIN*) (powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$root/install.ps1")" -BareOnly </dev/null >/dev/null 2>&1 &) ;;
       *) (bash "$root/install.sh" --bare-only </dev/null >/dev/null 2>&1 &) ;;
     esac
+  fi
+  if due update-check 3600; then
     latest=$(curl -fsS -m 2 https://raw.githubusercontent.com/mrwick1/offstage/beta/.claude-plugin/plugin.json 2>/dev/null | ver)
     # The beta branch pins the current beta; any other version is stale.
     if [ -n "$latest" ] && [ -n "$have" ] && [ "$latest" != "$have" ]; then
