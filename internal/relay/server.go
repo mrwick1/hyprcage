@@ -239,7 +239,7 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 		return
 	}
 	var ids []string
-	for _, name := range []string{map[string]string{"agent": "agent-report", "manual": "manual"}[m.Kind], m.Platform, m.Area, m.kindOfReport()} {
+	for _, name := range []string{map[string]string{"agent": "agent-report", "manual": "manual"}[m.Kind], m.Platform, m.Area, m.kindOfReport(), m.autoLabel()} {
 		if id := labels[name]; id != "" {
 			ids = append(ids, id)
 		}
@@ -323,6 +323,14 @@ func (m *Meta) planeTitle() string {
 		return "[" + t + "] " + m.Title
 	}
 	return m.Title
+}
+
+// autoLabel names the label for a report the client filed automatically.
+func (m *Meta) autoLabel() string {
+	if strings.HasPrefix(m.Title, "[auto] ") {
+		return "auto"
+	}
+	return ""
 }
 
 func (m *Meta) check() string {
