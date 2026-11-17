@@ -594,7 +594,8 @@ func (s *cdpSource) covered(ctx context.Context, session string, backend int) (b
 	if err := s.call(ctx, session, "Runtime.callFunctionOn", map[string]any{
 		"objectId": ids[0],
 		// Walk the composed tree: the hit may sit in a (user-agent) shadow root of the node.
-		"functionDeclaration": "function(h){for(;h;h=h.parentNode||h.host){if(h===this)return true}return false}",
+		// A click on a <label> of the node reaches the node, so a label counts too.
+		"functionDeclaration": "function(h){var l=this.labels?Array.from(this.labels):[];for(;h;h=h.parentNode||h.host){if(h===this||l.includes(h))return true}return false}",
 		"arguments":           []map[string]any{{"objectId": ids[1]}},
 		"returnByValue":       true,
 	}, &res); err != nil {
