@@ -123,6 +123,17 @@ func TestBareBrowser(t *testing.T) {
 	if failure != nil || failed == nil || !failed.IsError {
 		t.Fatalf("Bare bridge errors need isError=true: result=%v error=%v", failed, failure)
 	}
+	// The audit keeps the code of a bridge error, not a bare "error".
+	if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "browser_snapshot", Arguments: map[string]any{"screen": "hc-no-such-screen"}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(filepath.Join(os.Getenv("XDG_STATE_HOME"), "offstage", "actions.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(string(raw)), "\n"); !strings.Contains(lines[len(lines)-1], `"error":"screen_not_found"`) {
+		t.Fatalf("last audit entry %s, want error screen_not_found", lines[len(lines)-1])
+	}
 	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "screen_create", Arguments: map[string]any{"kind": "headless"}})
 	if err != nil || !res.IsError || !strings.Contains(text(res), "Bare") {
 		t.Fatalf("old headless API: %v %v", res, err)
