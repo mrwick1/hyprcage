@@ -1,7 +1,7 @@
 # OS isolation redo plan
 
 Date: 2026-11-17
-Status: In progress. PR 0 and item 1 ship on branch `feat/osfeat`. The environment part of item 2 shipped in #64. Item 3 ships on `feat/osfeat-audio`.
+Status: In progress. PR 0 and item 1 ship on branch `feat/osfeat`. The environment part of item 2 shipped in #64. Item 3 shipped in #65. Item 4 ships on `feat/osfeat-audio-cond`.
 Replaces: branch `feat/os-tools` (5 commits, 2026-10-11, never pushed, 207 commits behind `main`).
 
 ## Outcome
@@ -182,8 +182,8 @@ Hook point: the predicate kinds in `internal/mcpserver/server_expect.go` (`eleme
 Changes:
 
 1. Add the kind `audio` with `playing: true|false`.
-2. Call `Set.Audio.Observe`. Return `unsupported` when the backend is nil. The Linux backend reads `pactl list sink-inputs`: count the streams on `offstage_<screen>` that are not corked. Return the stream count and app names as evidence.
-3. Also report streams of the screen's processes that play on another sink. That is a leak. Put it in the evidence. Do not fail the wait for it.
+2. Call `Set.Audio.Observe`. Return `unsupported` when the backend is nil. The Linux backend reads `pactl list short sinks` and `pactl list short sink-inputs`. Playing means the sink state is `RUNNING`. The evidence gives the sink, its state and the stream count.
+3. Deferred: report streams of the screen's processes that play on another sink.
 
 Test: a predicate test with a fake `pactl` output.
 

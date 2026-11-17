@@ -20,12 +20,13 @@ type predicate struct {
 	TaskID     string `json:"task_id,omitempty"`
 	ResourceID string `json:"resource_id,omitempty"`
 	ExitCode   *int   `json:"exit_code,omitempty"`
-	Kind       string `json:"kind" jsonschema:"element, request or process"`
+	Kind       string `json:"kind" jsonschema:"element, request, process or audio"`
 	Text       string `json:"text,omitempty" jsonschema:"element name/value or request URL regular expression"`
 	Role       string `json:"role,omitempty"`
 	Absent     bool   `json:"absent,omitempty" jsonschema:"element absence; requires a successful non-OCR read"`
 	Status     int    `json:"status,omitempty" jsonschema:"request HTTP status; omit to match any completed request"`
 	Failed     bool   `json:"failed,omitempty" jsonschema:"request transport error or HTTP status at least 400"`
+	Playing    *bool  `json:"playing,omitempty" jsonschema:"audio: true waits for a stream that plays into the screen's audio output, false for silence"`
 }
 type expectIn struct {
 	Screen    string           `json:"screen"`
@@ -43,7 +44,7 @@ type expectResult struct {
 }
 
 func (s *Server) registerScreenConditions(srv *mcp.Server) {
-	addContext(srv, "condition_wait", "Wait for element presence/absence or completed requests on one agent screen. Failure predicates take precedence. Optional action is observed before dispatch. Returns evidence and explicit timeout, cancellation or unsupported state. Never treats a source error as element absence.", func(ctx context.Context, in expectIn) (*mcp.CallToolResult, []audit.Option, error) {
+	addContext(srv, "condition_wait", "Wait for element presence/absence, completed requests or audio playing/silent on one agent screen. Failure predicates take precedence. Optional action is observed before dispatch. Returns evidence and explicit timeout, cancellation or unsupported state. Never treats a source error as element absence.", func(ctx context.Context, in expectIn) (*mcp.CallToolResult, []audit.Option, error) {
 		r, e := s.conditionWait(ctx, in)
 		return r, nil, e
 	}, s)
@@ -96,6 +97,9 @@ func compilePredicates(in expectIn) ([]*regexp.Regexp, bool, bool, error) {
 		if p.Kind != "process" && (p.TaskID != "" || p.ResourceID != "" || p.ExitCode != nil) {
 			return nil, false, false, fmt.Errorf("process fields on non-process condition")
 		}
+		if p.Kind != "audio" && p.Playing != nil {
+			return nil, false, false, fmt.Errorf("playing on non-audio condition")
+		}
 		if len(p.Text) > 2048 {
 			return nil, false, false, fmt.Errorf("condition pattern exceeds 2048 bytes")
 		}
@@ -103,6 +107,10 @@ func compilePredicates(in expectIn) ([]*regexp.Regexp, bool, bool, error) {
 		case "process":
 			if p.TaskID == "" || p.ResourceID == "" || p.Text != "" || p.Role != "" || p.Absent || p.Status != 0 || p.Failed {
 				return nil, false, false, fmt.Errorf("invalid process predicate")
+			}
+		case "audio":
+			if p.Playing == nil || p.Text != "" || p.Role != "" || p.Absent || p.Status != 0 || p.Failed {
+				return nil, false, false, fmt.Errorf("invalid audio predicate: set playing only")
 			}
 		case "element":
 			elements = true
@@ -246,6 +254,12 @@ func (s *Server) conditionWait(parent context.Context, in expectIn) (*mcp.CallTo
 				}
 				hit = observation.Status == "satisfied"
 				evidence = observation.Evidence
+			case "audio":
+				h, observation := observeAudio(s.osf.Audio, current.Name, *p.Playing)
+				if observation.Status == "unsupported" {
+					return observation
+				}
+				hit, evidence = h, observation.Evidence
 			case "element":
 				if p.Absent && source == "ocr" {
 					return condition.Observation{Status: "unsupported", Evidence: map[string]string{"reason": "OCR cannot prove element absence"}}
