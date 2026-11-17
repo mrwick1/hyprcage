@@ -60,3 +60,20 @@ func TestAcquireTimesOutWhileAnotherHandleHolds(t *testing.T) {
 		t.Fatalf("Acquire while held: %v, want ErrBusy", err)
 	}
 }
+
+func TestFileExcludesAndTimesOut(t *testing.T) {
+	p := t.TempDir() + "/update.lock"
+	rel, err := File(p, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := File(p, 120*time.Millisecond); err != ErrBusy {
+		t.Fatalf("second File: %v, want ErrBusy", err)
+	}
+	rel()
+	rel2, err := File(p, time.Second)
+	if err != nil {
+		t.Fatalf("File after release: %v", err)
+	}
+	rel2()
+}

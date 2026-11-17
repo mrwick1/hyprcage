@@ -41,6 +41,11 @@ type Report struct {
 	AgentRule   bool   // keep the beta reporting rule in the agents' instruction files
 }
 
+// Update is the [update] table.
+type Update struct {
+	Auto bool // the MCP server installs the newest beta by itself and restarts when idle
+}
+
 // Config is the effective configuration. It holds slices, so compare it
 // with reflect.DeepEqual, not ==.
 type Config struct {
@@ -95,6 +100,7 @@ type Config struct {
 	AudioEnabled bool
 	Guard        Guard
 	Report       Report
+	Update       Update
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -144,6 +150,7 @@ func Default() Config {
 			Combos:   []string{"Ctrl+W", "Ctrl+Q", "Alt+F4"},
 		},
 		Report: Report{URL: "https://beta.mrwick.dev", Screenshots: true, AgentRule: true},
+		Update: Update{Auto: true},
 	}
 }
 
@@ -261,6 +268,9 @@ type file struct {
 		Screenshots *bool   `toml:"screenshots"`
 		AgentRule   *bool   `toml:"agent_rule"`
 	} `toml:"report"`
+	Update struct {
+		Auto *bool `toml:"auto"`
+	} `toml:"update"`
 }
 
 // Apply overrides cfg with the TOML text and validates the result.
@@ -376,6 +386,9 @@ func Apply(cfg *Config, text string) error {
 	}
 	if f.Report.AgentRule != nil {
 		cfg.Report.AgentRule = *f.Report.AgentRule
+	}
+	if f.Update.Auto != nil {
+		cfg.Update.Auto = *f.Update.Auto
 	}
 	return cfg.Validate()
 }

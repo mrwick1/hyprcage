@@ -64,6 +64,7 @@ type Server struct {
 	browsers map[string]*headless.Browser
 	bare     map[string]*mcp.ClientSession
 	osf      osfeat.Set // backends that depend on the operating system
+	activity activity   // requests in flight, for the idle restart after a self-update
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -83,6 +84,7 @@ func Run() error {
 	s := newServer(cfg)
 	s.adopt()
 	srv := s.mcpServer()
+	srv.AddReceivingMiddleware(s.activity.middleware)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := s.registerBare(ctx, srv); err != nil {
@@ -93,11 +95,14 @@ func Run() error {
 	go s.heartbeat(stop)
 	go flushReports(cfg.Report.URL, stop)
 	wakeReports() // reports an earlier session left in the queue
-	err = srv.Run(context.Background(), &mcp.StdioTransport{})
+	runCtx, restart := context.WithCancel(context.Background())
+	defer restart()
+	go s.selfUpdate(runCtx, restart)
+	err = srv.Run(runCtx, &mcp.StdioTransport{})
 	close(stop)
 	screen.CloseAll()
 	s.onDisconnect()
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, mcp.ErrConnectionClosed) {
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, mcp.ErrConnectionClosed) && !errors.Is(err, context.Canceled) {
 		return err
 	}
 	return nil
