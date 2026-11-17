@@ -57,13 +57,31 @@ function Get-Want {
   (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest").tag_name
 }
 
+# Is release tag $a older than $b? Semver order: v1.0.0-beta.2 < v1.0.0-beta.10 < v1.0.0.
+# [version] alone cannot parse a prerelease suffix.
+function Test-Older($a, $b) {
+  $x = $a.Substring(1) -split '-', 2; $y = $b.Substring(1) -split '-', 2
+  if ([version]$x[0] -ne [version]$y[0]) { return [version]$x[0] -lt [version]$y[0] }
+  if ($x.Count -ne $y.Count) { return $x.Count -gt $y.Count }
+  if ($x.Count -eq 1) { return $false }
+  $p = $x[1] -split '\.'; $q = $y[1] -split '\.'
+  for ($i = 0; $i -lt [Math]::Min($p.Count, $q.Count); $i++) {
+    if ($p[$i] -eq $q[$i]) { continue }
+    if ($p[$i] -match '^\d+$' -and $q[$i] -match '^\d+$') { return [long]$p[$i] -lt [long]$q[$i] }
+    return $p[$i] -lt $q[$i]
+  }
+  $p.Count -lt $q.Count
+}
+
 function Install-Binary {
   $want = Get-Want
   $have = if (Test-Path $Exe) { try { (& $Exe version | Select-Object -First 1) } catch { '' } }
   if ($have -eq $want) { Say "offstage $want already in $BinDir"; return }
   # The launcher runs this at every start: leave a build from source and a newer release alone.
+  # A release tag may carry a prerelease suffix (v0.11.0-beta.8). A build from a
+  # checkout (git describe: vX.Y.Z-N-gHASH) has a second dash and does not match.
   if ($BinaryOnly -and $have) {
-    if ($have -notmatch '^v\d+\.\d+\.\d+$' -or [version]$have.Substring(1) -ge [version]$want.Substring(1)) { return }
+    if ($have -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$' -or -not (Test-Older $have $want)) { return }
   }
   $asset = 'offstage-windows-amd64.exe'
   $base = if ($env:OFFSTAGE_RELEASE_BASE) { $env:OFFSTAGE_RELEASE_BASE } else { "https://github.com/$Repo/releases/download/$want" }
@@ -77,13 +95,14 @@ function Install-Binary {
     if (-not $line) { throw "no checksum for $asset in SHA256SUMS" }
     if ((Get-FileHash "$tmp\$asset" -Algorithm SHA256).Hash -ne ($line.Line -split '\s+')[0]) { throw "checksum mismatch for ${asset}: not installing" }
     New-Item -ItemType Directory -Force $BinDir | Out-Null
-    # A running offstage.exe cannot be overwritten, but it can be renamed.
-    if (Test-Path $Exe) { Move-Item -Force $Exe "$Exe.old" }
+    # A running offstage.exe cannot be overwritten, but it can be renamed. The
+    # name is unique: an .old file from an earlier update can still be running.
+    if (Test-Path $Exe) { Move-Item $Exe "$Exe.old-$((Get-Date).Ticks)" }
     Move-Item "$tmp\$asset" $Exe
   } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
   }
-  Remove-Item "$Exe.old" -ErrorAction SilentlyContinue
+  Remove-Item "$Exe.old*" -ErrorAction SilentlyContinue
   Say "installed $Exe ($(& $Exe version | Select-Object -First 1))"
 }
 
@@ -114,10 +133,10 @@ function Install-Bare {
     }
     New-Item -ItemType Directory -Force $BinDir | Out-Null
     foreach ($p in @(@($mcp, $BareMcp), @($drive, $BareDrive))) {
-      # A running exe cannot be overwritten, but it can be renamed.
-      if (Test-Path $p[1]) { Move-Item -Force $p[1] "$($p[1]).old" }
+      # A running exe cannot be overwritten, but it can be renamed (see Install-Binary).
+      if (Test-Path $p[1]) { Move-Item $p[1] "$($p[1]).old-$((Get-Date).Ticks)" }
       Move-Item "$tmp\$($p[0])" $p[1]
-      Remove-Item "$($p[1]).old" -ErrorAction SilentlyContinue
+      Remove-Item "$($p[1]).old*" -ErrorAction SilentlyContinue
     }
     Say "installed bare-mcp.exe and bare-drive.exe in $BinDir"
   } catch {
