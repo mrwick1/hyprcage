@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -340,5 +342,47 @@ func TestPingRecordsLastSeen(t *testing.T) {
 	}
 	if _, ok := again.d.Seen["aswin"]; ok {
 		t.Error("aswin seen without a ping")
+	}
+}
+
+func TestHookGetsNewItemsOnly(t *testing.T) {
+	s, _ := setup(t)
+	var got []map[string]any
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var v map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&v)
+		got = append(got, v)
+	}))
+	t.Cleanup(hs.Close)
+	s.Hook = hs.URL
+	m := meta()
+	m.Title = "[auto] click failed"
+	post(t, s, "osk_joel", m, nil)
+	post(t, s, "osk_aswin", m, nil) // same fingerprint: a comment, no hook
+	if len(got) != 1 {
+		t.Fatalf("hook calls %d, want 1", len(got))
+	}
+	want := `{"area":"crash","auto":true,"id":"OFS-1","kind":"agent","platform":"linux","project":"offstage","tester":"joel","type":"bug","version":"v0.10.0-beta.1"}`
+	if b, _ := json.Marshal(got[0]); string(b) != want {
+		t.Errorf("payload %s, want %s", b, want)
+	}
+	m.Area, m.Fingerprint = "bare", "beef0002"
+	post(t, s, "osk_joel", m, nil)
+	if len(got) != 2 || got[1]["project"] != "bare" {
+		t.Errorf("bare item: %v", got)
+	}
+}
+
+func TestHookFailureStillFiles(t *testing.T) {
+	s, _ := setup(t)
+	s.Hook = "http://127.0.0.1:1/hook-token-secret"
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	if code, out := post(t, s, "osk_joel", meta(), nil); code != 201 || out["id"] != "OFS-1" {
+		t.Fatalf("code %d, out %v", code, out)
+	}
+	if strings.Contains(logs.String(), "hook-token-secret") || !strings.Contains(logs.String(), "hook OFS-1") {
+		t.Errorf("log %q", logs.String())
 	}
 }
