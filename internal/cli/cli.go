@@ -73,6 +73,7 @@ func init() {
 		{"profile", "list or remove the saved browser profiles (list, rm <name>)", runProfile, false},
 		{"notifyd", "keep 48 hours of desktop notifications (run by a user unit)", runNotifyd, false},
 		{"report", "send a beta report about an offstage problem (login, flush, status)", runReport, false},
+		{"agent-rule", "add or remove the beta reporting rule in the agents' instruction files (install, remove)", runAgentRule, false},
 		{"replay", "run the trace of a beta report again on new screens", runReplay, false},
 		{"session-start", "Claude Code SessionStart hook", runSessionStart, true},
 		{"session-end", "Claude Code SessionEnd hook", runSessionEnd, true},

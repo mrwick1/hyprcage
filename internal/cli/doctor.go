@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/hexadecimil/offstage/internal/agentrule"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +58,18 @@ func runDoctor(e *Env) int {
 	exe, _ := os.Executable()
 	bst, bdetail := bareCheck(filepath.Dir(exe))
 	add("bare", bst, bdetail)
+	for _, p := range agentrule.Paths() {
+		switch ok, st := agentrule.Present(p); {
+		case ok:
+			add("agent rule", "ok", p)
+		case st == agentrule.Symlink && cfg.Report.AgentRule:
+			add("agent rule", "warn", p+" is a symlink, so offstage does not edit it; add the block from `offstage agent-rule print` by hand")
+		case !cfg.Report.AgentRule:
+			add("agent rule", "ok", p+" (off by report.agent_rule)")
+		default:
+			add("agent rule", "warn", p+" lacks the beta reporting rule; run `offstage agent-rule install`")
+		}
+	}
 	if runtime.GOOS != "linux" {
 		return printChecks(e, checks, *asJSON)
 	}

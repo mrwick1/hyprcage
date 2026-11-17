@@ -376,7 +376,10 @@ uninstall() {
   fi
   systemctl --user disable --now offstage-notifyd.service >/dev/null 2>&1 || true
   rm -f "$UNIT_DIR/offstage-notifyd.service"
-  if [ -x "$BIN_DIR/offstage" ]; then "$BIN_DIR/offstage" gc --all >/dev/null 2>&1 || true; fi
+  if [ -x "$BIN_DIR/offstage" ]; then
+    "$BIN_DIR/offstage" agent-rule remove || true
+    "$BIN_DIR/offstage" gc --all >/dev/null 2>&1 || true
+  fi
   rm -f "$BIN_DIR/offstage"
   rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/offstage" "${XDG_CONFIG_HOME:-$HOME/.config}/offstage"
   say "done. cage, ffmpeg, wl-clipboard, tesseract, its English data and at-spi2-core stay installed; remove them with your package manager"
@@ -410,6 +413,7 @@ case $mode in
     write_config
     check_path
     register_agents
+    [ "$AGENTS" = none ] || "$BIN_DIR/offstage" agent-rule install || warn "could not add the beta reporting rule; run  offstage agent-rule install"
     install_notifyd
     say "checking the installation"
     "$BIN_DIR/offstage" doctor || true

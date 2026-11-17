@@ -168,6 +168,7 @@ function Register-Agents {
     else { Warn "codex: run  codex mcp add offstage -- $Exe mcp" }
   }
   if (-not $found) { Say "no selected agent found; any MCP client can run  $Exe mcp  (see the README)" }
+  try { & $Exe agent-rule install } catch { Warn "could not add the beta reporting rule; run  offstage agent-rule install" }
 }
 
 function Remove-All {
@@ -179,7 +180,7 @@ function Remove-All {
     if (Have 'claude') { [void](Try-Run claude mcp remove --scope user bare) }
     if (Have 'codex') { [void](Try-Run codex mcp remove bare) }
   }
-  if (Test-Path $Exe) { [void](Try-Run $Exe gc --all) }
+  if (Test-Path $Exe) { try { & $Exe agent-rule remove } catch {}; [void](Try-Run $Exe gc --all) }
   Remove-Item -Recurse -Force $Dir, (Join-Path $env:APPDATA 'offstage'), $Exe, $BareMcp, $BareDrive -ErrorAction SilentlyContinue
 }
 
