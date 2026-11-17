@@ -9,6 +9,7 @@ import (
 
 	"github.com/hexadecimil/offstage/internal/lock"
 	"github.com/hexadecimil/offstage/internal/notify"
+	"github.com/hexadecimil/offstage/internal/osfeat"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/sysd"
@@ -53,6 +54,9 @@ func Destroy(c *Ctx, rec *registry.Screen) error {
 	}
 	_ = os.Remove(registry.InnerPath(rec.Name))
 	removeProfiles(rec.Name)
+	if a := osfeat.Detect(c.Cfg).Audio; a != nil {
+		_ = a.Remove(rec.Name)
+	}
 	if err := registry.Delete(rec.Name); err != nil {
 		return err
 	}

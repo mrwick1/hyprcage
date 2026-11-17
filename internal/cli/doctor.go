@@ -125,6 +125,9 @@ func runDoctor(e *Env) int {
 	tool("cage", "fail", "the agent's compositor; `offstage setup` installs it")
 	tool("ffmpeg", "warn", "recording needs it; `offstage setup` installs it")
 	tool("wl-copy", "warn", "the screen clipboard needs wl-clipboard; `offstage setup` installs it")
+	if cfg.AudioEnabled {
+		tool("pactl", "warn", "without it, screen apps play into your speakers")
+	}
 	if err := perceive.A11yBusOK(context.Background()); err != nil {
 		add("a11y bus", "warn", "unreachable, snapshot cannot read GTK/Qt apps through AT-SPI: "+err.Error())
 	} else {

@@ -25,6 +25,9 @@ mirror = true         # open the window you watch a screen through, unless the a
 notify = true         # tell you, through your desktop notifications, when a screen opens or closes
 dialogs = "cage"      # cage: GTK and Qt file dialogs of screen apps open in the screen; host: on your desktop. Electron dialogs still open on your desktop
 
+[audio]
+enabled = true        # each screen gets its own silent audio output (pactl), so its apps do not play into your speakers
+
 [workspaces]
 mirror = [6, 9]       # the mirror windows land here, never on a workspace holding something else
 
