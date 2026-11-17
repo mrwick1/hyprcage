@@ -102,3 +102,32 @@ func TestAudioOff(t *testing.T) {
 		t.Error("no pactl still gives a backend")
 	}
 }
+
+func TestAudioObserve(t *testing.T) {
+	dir := t.TempDir()
+	catPath, err := exec.LookPath("cat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sinks := filepath.Join(dir, "sinks")
+	inputs := filepath.Join(dir, "inputs")
+	os.WriteFile(sinks, []byte("60\talsa_output.x\tPipeWire\ts16le 2ch 48000Hz\tRUNNING\n107\toffstage_hc-a\tPipeWire\tfloat32le 2ch 48000Hz\tRUNNING\n108\toffstage_hc-b\tPipeWire\tfloat32le 2ch 48000Hz\tIDLE\n"), 0o644)
+	os.WriteFile(inputs, []byte("5\t107\t40\tPipeWire\ts16le 2ch 44100Hz\n6\t107\t41\tPipeWire\ts16le 2ch 44100Hz\n7\t60\t42\tPipeWire\ts16le 2ch 44100Hz\n"), 0o644)
+	script := "#!/bin/sh\ncase \"$*\" in \"list short sinks\") " + catPath + " " + sinks + ";; \"list short sink-inputs\") " + catPath + " " + inputs + ";; esac\n"
+	os.WriteFile(filepath.Join(dir, "pactl"), []byte(script), 0o755)
+	t.Setenv("PATH", dir)
+	a := Detect(config.Default()).Audio
+	for screen, want := range map[string]AudioState{
+		"hc-a": {Sink: "offstage_hc-a", State: "RUNNING", Streams: 2},
+		"hc-b": {Sink: "offstage_hc-b", State: "IDLE", Streams: 0},
+		"hc-c": {Sink: "offstage_hc-c", State: "absent", Streams: 0},
+	} {
+		got, err := a.Observe(screen)
+		if err != nil || got != want {
+			t.Errorf("%s: got %+v, %v; want %+v", screen, got, err, want)
+		}
+		if got.Playing() != (screen == "hc-a") {
+			t.Errorf("%s: Playing() = %v", screen, got.Playing())
+		}
+	}
+}

@@ -88,3 +88,32 @@ func nullSinks() (map[string]string, error) {
 	}
 	return mods, nil
 }
+
+// Observe reads the state of the screen's sink and counts its streams.
+func (pulseAudio) Observe(screen string) (AudioState, error) {
+	st := AudioState{Sink: sinkName(screen), State: "absent"}
+	out, err := exec.Command("pactl", "list", "short", "sinks").Output()
+	if err != nil {
+		return st, err
+	}
+	id := ""
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Split(line, "\t")
+		if len(f) >= 5 && f[1] == st.Sink {
+			id, st.State = f[0], f[4]
+		}
+	}
+	if id == "" {
+		return st, nil
+	}
+	out, err = exec.Command("pactl", "list", "short", "sink-inputs").Output()
+	if err != nil {
+		return st, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if f := strings.Split(line, "\t"); len(f) >= 2 && f[1] == id {
+			st.Streams++
+		}
+	}
+	return st, nil
+}

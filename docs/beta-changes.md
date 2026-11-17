@@ -6,6 +6,32 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.10 (2026-11-17)
+
+- Change: offstage no longer pins a Bare release. The installers take the
+  newest release of `mrwick1/bare`, and the daily update check brings Bare
+  up to date in the background. `OFFSTAGE_BARE_VERSION=vX.Y.Z` still pins
+  one.
+- Fix (Bare v0.1.2, OFS-7): a d3 tree no longer draws stacked in the
+  top-left corner. Bare now paints the SVG `transform` attribute and SVG
+  `<text>`, has `transform.baseVal` (d3 transitions of `transform` run), and
+  canvas `measureText` uses the size of `ctx.font`.
+- Limits: SVG text is never turned or skewed. Glyphs are Noto Sans for every
+  font family. `dominant-baseline` and `getComputedTextLength` are not built.
+- New (Linux): desktop input is refused with `system_prompt` while a system
+  prompt (polkit, pinentry, gcr-prompter, KDE wallet, ssh-askpass) has the
+  focus, is the target or lies under the click. `[guard] prompt_classes`
+  adds app ids.
+- New (Linux): GTK and Qt file dialogs of an app in a screen stay in that
+  screen. Electron dialogs still use the portal. `[screen] dialogs = "host"`
+  turns it off.
+- New (Linux): each screen gets its own audio output (a null sink, through
+  `pactl`), so apps in a screen no longer play on the human's speakers.
+  `condition_wait` takes an `audio` predicate (`playing: true` or `false`).
+  `[audio] enabled = false` turns it off.
+- Retest: pages with SVG charts or trees in `browser_screenshot`. On Linux,
+  apps that play sound or open a file dialog.
+
 ## v0.11.0-beta.9 (2026-11-17)
 
 - Fix (Windows, OFS-6): the plugin's launcher now updates a beta binary.
