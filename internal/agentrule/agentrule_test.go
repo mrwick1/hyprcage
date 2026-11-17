@@ -3,6 +3,7 @@ package agentrule
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestInstallCreatesAppendsReplacesAndRemoves(t *testing.T) {
 	if string(data) != own+"\n"+block {
 		t.Fatalf("appended:\n%s", data)
 	}
-	if st, _ := os.Stat(p); st.Mode().Perm() != 0o640 {
+	if st, _ := os.Stat(p); runtime.GOOS != "windows" && st.Mode().Perm() != 0o640 {
 		t.Errorf("mode %v", st.Mode().Perm())
 	}
 	if st, err := Install(p); err != nil || st != Unchanged {
@@ -99,6 +100,7 @@ func TestBlockAsksForBackgroundReports(t *testing.T) {
 func TestPathsFollowTheAgentDirectories(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", "")
 	if got := Paths(); len(got) != 0 {
