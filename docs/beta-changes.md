@@ -6,6 +6,14 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.12 (2026-11-17)
+
+- Change: offstage checks the `beta` branch for a new build at most once an
+  hour, when a session starts. It was once a day. The usage ping and the
+  Bare update stay daily. A session that stays open does not check again.
+- Retest: nothing by hand. This build arrives with your next daily check;
+  later builds arrive within an hour of a session start.
+
 ## v0.11.0-beta.11 (2026-11-17)
 
 - Change: `report_issue` returns at once. The report is queued and sent in
