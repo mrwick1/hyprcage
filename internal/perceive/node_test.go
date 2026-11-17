@@ -1,6 +1,7 @@
 package perceive
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -130,5 +131,34 @@ func TestRenderActionOnly(t *testing.T) {
 	}
 	if got, want := (Diff{Added: []Node{n}}).String(), `+ [e7] menuitem "Open Parent" (action)`; got != want {
 		t.Fatalf("diff %q, want %q", got, want)
+	}
+}
+
+func TestDiffCap(t *testing.T) {
+	var after []Node
+	for i := 0; i < 700; i++ {
+		after = append(after, Node{Key: fmt.Sprintf("k%d", i), Role: "option", Name: "opt"})
+	}
+	count := func(d Diff) int { return strings.Count(d.String(), "\n") + 1 }
+	d := DiffNodes(nil, after)
+	if got := count(d.Cap(0)); got != DefaultMaxChanges+1 {
+		t.Fatalf("default cap: %d lines", got)
+	}
+	if s := d.Cap(0).String(); !strings.HasSuffix(s, "+ +650 more added") {
+		t.Fatalf("summary: %q", s[len(s)-30:])
+	}
+	if got := count(d.Cap(10)); got != 11 {
+		t.Fatalf("max_changes 10: %d lines", got)
+	}
+	if got := count(d.Cap(-1)); got != 700 {
+		t.Fatalf("negative: %d lines", got)
+	}
+	r := DiffNodes(after, nil).Cap(0).String()
+	if !strings.HasSuffix(r, "- +650 more removed") {
+		t.Fatalf("removed summary: %q", r[len(r)-30:])
+	}
+	small := DiffNodes(nil, after[:3])
+	if small.Cap(0).String() != small.String() || small.Cap(0).MoreAdded != 0 {
+		t.Fatal("small diff changed")
 	}
 }

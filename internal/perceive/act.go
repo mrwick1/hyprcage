@@ -40,6 +40,9 @@ type ActOp struct {
 	Text      string
 	Keys      []string
 	Direction string // scroll only, default "down"
+	// MaxChanges caps the added and the removed lines of the diff: 0 is
+	// DefaultMaxChanges, a negative value is no cap.
+	MaxChanges int
 }
 
 // mode returns m, or ModeInteractive when m is empty. OCR nodes all have
@@ -206,7 +209,7 @@ func actWith(ctx context.Context, src Source, t *Table, op ActOp, send func(n No
 		return Diff{}, err
 	}
 	t.Assign(after)
-	return DiffNodes(before, after), nil
+	return DiffNodes(before, after).Cap(op.MaxChanges), nil
 }
 
 // aim readies n for the pointer input of op. It waits for a stable

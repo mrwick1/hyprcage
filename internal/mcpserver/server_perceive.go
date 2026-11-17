@@ -37,6 +37,7 @@ type actIn struct {
 	ScreenshotAfter bool     `json:"screenshot_after,omitempty"`
 	Window          string   `json:"window,omitempty" jsonschema:"screen desktop only: the window of the snapshot that gave the ref"`
 	Verify          *bool    `json:"verify,omitempty" jsonschema:"judge the action by diffing the screen before and after it, see the tool description"`
+	MaxChanges      int      `json:"max_changes,omitempty" jsonschema:"most added and most removed lines the diff lists, each; the rest is counted as +N more. Default 50; negative lists all"`
 }
 
 type findIn struct {
@@ -60,7 +61,7 @@ const perceiveTimeout = 30 * time.Second
 // registerPerceive adds snapshot, act and find.
 func (s *Server) registerPerceive(srv *mcp.Server) {
 	tool(s, srv, "snapshot", "List the elements of a screen as text with refs and screen coordinates. Read this before a screenshot: it costs a fraction of the tokens.", s.snapshot)
-	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text. Verify: "+verifyDoc, s.act)
+	tool(s, srv, "act", "Click, type, press keys, hover or scroll on an element by its ref from snapshot. Returns what changed on the screen as text, at most max_changes (default 50, negative for all) added and as many removed lines, then +N more. Verify: "+verifyDoc, s.act)
 	tool(s, srv, "read_page", "Scroll an agent screen from the top to the bottom, snapshot at each step, and return every element once, in page order. Use it for a page longer than one viewport. It leaves the page scrolled to the bottom.", s.readPage)
 	tool(s, srv, "find", "Find elements by name or value, optionally waiting until one appears. Controls, landmarks and headings match first; when none match, page text (a status line, a paragraph) matches too. Use it instead of wait plus screenshot.", s.find)
 }
@@ -220,7 +221,7 @@ func (s *Server) actContext(parent context.Context, in actIn) (*mcp.CallToolResu
 	}
 	ctx, cancel := context.WithTimeout(parent, perceiveTimeout)
 	defer cancel()
-	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction}
+	op := perceive.ActOp{Ref: in.Ref, Op: in.Op, Text: in.Text, Keys: in.Keys, Direction: in.Direction, MaxChanges: in.MaxChanges}
 	if err := s.guard(guardCall{Screen: in.Screen, Window: in.Window, Ref: in.Ref, Op: in.Op, Keys: in.Keys, Ack: in.Ack}); err != nil {
 		return nil, err
 	}

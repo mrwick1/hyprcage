@@ -150,6 +150,31 @@ type Change struct{ Before, After Node }
 type Diff struct {
 	Added, Removed []Node
 	Changed        []Change
+	// MoreAdded and MoreRemoved count the nodes Cap dropped.
+	MoreAdded, MoreRemoved int
+}
+
+// DefaultMaxChanges is the cap on added and on removed lines when the caller sets none.
+const DefaultMaxChanges = 50
+
+// Cap keeps at most max added and max removed nodes, and counts the rest.
+// Zero means DefaultMaxChanges. A negative max keeps every node.
+func (d Diff) Cap(max int) Diff {
+	if max == 0 {
+		max = DefaultMaxChanges
+	}
+	if max < 0 {
+		return d
+	}
+	if len(d.Added) > max {
+		d.MoreAdded += len(d.Added) - max
+		d.Added = d.Added[:max]
+	}
+	if len(d.Removed) > max {
+		d.MoreRemoved += len(d.Removed) - max
+		d.Removed = d.Removed[:max]
+	}
+	return d
 }
 
 // DiffNodes matches nodes by Key. A move alone is not a change.
@@ -199,8 +224,14 @@ func (d Diff) String() string {
 	for _, n := range d.Removed {
 		lines = append(lines, "- "+line(n))
 	}
+	if d.MoreRemoved > 0 {
+		lines = append(lines, fmt.Sprintf("- +%d more removed", d.MoreRemoved))
+	}
 	for _, n := range d.Added {
 		lines = append(lines, "+ "+line(n))
+	}
+	if d.MoreAdded > 0 {
+		lines = append(lines, fmt.Sprintf("+ +%d more added", d.MoreAdded))
 	}
 	for _, c := range d.Changed {
 		lines = append(lines, "~ "+line(c.After))
