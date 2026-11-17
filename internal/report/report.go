@@ -677,11 +677,34 @@ func SaveTo(root string, b *Bundle) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	meta, _ := json.MarshalIndent(b.Meta, "", "  ")
-	if err := os.WriteFile(filepath.Join(dir, "meta.json"), meta, 0o600); err != nil {
+	// The zip goes first: a flush reads a bundle only after meta.json exists.
+	if err := os.WriteFile(filepath.Join(dir, "bundle.zip"), b.Zip, 0o600); err != nil {
 		return "", err
 	}
-	return dir, os.WriteFile(filepath.Join(dir, "bundle.zip"), b.Zip, 0o600)
+	meta, _ := json.MarshalIndent(b.Meta, "", "  ")
+	return dir, os.WriteFile(filepath.Join(dir, "meta.json"), meta, 0o600)
+}
+
+// A flush claims a bundle by creating <dir>.lock with O_EXCL. Only one
+// process can create it. A rename is not a claim: on Windows, two renames
+// of one directory can both succeed. A lock older than staleClaim was left
+// by a process that died while sending; the next flush removes it.
+const (
+	lockSuffix = ".lock"
+	staleClaim = 5 * time.Minute
+)
+
+// claim reports whether this process now holds the lock of bundle dir d.
+func claim(d string) bool {
+	lock := d + lockSuffix
+	if st, err := os.Stat(lock); err == nil && time.Since(st.ModTime()) > staleClaim {
+		_ = os.Remove(lock)
+	}
+	f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return false
+	}
+	return f.Close() == nil
 }
 
 // Flush sends the queued bundles, oldest first. It stops at the first
@@ -691,25 +714,30 @@ func Flush(url, key string) ([]Result, error) {
 	sort.Strings(dirs)
 	var sent []Result
 	for _, d := range dirs {
-		if strings.HasSuffix(d, ".rejected") {
+		if strings.HasSuffix(d, ".rejected") || strings.HasSuffix(d, lockSuffix) || !claim(d) {
 			continue
 		}
+		lock := d + lockSuffix
 		var b Bundle
 		meta, err := os.ReadFile(filepath.Join(d, "meta.json"))
 		if err != nil || json.Unmarshal(meta, &b.Meta) != nil {
+			_ = os.Remove(lock) // another flush sent it, or Save has not finished
 			continue
 		}
 		b.Zip, _ = os.ReadFile(filepath.Join(d, "bundle.zip"))
 		res, err := Send(url, key, &b)
 		if err != nil {
 			if Retry(err) {
+				_ = os.Remove(lock)
 				return sent, err
 			}
 			_ = os.Rename(d, d+".rejected")
+			_ = os.Remove(lock)
 			continue
 		}
 		sent = append(sent, res)
-		_ = os.RemoveAll(d)
+		_ = os.RemoveAll(d) // before the lock goes, so no flush sends d again
+		_ = os.Remove(lock)
 	}
 	return sent, nil
 }

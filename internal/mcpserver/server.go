@@ -89,6 +89,8 @@ func Run() error {
 	defer s.closeBare()
 	stop := make(chan struct{})
 	go s.heartbeat(stop)
+	go flushReports(cfg.Report.URL, stop)
+	wakeReports() // reports an earlier session left in the queue
 	err = srv.Run(context.Background(), &mcp.StdioTransport{})
 	close(stop)
 	screen.CloseAll()
