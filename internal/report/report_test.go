@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -262,6 +263,21 @@ func TestEnvHasVersionsAndEffectiveConfig(t *testing.T) {
 		if !strings.Contains(env, key) {
 			t.Errorf("env.txt has no %q:\n%s", key, env)
 		}
+	}
+}
+
+func TestEnvHasClientAndBare(t *testing.T) {
+	home(t)
+	audit.SetSession("s1", "codex")
+	t.Cleanup(func() { audit.SetSession("", "") })
+	env := Env()
+	for _, key := range []string{"client: codex\n", "bare-mcp: "} {
+		if !strings.Contains(env, key) {
+			t.Errorf("env.txt has no %q:\n%s", key, env)
+		}
+	}
+	if runtime.GOOS == "linux" && !strings.Contains(env, "cage renderer: ") {
+		t.Errorf("env.txt has no cage renderer:\n%s", env)
 	}
 }
 

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/audit"
+	"github.com/hexadecimil/offstage/internal/bare"
 	"github.com/hexadecimil/offstage/internal/config"
 	"github.com/hexadecimil/offstage/internal/headless"
 	"github.com/hexadecimil/offstage/internal/redact"
@@ -497,6 +498,11 @@ func Env() string {
 	} else {
 		b.WriteString("chrome: not found\n")
 	}
+	cfg, cerr := config.Load()
+	if cerr != nil {
+		cfg = config.Default()
+		cfg.Path = config.Path()
+	}
 	if runtime.GOOS == "linux" {
 		if k, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
 			fmt.Fprintf(&b, "kernel: %s", k)
@@ -518,11 +524,24 @@ func Env() string {
 			}
 		}
 	}
-	cfg, cerr := config.Load()
+	if _, client := audit.Session(); client != "" {
+		fmt.Fprintf(&b, "client: %s\n", client)
+	}
+	if runtime.GOOS == "linux" {
+		r := screen.KnownRenderer(cfg.Renderer)
+		if r == "" {
+			r = "default"
+		}
+		fmt.Fprintf(&b, "cage renderer: %s\n", r)
+	}
+	// bare-mcp has no --version flag: it prints its usage line, so only the path is shown.
+	if p, err := bare.Find(); err == nil {
+		fmt.Fprintf(&b, "bare-mcp: %s\n", p)
+	} else {
+		b.WriteString("bare-mcp: not found\n")
+	}
 	if cerr != nil {
 		fmt.Fprintf(&b, "\nconfig error: %v\n", cerr)
-		cfg = config.Default()
-		cfg.Path = config.Path()
 	}
 	b.WriteString("\neffective config:\n")
 	b.WriteString(render(reflect.ValueOf(cfg), ""))
