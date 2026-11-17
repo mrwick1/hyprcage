@@ -90,8 +90,10 @@ type Config struct {
 	// Dialogs is where the file dialogs of screen apps open: cage (in the
 	// screen) or host (the human's desktop, as before).
 	Dialogs string
-	Guard   Guard
-	Report  Report
+	// AudioEnabled gives each screen its own audio output.
+	AudioEnabled bool
+	Guard        Guard
+	Report       Report
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -133,7 +135,8 @@ func Default() Config {
 		Lighthouse: "13.5.0",
 		Verify:     defaultVerify,
 
-		Dialogs: "cage",
+		Dialogs:      "cage",
+		AudioEnabled: true,
 		Guard: Guard{
 			Enabled:  "desktop",
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
@@ -214,6 +217,9 @@ type file struct {
 	Workspaces struct {
 		Mirror []int `toml:"mirror"`
 	} `toml:"workspaces"`
+	Audio struct {
+		Enabled *bool `toml:"enabled"`
+	} `toml:"audio"`
 	Mirror struct {
 		FPS          *int   `toml:"fps"`
 		Group        string `toml:"group"`
@@ -335,6 +341,9 @@ func Apply(cfg *Config, text string) error {
 	}
 	if f.Browser.Lighthouse != nil {
 		cfg.Lighthouse = strings.TrimSpace(*f.Browser.Lighthouse)
+	}
+	if f.Audio.Enabled != nil {
+		cfg.AudioEnabled = *f.Audio.Enabled
 	}
 	if f.Screen.Dialogs != "" {
 		cfg.Dialogs = strings.ToLower(strings.TrimSpace(f.Screen.Dialogs))

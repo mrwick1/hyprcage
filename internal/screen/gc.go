@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hexadecimil/offstage/internal/lock"
+	"github.com/hexadecimil/offstage/internal/osfeat"
 	"github.com/hexadecimil/offstage/internal/registry"
 	"github.com/hexadecimil/offstage/internal/session"
 	"github.com/hexadecimil/offstage/internal/sysd"
@@ -75,6 +76,9 @@ func GC(c *Ctx, opts GCOptions) (GCReport, error) {
 			sysd.ResetFailed(u)
 			rep.Orphans = append(rep.Orphans, u)
 		}
+	}
+	if a := osfeat.Detect(c.Cfg).Audio; a != nil {
+		_ = a.Prune(known) // the audio outputs of screens that have no record
 	}
 	// Legacy: outputs of screens made by a offstage before 0.3, which were
 	// Hyprland's, left behind by a record that is gone.

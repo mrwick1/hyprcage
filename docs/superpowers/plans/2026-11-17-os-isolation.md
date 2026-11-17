@@ -1,7 +1,7 @@
 # OS isolation redo plan
 
 Date: 2026-11-17
-Status: In progress. PR 0 and item 1 ship on branch `feat/osfeat`. The environment part of item 2 ships on `feat/osfeat-dialogs`.
+Status: In progress. PR 0 and item 1 ship on branch `feat/osfeat`. The environment part of item 2 shipped in #64. Item 3 ships on `feat/osfeat-audio`.
 Replaces: branch `feat/os-tools` (5 commits, 2026-10-11, never pushed, 207 commits behind `main`).
 
 ## Outcome
@@ -167,10 +167,10 @@ Hook points: `screen.Create`, `screen.Destroy`, `screen.GC` and `screen.Launch`.
 Changes:
 
 1. Add `audio_linux.go` in `osfeat`. Name the sink `offstage_<screen>`. Functions: `Ensure(name)` loads a `module-null-sink` with `pactl` and `Remove(name)` unloads the module whose `sink_name` matches. No module ID is stored, so no registry change is needed.
-2. `Create`: call `Set.Audio.Ensure` when the backend is not nil. On error, log once and continue. Audio must not block screen creation.
-3. `Env` returns `PULSE_SINK=offstage_<screen>`. `LaunchEnv` from item 2 applies it. PipeWire honors it through `pipewire-pulse`. To verify on archMachine.
+2. `Set.LaunchEnv` calls `Ensure` before it returns the environment. On error it adds no variable, and the app plays into the human's default output as before.
+3. `Env` returns `PULSE_SINK` and `PIPEWIRE_NODE`, both `offstage_<screen>`. Verified on archMachine (PipeWire): `paplay` follows `PULSE_SINK`; `pw-play` and `aplay` follow only `PIPEWIRE_NODE`. `LaunchEnv` creates the sink at the first launch, so `Create` does not change.
 4. `Destroy` calls `Remove`. `GC` calls `Prune` with the live screen names.
-5. `doctor`: the `osfeat` status line covers it.
+5. `doctor`: a `pactl` line when audio is enabled.
 6. Add `[audio] enabled = true`.
 
 Test: `audio_linux_test.go` with a fake `pactl` on `PATH`. Check the commands for create, destroy and orphan cleanup.

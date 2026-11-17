@@ -11,6 +11,7 @@ import (
 func TestDialogsEnv(t *testing.T) {
 	t.Setenv("GDK_DEBUG", "")
 	t.Setenv("QT_QPA_PLATFORMTHEME", "qt6ct")
+	t.Setenv("PATH", t.TempDir()) // no pactl: no audio backend
 	env := Detect(config.Default()).LaunchEnv("hc-x")
 	if env["GTK_USE_PORTAL"] != "0" || env["GDK_DEBUG"] != "no-portals" {
 		t.Errorf("gtk: %v", env)
@@ -33,6 +34,7 @@ func TestDialogsEnv(t *testing.T) {
 func TestDialogsHost(t *testing.T) {
 	cfg := config.Default()
 	cfg.Dialogs = "host"
+	cfg.AudioEnabled = false
 	if s := Detect(cfg); s.Dialogs != nil || len(s.LaunchEnv("hc-x")) != 0 {
 		t.Errorf("dialogs = host: %+v", s)
 	}
