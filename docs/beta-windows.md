@@ -85,12 +85,12 @@ the new plugin, and the plugin installs the matching offstage binary.
 To update at once instead, run `claude plugin update offstage@offstage-mrwick1`
 in a terminal, then restart Claude Code.
 
-offstage also checks the `beta` branch once a day, when a session starts.
-When a newer beta exists, it starts the update and shows a message. The new
-version loads after `/reload-plugins` or a restart of Claude Code. When a
-beta key is stored, the same check also tells the relay that you use
-offstage. It sends the plugin version and the platform, nothing else. To turn
-the check off, set `OFFSTAGE_NO_UPDATE_CHECK=1`.
+offstage also checks the `beta` branch when a session starts, at most once
+an hour. When a newer beta exists, it starts the update and shows a message.
+The new version loads after `/reload-plugins` or a restart of Claude Code.
+Once a day, when a beta key is stored, offstage also tells the relay that you
+use offstage. It sends the plugin version and the platform, nothing else. To
+turn the checks off, set `OFFSTAGE_NO_UPDATE_CHECK=1`.
 
 What changed in each beta, and what to retest:
 [docs/beta-changes.md](beta-changes.md).
