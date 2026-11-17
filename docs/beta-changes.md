@@ -6,6 +6,25 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.13 (2026-11-17)
+
+- New: the offstage MCP server updates itself while it runs. About once an
+  hour it checks the `beta` branch, downloads a newer build, checks it
+  against `SHA256SUMS`, and replaces the binary and Bare. Then it restarts
+  when it is idle: no tool call running, and no screen, recording, task or
+  browser session open. Claude Code starts the new build on the next tool
+  call. With Codex, the agent is told once to restart the MCP server.
+  `[update] auto = false` or `OFFSTAGE_NO_AUTO_UPDATE=1` turns it off.
+- Fix (Linux, shipped in beta.11, not listed there): a beta binary
+  updates to the final release. The launcher compared versions with `sort -V`, which ranks `v0.11.0` below
+  `v0.11.0-beta.8`.
+- Bare v0.1.3 (out since beta.11) arrives with the daily Bare update: serif font families draw
+  with Noto Serif; SVG text has `dominant-baseline`,
+  `getComputedTextLength`, `getSubStringLength` and rotated or skewed text;
+  an `<svg>` with a border or padding draws in its content box.
+- Retest: nothing by hand. Leave a session open; later builds now arrive
+  in it within about an hour.
+
 ## v0.11.0-beta.12 (2026-11-17)
 
 - Change: offstage checks the `beta` branch for a new build at most once an
