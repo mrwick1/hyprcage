@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func WaitDebug(port int, timeout time.Duration) error {
 			}
 		}
 		if time.Now().After(deadline) {
-			return errf(CodeCDP, "the app ignores --remote-debugging-port; snapshot falls back to AT-SPI or OCR",
+			return errf(CodeCDP, "the app ignores --remote-debugging-port, or gave its window to an instance already running (see its log); snapshot falls back to AT-SPI or OCR",
 				"no DevTools answer on 127.0.0.1:%d within %s", port, timeout)
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -69,7 +70,30 @@ func PrepareDebug(rec *registry.Screen, command []string) ([]string, int, error)
 	if err != nil {
 		return nil, 0, err
 	}
+	// A Chromium browser on a profile that a running browser holds gives
+	// its window to that browser and exits, and DevTools never answers.
+	if chromium(command) && !slices.ContainsFunc(command, func(a string) bool { return strings.HasPrefix(a, "--user-data-dir=") }) {
+		dir, err := os.MkdirTemp("", ProfilePrefix(rec.Name))
+		if err != nil {
+			return nil, 0, err
+		}
+		command = append(slices.Clone(command), "--user-data-dir="+dir)
+	}
 	return DebugArgs(command, port), port, nil
+}
+
+// chromium reports whether command starts a Chromium browser.
+func chromium(command []string) bool {
+	if len(command) == 0 {
+		return false
+	}
+	b := filepath.Base(command[0])
+	for _, p := range []string{"chromium", "google-chrome", "chrome", "brave", "microsoft-edge", "vivaldi"} {
+		if strings.HasPrefix(b, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // debugCmdlineOK reports whether the command line of pid carries

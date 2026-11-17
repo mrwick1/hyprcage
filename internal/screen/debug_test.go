@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -244,6 +245,39 @@ func TestHasDebugFlag(t *testing.T) {
 	} {
 		if got := hasDebugFlag(tc.cmdline, 1234); got != tc.ok {
 			t.Errorf("hasDebugFlag(%q, 1234) = %v, want %v", tc.cmdline, got, tc.ok)
+		}
+	}
+}
+
+// A browser launched without its own profile hands its window to a running
+// browser of the same profile and exits, so DevTools never answers. A
+// Chromium browser gets a new profile of the screen; destroy removes it.
+func TestPrepareDebugGivesABrowserItsOwnProfile(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	name := "pd" + strconv.Itoa(os.Getpid())
+	for _, cmd := range [][]string{{"chromium"}, {"/usr/bin/google-chrome-stable", "https://a.test/"}, {"brave-browser"}, {"microsoft-edge-stable"}} {
+		args, _, err := PrepareDebug(&registry.Screen{Name: name}, cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var dir string
+		for _, a := range args {
+			if v, ok := strings.CutPrefix(a, "--user-data-dir="); ok {
+				dir = v
+			}
+		}
+		if dir == "" || !slices.Contains(profileDirs(name), dir) {
+			t.Fatalf("%q: args %q lack a profile of screen %s (have %q)", cmd, args, name, profileDirs(name))
+		}
+	}
+	removeProfiles(name)
+	for _, cmd := range [][]string{{"chromium", "--user-data-dir=/x"}, {"code"}, {"electron", "."}} {
+		args, _, err := PrepareDebug(&registry.Screen{Name: name}, cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := len(args) - len(DebugArgs(cmd, 1)); n != 0 || len(profileDirs(name)) != 0 {
+			t.Fatalf("%q: args %q, profiles %q: want no new profile", cmd, args, profileDirs(name))
 		}
 	}
 }
