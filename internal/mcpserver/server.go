@@ -73,6 +73,8 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	id := identity()
+	audit.SetSession(id.SessionID, id.Client)
 	defer report.CatchCrashes()()
 	if n := len(report.Crashes()); n > 0 {
 		note := fmt.Sprintf("Beta: offstage crashed earlier (%d crash file(s) in %s). Call report_issue with area crash, a title and what you were doing.", n, report.CrashDir())
