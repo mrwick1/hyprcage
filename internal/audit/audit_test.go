@@ -163,3 +163,13 @@ func TestTaskActionIdentity(t *testing.T) {
 		t.Fatal("missing task or unique action identity")
 	}
 }
+
+func TestRecordSetsSession(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	SetSession("s1", "claude-code")
+	t.Cleanup(func() { SetSession("", "") })
+	Record("click", map[string]any{"x": 1}, nil)
+	if got := lines(t)[0]["session"]; got != "s1" {
+		t.Fatalf("session = %v", got)
+	}
+}
