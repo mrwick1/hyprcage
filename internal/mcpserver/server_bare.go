@@ -92,6 +92,9 @@ func (s *Server) registerBare(ctx context.Context, srv *mcp.Server) error {
 			metadata = append(metadata, audit.WithDuration(time.Since(start)))
 			recordedEntry := audit.Record(copy.Name, struct{}{}, failed, metadata...)
 			entry = &recordedEntry
+			if failed != nil {
+				logBlock(recordedEntry, err, result)
+			}
 			return result, err
 		})
 	}
