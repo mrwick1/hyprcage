@@ -6,7 +6,7 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
-## Next build
+## v0.11.0-beta.8 (2026-11-17)
 
 - New: when a beta key is stored, the daily update check also pings the
   relay with the plugin version and the platform. Arjun then sees who uses
