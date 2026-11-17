@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -87,6 +88,8 @@ func TestAnInternalErrorIsQueuedAsAnAutomaticReport(t *testing.T) {
 	t.Setenv("OFFSTAGE_BETA_KEY", "")
 	autoReports, autoEnabled = newAutoState(), true
 	defer func() { autoEnabled = false }()
+	goos = "linux" // test tools are registered on Linux only
+	t.Cleanup(func() { goos = runtime.GOOS })
 	srv := mcp.NewServer(&mcp.Implementation{Name: "t"}, nil)
 	type in struct{}
 	unlocked(srv, "breaks", "fails", func(in) (*mcp.CallToolResult, error) {
