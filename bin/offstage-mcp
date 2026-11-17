@@ -11,14 +11,39 @@ find_bin() {
   command -v offstage 2>/dev/null && return
   [ -x "$HOME/.local/bin/offstage" ] && echo "$HOME/.local/bin/offstage"
 }
+# True when release $1 sorts before $2 (vX.Y.Z or vX.Y.Z-pre), in semver order:
+# a release ranks above its prereleases; numeric identifiers compare as numbers.
+older() {
+  local a=${1#v} b=${2#v} ca cb pa= pb= i x y p q IFS=.
+  ca=${a%%-*}; cb=${b%%-*}
+  [ "$ca" = "$a" ] || pa=${a#*-}
+  [ "$cb" = "$b" ] || pb=${b#*-}
+  read -ra p <<<"$ca"; read -ra q <<<"$cb"
+  for i in 0 1 2; do
+    x=${p[i]:-0} y=${q[i]:-0}
+    [ "$x" -eq "$y" ] || { [ "$x" -lt "$y" ]; return; }
+  done
+  [ -n "$pa" ] || return 1
+  [ -n "$pb" ] || return 0
+  read -ra p <<<"$pa"; read -ra q <<<"$pb"
+  for ((i = 0; i < ${#p[@]} && i < ${#q[@]}; i++)); do
+    x=${p[i]} y=${q[i]}
+    [ "$x" = "$y" ] && continue
+    if [[ $x == *[!0-9]* || $y == *[!0-9]* ]]; then [[ $x < $y ]]; else [ "$x" -lt "$y" ]; fi
+    return
+  done
+  [ "${#p[@]}" -lt "${#q[@]}" ]
+}
 # A release tag older than the one the plugin pins.
 outdated() {
   local have; have=$("$1" version 2>/dev/null | head -1) || return 1
   # A build from a checkout (git describe: vX.Y.Z-N-gHASH) is left alone.
   # "source" came from a plugin cache that install.sh took for a checkout.
   case "$have" in *-g[0-9a-f]*) return 1 ;; v[0-9]* | source) ;; *) return 1 ;; esac
-  [ "$have" != "$want" ] && [ "$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -1)" = "$have" ]
+  [ "$have" != "$want" ] && { [ "$have" = source ] || older "$have" "$want"; }
 }
+# Sourced by tests/launcher_semver_test.sh: stop after the functions.
+[ "${BASH_SOURCE[0]}" = "$0" ] || return 0
 bin=$(find_bin || true)
 if [ -z "$bin" ]; then
   echo "offstage: first run, installing the binary ($want)" >&2
