@@ -149,6 +149,7 @@ Use the human's desktop only when the job needs their own apps or their session.
 - **Notifications**: `notify_list` shows the notifications of the last 48 hours. `notify_wait` waits for a new one. `notify_act` closes one, or invokes an action of the latest one only. `notifyd_down` means the daemon does not run: tell the human.
 - Every desktop tool refuses with `session_locked` while the screen is locked.
 - **Guard**: a desktop action that closes a window or hits a destructive control returns `ack_required` with the reason. The blocked keys are `Ctrl+W`, `Ctrl+Q` and `Alt+F4`. The blocked clicks are on controls with a label such as delete, remove, erase, format, uninstall, close all, quit or shut down. Repeat the call with `ack: "<reason>"` only when the task needs the action. The server logs the reason. The guard reads the label from your last `snapshot`. With no snapshot, only the keys are blocked. The `[guard]` table in `config.toml` sets `enabled` (`desktop`, `all` or `off`), `apps`, `keywords` and `combos`.
+- **System prompts**: a desktop action returns `system_prompt` when a polkit, keyring or pinentry prompt has the focus, is the target window, or lies under the click. `ack` does not lift it, and `enabled = "off"` does not turn it off. Ask the human to answer the prompt, then retry. `prompt_classes` in `[guard]` adds app ids.
 
 ## Report offstage problems (beta)
 

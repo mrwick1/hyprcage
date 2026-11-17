@@ -28,6 +28,9 @@ type Guard struct {
 	Apps     []string // allowlist of app ids (window classes); empty means no allowlist
 	Keywords []string // destructive words that block a click whose target label matches
 	Combos   []string // blocked key combinations
+	// PromptClasses adds app ids to the system prompts that no input tool
+	// may act on. The defaults stay.
+	PromptClasses []string
 }
 
 // Report is the [report] table: where beta reports go and what they carry.
@@ -234,10 +237,11 @@ type file struct {
 		Port       *int    `toml:"port"` // ignored: each screen picks a free port; kept so older files load
 	} `toml:"browser"`
 	Guard struct {
-		Enabled  string   `toml:"enabled"`
-		Apps     []string `toml:"apps"`
-		Keywords []string `toml:"keywords"`
-		Combos   []string `toml:"combos"`
+		Enabled       string   `toml:"enabled"`
+		Apps          []string `toml:"apps"`
+		Keywords      []string `toml:"keywords"`
+		Combos        []string `toml:"combos"`
+		PromptClasses []string `toml:"prompt_classes"`
 	} `toml:"guard"`
 	Report struct {
 		URL         *string `toml:"url"`
@@ -338,6 +342,9 @@ func Apply(cfg *Config, text string) error {
 	}
 	if f.Guard.Combos != nil {
 		cfg.Guard.Combos = f.Guard.Combos
+	}
+	if len(f.Guard.PromptClasses) > 0 {
+		cfg.Guard.PromptClasses = f.Guard.PromptClasses
 	}
 	if f.Report.URL != nil {
 		cfg.Report.URL = strings.TrimRight(strings.TrimSpace(*f.Report.URL), "/")
