@@ -27,7 +27,7 @@ func (f *fakePlane) handler(t *testing.T) http.Handler {
 	mux := http.NewServeMux()
 	base := "/api/v1/workspaces/ws/projects/p"
 	mux.HandleFunc(base+"/labels/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"results":[{"id":"l-agent","name":"agent-report"},{"id":"l-linux","name":"linux"},{"id":"l-crash","name":"crash"},{"id":"l-bug","name":"bug"},{"id":"l-doubt","name":"doubt"}]}`)
+		_, _ = io.WriteString(w, `{"results":[{"id":"l-agent","name":"agent-report"},{"id":"l-linux","name":"linux"},{"id":"l-crash","name":"crash"},{"id":"l-bug","name":"bug"},{"id":"l-doubt","name":"doubt"},{"id":"l-auto","name":"auto"}]}`)
 	})
 	mux.HandleFunc(base+"/states/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{"results":[{"id":"s-new","name":"New"},{"id":"s-fixed","name":"Fixed in build"}]}`)
@@ -269,6 +269,30 @@ func TestTypeLabelTitleAndValidation(t *testing.T) {
 	}
 	if len(fp.created) != 2 {
 		t.Error("a rejected type filed a work item")
+	}
+}
+
+func TestAutoLabelFromTitlePrefix(t *testing.T) {
+	s, fp := setup(t)
+	m := meta()
+	m.Title, m.Fingerprint = "[auto] click failed with internal", "a0000001"
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 {
+		t.Fatalf("auto: code %d", code)
+	}
+	m.Title, m.Fingerprint = "click did nothing", "a0000002"
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 {
+		t.Fatalf("plain: code %d", code)
+	}
+	m.Title, m.Fingerprint = "click [auto] did nothing", "a0000003"
+	if code, _ := post(t, s, "osk_joel", m, nil); code != 201 {
+		t.Fatalf("middle: code %d", code)
+	}
+	want := []string{`["l-agent","l-linux","l-crash","l-bug","l-auto"]`, `["l-agent","l-linux","l-crash","l-bug"]`, `["l-agent","l-linux","l-crash","l-bug"]`}
+	for i, w := range want {
+		labels, _ := json.Marshal(fp.created[i]["labels"])
+		if string(labels) != w {
+			t.Errorf("item %d labels %s, want %s", i, labels, w)
+		}
 	}
 }
 
