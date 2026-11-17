@@ -6,6 +6,29 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.9 (2026-11-17)
+
+- Fix (Windows, OFS-6): the plugin's launcher now updates a beta binary.
+  Before, `install.ps1 -BinaryOnly` took every `-beta.N` version for a build
+  from source and kept the first binary installed. The fix arrives with the
+  plugin update, so no manual step is needed.
+- Fix (Windows, OFS-6): an update no longer fails with "Cannot create a file
+  when that file already exists" while other sessions run offstage. Each old
+  binary gets a unique `.old-<ticks>` name. The next update removes the old
+  copies that no session runs.
+- Fix: `screen_create` adds the `hc-` prefix, and later calls with the name
+  as given now find the screen.
+- Fix: `app_launch` with `debug=true` gives a Chromium browser its own
+  profile. Before, the page could open in the human's browser.
+- Fix: a cage that fails to start is reported as `cage_failed`.
+- Fix: a click on a node's own label no longer counts as covered.
+- Fix: the audit keeps the error code of a failed Bare call.
+- Fix: recording uses far less memory (about 54 MB at 1280x800) and
+  `record_stop` no longer times out after a slow ffmpeg. Files are up to 2.5
+  times larger.
+- Retest: on Windows, check that `offstage version` prints v0.11.0-beta.9
+  after the plugin updates. Long recordings.
+
 ## v0.11.0-beta.8 (2026-11-17)
 
 - New: when a beta key is stored, the daily update check also pings the
