@@ -20,7 +20,7 @@
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the plugin's version, else the latest)
 #   OFFSTAGE_BIN_DIR=DIR     where offstage.exe goes (default %LOCALAPPDATA%\offstage\bin)
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests)
-#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
+#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default: the newest)
 #   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
 param([string]$Agents = 'all', [switch]$BinaryOnly, [switch]$Uninstall, [switch]$NoBare, [switch]$BareOnly)
 $ErrorActionPreference = 'Stop'
@@ -31,9 +31,9 @@ $BinDir = if ($env:OFFSTAGE_BIN_DIR) { $env:OFFSTAGE_BIN_DIR } else { Join-Path 
 $Exe = Join-Path $BinDir 'offstage.exe'
 $BareMcp = Join-Path $BinDir 'bare-mcp.exe'
 $BareDrive = Join-Path $BinDir 'bare-drive.exe'
-# The bare release that this offstage ships with. Keep it equal to the default
-# in install.sh.
-$BareVersion = if ($env:OFFSTAGE_BARE_VERSION) { $env:OFFSTAGE_BARE_VERSION } else { 'v0.1.1' }
+# The bare release: 'latest' is the newest one. Keep the default equal to the
+# one in install.sh.
+$BareVersion = if ($env:OFFSTAGE_BARE_VERSION) { $env:OFFSTAGE_BARE_VERSION } else { 'latest' }
 $SkipBare = $NoBare -or $env:OFFSTAGE_NO_BARE -eq '1'
 
 # Messages go to stderr: the plugin's launcher keeps stdout for MCP.
@@ -113,7 +113,7 @@ function Install-Bare {
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid())
   New-Item -ItemType Directory $tmp | Out-Null
   try {
-    $base = if ($env:OFFSTAGE_BARE_RELEASE_BASE) { $env:OFFSTAGE_BARE_RELEASE_BASE } else { "https://github.com/mrwick1/bare/releases/download/$BareVersion" }
+    $base = if ($env:OFFSTAGE_BARE_RELEASE_BASE) { $env:OFFSTAGE_BARE_RELEASE_BASE } elseif ($BareVersion -eq 'latest') { 'https://github.com/mrwick1/bare/releases/latest/download' } else { "https://github.com/mrwick1/bare/releases/download/$BareVersion" }
     $sums = "$tmp\SHA256SUMS"
     Invoke-WebRequest "$base/SHA256SUMS" -OutFile $sums
     function Want($asset) {

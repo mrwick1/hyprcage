@@ -29,7 +29,18 @@ type Audio interface {
 	Env(screen string) map[string]string
 	Remove(screen string) error
 	Prune(live map[string]bool) error // remove the outputs of screens not in live
+	Observe(screen string) (AudioState, error)
 }
+
+// AudioState is the state of a screen's audio output.
+type AudioState struct {
+	Sink    string `json:"sink"`
+	State   string `json:"state"`   // RUNNING, IDLE, SUSPENDED, or absent before the first launch
+	Streams int    `json:"streams"` // streams that play into the output
+}
+
+// Playing reports whether a stream plays into the output and is not paused.
+func (a AudioState) Playing() bool { return a.State == "RUNNING" }
 
 // Set holds the backends of this system.
 type Set struct {

@@ -35,7 +35,7 @@
 #   OFFSTAGE_BIN_DIR=DIR     where the binary goes (default ~/.local/bin)
 #   OFFSTAGE_RELEASE_BASE=URL  where the assets are fetched from (tests; default
 #                            the GitHub release of the version)
-#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default below)
+#   OFFSTAGE_BARE_VERSION=vX.Y.Z  pin the bare release (default: the newest)
 #   OFFSTAGE_NO_BARE=1       rejected: Bare is required
 #   OFFSTAGE_BARE_RELEASE_BASE=URL  where the bare assets are fetched from (tests)
 set -euo pipefail
@@ -43,9 +43,9 @@ set -euo pipefail
 REPO=${OFFSTAGE_REPO:-mrwick1/offstage}
 BIN_DIR=${OFFSTAGE_BIN_DIR:-$HOME/.local/bin}
 AGENTS=${OFFSTAGE_AGENTS:-all}
-# The bare release that this offstage ships with. Keep it equal to the default
-# in install.ps1.
-BARE_VERSION=${OFFSTAGE_BARE_VERSION:-v0.1.1}
+# The bare release: "latest" is the newest one. Keep the default equal to the
+# one in install.ps1.
+BARE_VERSION=${OFFSTAGE_BARE_VERSION:-latest}
 BARE_REPO=mrwick1/bare
 # Its file marks a bare that this installer put in BIN_DIR. Uninstall removes
 # only that one.
@@ -177,7 +177,9 @@ _install_bare() {
   local tmp=$1 a base m d want want_drive
   a=$(arch) || return 1
   m=bare-mcp-linux-$a; d=bare-drive-linux-$a
-  base=${OFFSTAGE_BARE_RELEASE_BASE:-"https://github.com/$BARE_REPO/releases/download/$BARE_VERSION"}
+  base="https://github.com/$BARE_REPO/releases/download/$BARE_VERSION"
+  [ "$BARE_VERSION" = latest ] && base="https://github.com/$BARE_REPO/releases/latest/download"
+  base=${OFFSTAGE_BARE_RELEASE_BASE:-$base}
   curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || return 1
   want=$(awk -v n="$m" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS")
   want_drive=$(awk -v n="$d" '$2 == n || $2 == "*" n { print $1 }' "$tmp/SHA256SUMS")

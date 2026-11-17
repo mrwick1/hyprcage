@@ -22,7 +22,7 @@ any other MCP client.
 ## Browser
 
 Bare is the bundled browser. Installation requires both `bare-mcp` and
-`bare-drive`, downloaded from the pinned Bare release with checksum verification.
+`bare-drive`, downloaded from the newest Bare release with checksum verification.
 A missing or invalid download fails installation. Chrome is not required.
 
 The offstage MCP server exposes Bare's native tools as `browser_*`:
