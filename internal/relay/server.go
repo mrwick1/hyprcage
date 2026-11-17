@@ -68,6 +68,7 @@ type Server struct {
 	Hook       string            // optional URL; gets a POST for each new work item
 	Now        func() time.Time
 
+	bg    sync.WaitGroup // hook sends in flight; tests wait on it
 	mu    sync.Mutex
 	calls map[string][]time.Time
 }
@@ -267,9 +268,13 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 	reply(w, http.StatusCreated, map[string]any{"id": ref, "duplicate": false})
 }
 
+// hookDelays waits before each retry of a hook send. Four attempts in total.
+var hookDelays = []time.Duration{2 * time.Second, 8 * time.Second, 30 * time.Second}
+
 // notify tells the hook about a new work item. It sends only checked fields,
-// never report text, so the receiver reads the item from Plane. A hook error
-// is logged and never fails the report.
+// never report text, so the receiver reads the item from Plane. The send runs
+// in the background, so the reply to the tester does not wait for the hook.
+// A hook error is logged and never fails the report.
 func (s *Server) notify(ref, tester string, m *Meta) {
 	if s.Hook == "" {
 		return
@@ -282,6 +287,35 @@ func (s *Server) notify(ref, tester string, m *Meta) {
 		"id": ref, "project": project, "type": m.kindOfReport(), "auto": m.autoLabel() != "",
 		"area": m.Area, "platform": m.Platform, "kind": m.Kind, "tester": tester, "version": m.Version,
 	})
+	s.bg.Add(1)
+	go func() {
+		defer s.bg.Done()
+		s.sendHook(ref, b)
+	}()
+}
+
+// sendHook posts b to the hook. It retries network errors and 5xx statuses
+// after each delay in hookDelays. It does not retry 2xx or 4xx statuses.
+func (s *Server) sendHook(ref string, b []byte) {
+	for attempt := 0; ; attempt++ {
+		retry, err := s.postHook(b)
+		if err == nil {
+			return
+		}
+		log.Printf("hook %s: attempt %d: %v", ref, attempt+1, err)
+		if !retry {
+			return
+		}
+		if attempt == len(hookDelays) {
+			log.Printf("hook %s: gave up", ref)
+			return
+		}
+		time.Sleep(hookDelays[attempt])
+	}
+}
+
+// postHook sends one attempt. It reports whether a failed attempt may be retried.
+func (s *Server) postHook(b []byte) (retry bool, err error) {
 	c := &http.Client{Timeout: 10 * time.Second}
 	resp, err := c.Post(s.Hook, "application/json", bytes.NewReader(b))
 	if err != nil {
@@ -289,13 +323,13 @@ func (s *Server) notify(ref, tester string, m *Meta) {
 		if errors.As(err, &ue) {
 			err = ue.Err // the URL holds the token; keep it out of the log
 		}
-		log.Printf("hook %s: %v", ref, err)
-		return
+		return true, err
 	}
 	resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		log.Printf("hook %s: status %d", ref, resp.StatusCode)
+	if resp.StatusCode < 300 {
+		return false, nil
 	}
+	return resp.StatusCode >= 500, fmt.Errorf("status %d", resp.StatusCode)
 }
 
 func (s *Server) attach(id string, bundle []byte) error {
