@@ -77,7 +77,7 @@ Check for each PR: `go build ./...`, `GOOS=windows go vet ./...` and `GOOS=darwi
 | # | Feature | Why first | Size |
 | --- | --- | --- | --- |
 | 1 | System prompts are read-only | Security. An agent can type into a polkit, keyring or pinentry prompt today. | Small |
-| 2 | File dialogs stay in the screen | The dialog opens on the human's desktop. The agent cannot drive it. | Small, after a spike |
+| 2 | File dialogs stay in the screen | The dialog opens on the human's desktop. The agent cannot drive it. | Medium: a private bus and a notification forwarder |
 | 3 | Audio sink for each screen | Sound reaches the speakers. | Medium |
 | 4 | Audio condition | The agent can check that sound plays. | Small |
 | — | Audio in recordings | Deferred. It touches `internal/record`, which PR #52 changed. | — |
@@ -110,22 +110,51 @@ Test: a table test in `server_guard_test.go` with a fake prompt window. Click, t
 
 Hook point: the environment map in `screen.Launch` (`internal/screen/launch.go`). All three callers go through it: `app_launch`, `offstage launch` and the browser launch.
 
-Conflict: the old branch blocked the session bus (`DBUS_SESSION_BUS_ADDRESS` to a dead path). That also stops desktop notifications from the app. `notify_list` and `notify_wait` depend on them. The old fix breaks a shipped feature.
+Old approach: the old branch blocked the session bus (`DBUS_SESSION_BUS_ADDRESS` to a dead path). That also stops desktop notifications from the app. `notify_list` and `notify_wait` depend on them. The old fix breaks a shipped feature.
 
-Spike first (half a day, no PR):
+### Spike result (2026-11-17, archMachine)
 
-1. Test portal opt-outs that keep the session bus: `GTK_USE_PORTAL=0` (GTK 3), `GDK_DEBUG=no-portals` (GTK 4), no `xdgdesktopportal` Qt platform theme, and the Chromium or Electron portal switch.
-2. Test with one GTK 3, one GTK 4, one Qt and one Electron app. For each, record where the file dialog opens and whether `notify_list` still sees the app's notification.
-3. Write the result in this file.
+Setup: Hyprland, `xdg-desktop-portal-gtk` as the FileChooser portal, GTK 4.24, GTK 3, PyQt6, VS Code (Electron). Each app opened a file dialog in an offstage screen. A watcher read `hyprctl clients` for a portal window on the human's desktop.
 
-Then:
+| App | Environment | Dialog opens |
+| --- | --- | --- |
+| GTK 4 | none | Human's desktop |
+| GTK 4 | `GDK_DEBUG=no-portals` | Screen |
+| GTK 4 | `GTK_USE_PORTAL=0` | Human's desktop |
+| GTK 3 | none | Screen |
+| GTK 3 | `GTK_USE_PORTAL=1` (inherited) | Human's desktop |
+| GTK 3 | `GTK_USE_PORTAL=1` inherited, `GTK_USE_PORTAL=0` set | Screen |
+| GTK 3 | `GTK_USE_PORTAL=1` inherited, `GDK_DEBUG=no-portals` set | Human's desktop |
+| Qt 6 | none | Screen |
+| Qt 6 | `QT_QPA_PLATFORMTHEME=xdgdesktopportal` | Human's desktop |
+| Qt 6 | that theme inherited, `QT_QPA_PLATFORMTHEME=` set | Screen |
+| Electron | none | Human's desktop |
+| Electron | `GTK_USE_PORTAL=0` | Human's desktop |
+| Electron | `--xdg-portal-required-version=999` | Human's desktop |
+| GTK 4, Qt 6 with the portal theme, Electron | private session bus with no services, `AT_SPI_BUS_ADDRESS` set | Screen |
 
-1. Add `dialogs_linux.go` in `osfeat`. Its `Env` returns the variables that the spike proved.
-2. In `screen.Launch`, merge `Set.LaunchEnv(screen)` before `extraEnv`, so a caller can still override it. That adds 3 lines. Items 2 and 3 share this one hook.
-3. Add `[screen] dialogs = "cage" | "host"` with default `cage`.
-4. Fallback only if no opt-out works: the blocked bus as a non-default `dialogs = "nobus"` mode. Document that it disables notifications.
+Notifications: `notify-send` fails on the private bus (`ServiceUnknown`) and on a dead bus address (`Could not connect`).
 
-Test: a unit test that `Launch` sets the variables and that `extraEnv` wins. A live test in the VM (`tests/vm/vm.sh`) that opens a dialog in a GTK app and finds it with `snapshot`.
+Findings:
+
+- Environment variables fix GTK and Qt. They do not fix Electron. No environment variable or switch that was tested stops it.
+- A private session bus with no portal fixes every toolkit with one mechanism.
+- A private bus alone stops the app's notifications, so `notify_list` and `notify_wait` lose them.
+- A private bus also stops other leaks to the human's session: keyring access, tray icons, media keys and single-instance handoff to an app on another screen.
+
+Not tested: Firefox, Chrome (it exited in the screen; the cause is not known), KDE file dialogs, and distributions that ship `dbus-broker` without `dbus-daemon`.
+
+### Design after the spike
+
+Each screen gets a private session bus. A small forwarder carries notifications to the human's bus.
+
+1. Add `dialogs_linux.go` in `osfeat`. `Detect` sets the backend when `dbus-daemon` is on `PATH` and `[screen] dialogs` is `cage` (default). Otherwise the field stays nil and apps use the human's bus as before.
+2. The backend has `Start(screen)`, `Stop(screen)` and `Env(screen)`. `Start` runs `dbus-daemon --config-file` with no service directories, on a socket in `$XDG_RUNTIME_DIR/offstage/bus/<screen>`. It runs in the screen's systemd scope, so `Destroy` and `GC` stop it with the screen.
+3. `Env` returns `DBUS_SESSION_BUS_ADDRESS` for the private bus, `AT_SPI_BUS_ADDRESS` from the human's `org.a11y.Bus`, and `GSETTINGS_BACKEND=memory`. `Set.LaunchEnv` applies it in `screen.Launch` before `extraEnv`.
+4. The forwarder runs inside the offstage process. It owns `org.freedesktop.Notifications` on each private bus and forwards `Notify`, `CloseNotification`, `GetCapabilities` and `GetServerInformation` to the human's bus. It forwards the `ActionInvoked` and `NotificationClosed` signals back. `notifyd` then sees the notification as before. To verify: whether a notification after a server restart still reaches the human.
+5. `[screen] dialogs = "host"` turns the feature off.
+
+Test: a unit test with two private buses in a temporary directory. A notification sent on one bus must arrive on the other. A live check repeats the spike table for GTK 4, Qt 6 and Electron.
 
 ## 3. Audio sink for each screen
 
