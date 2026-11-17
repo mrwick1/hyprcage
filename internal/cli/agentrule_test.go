@@ -13,6 +13,7 @@ import (
 func TestSessionStartKeepsTheAgentRule(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root) // the home directory on Windows
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
