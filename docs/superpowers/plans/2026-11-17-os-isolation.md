@@ -1,7 +1,7 @@
 # OS isolation redo plan
 
 Date: 2026-11-17
-Status: In progress. PR 0 and item 1 ship together on branch `feat/osfeat`.
+Status: In progress. PR 0 and item 1 ship on branch `feat/osfeat`. The environment part of item 2 ships on `feat/osfeat-dialogs`.
 Replaces: branch `feat/os-tools` (5 commits, 2026-10-11, never pushed, 207 commits behind `main`).
 
 ## Outcome
@@ -143,6 +143,10 @@ Findings:
 - A private bus also stops other leaks to the human's session: keyring access, tray icons, media keys and single-instance handoff to an app on another screen.
 
 Not tested: Firefox, Chrome (it exited in the screen; the cause is not known), KDE file dialogs, and distributions that ship `dbus-broker` without `dbus-daemon`.
+
+### First step: environment only
+
+`dialogs_linux.go` sets `GTK_USE_PORTAL=0`, adds `no-portals` to `GDK_DEBUG`, and clears `QT_QPA_PLATFORMTHEME` when it is `xdgdesktopportal`. This fixes GTK 3, GTK 4 and Qt. Electron dialogs still open on the human's desktop. The private bus below fixes Electron later.
 
 ### Design after the spike
 

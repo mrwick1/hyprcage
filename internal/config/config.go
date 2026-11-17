@@ -87,8 +87,11 @@ type Config struct {
 	Lighthouse     string        // Lighthouse version that devtools_audit runs through npx
 
 	Verify bool // actions on an agent screen return a verdict unless the call passes verify:false
-	Guard  Guard
-	Report Report
+	// Dialogs is where the file dialogs of screen apps open: cage (in the
+	// screen) or host (the human's desktop, as before).
+	Dialogs string
+	Guard   Guard
+	Report  Report
 
 	Path   string // the config file looked at
 	Loaded bool   // the file existed and was applied
@@ -130,6 +133,7 @@ func Default() Config {
 		Lighthouse: "13.5.0",
 		Verify:     defaultVerify,
 
+		Dialogs: "cage",
 		Guard: Guard{
 			Enabled:  "desktop",
 			Keywords: []string{"delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"},
@@ -198,13 +202,14 @@ func Fallback() Config {
 // are rejected.
 type file struct {
 	Screen struct {
-		Width         *int  `toml:"width"`
-		Height        *int  `toml:"height"`
-		MaxWidth      *int  `toml:"max_width"`
-		MaxHeight     *int  `toml:"max_height"`
-		MaxPerSession *int  `toml:"max_per_session"`
-		Mirror        *bool `toml:"mirror"`
-		Notify        *bool `toml:"notify"`
+		Width         *int   `toml:"width"`
+		Height        *int   `toml:"height"`
+		MaxWidth      *int   `toml:"max_width"`
+		MaxHeight     *int   `toml:"max_height"`
+		MaxPerSession *int   `toml:"max_per_session"`
+		Mirror        *bool  `toml:"mirror"`
+		Notify        *bool  `toml:"notify"`
+		Dialogs       string `toml:"dialogs"`
 	} `toml:"screen"`
 	Workspaces struct {
 		Mirror []int `toml:"mirror"`
@@ -331,6 +336,9 @@ func Apply(cfg *Config, text string) error {
 	if f.Browser.Lighthouse != nil {
 		cfg.Lighthouse = strings.TrimSpace(*f.Browser.Lighthouse)
 	}
+	if f.Screen.Dialogs != "" {
+		cfg.Dialogs = strings.ToLower(strings.TrimSpace(f.Screen.Dialogs))
+	}
 	if f.Guard.Enabled != "" {
 		cfg.Guard.Enabled = strings.ToLower(strings.TrimSpace(f.Guard.Enabled))
 	}
@@ -410,6 +418,9 @@ func (c Config) Validate() error {
 	case "session", "pack", "screen":
 	default:
 		return fmt.Errorf("mirror.group: %q is not session, pack or screen", c.MirrorGroup)
+	}
+	if c.Dialogs != "" && c.Dialogs != "cage" && c.Dialogs != "host" {
+		return fmt.Errorf("screen.dialogs: %q is not cage or host", c.Dialogs)
 	}
 	switch c.Guard.Enabled {
 	case "desktop", "all", "off":
