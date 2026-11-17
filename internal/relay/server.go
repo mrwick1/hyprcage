@@ -10,11 +10,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -63,6 +65,7 @@ type Server struct {
 	Store      *Store
 	Keys       map[string]string // sha256 hex of a key -> tester name
 	Identifier string            // project identifier, for example OFS
+	Hook       string            // optional URL; gets a POST for each new work item
 	Now        func() time.Time
 
 	mu    sync.Mutex
@@ -254,6 +257,7 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 		s.fail(w, err)
 		return
 	}
+	s.notify(ref, tester, &m)
 	if err := s.attach(it.ID, bundle); err != nil {
 		// The work item exists; the tester still gets its id.
 		log.Printf("attach %s: %v", ref, err)
@@ -261,6 +265,37 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 		return
 	}
 	reply(w, http.StatusCreated, map[string]any{"id": ref, "duplicate": false})
+}
+
+// notify tells the hook about a new work item. It sends only checked fields,
+// never report text, so the receiver reads the item from Plane. A hook error
+// is logged and never fails the report.
+func (s *Server) notify(ref, tester string, m *Meta) {
+	if s.Hook == "" {
+		return
+	}
+	project := "offstage"
+	if m.Area == "bare" {
+		project = "bare"
+	}
+	b, _ := json.Marshal(map[string]any{
+		"id": ref, "project": project, "type": m.kindOfReport(), "auto": m.autoLabel() != "",
+		"area": m.Area, "platform": m.Platform, "kind": m.Kind, "tester": tester, "version": m.Version,
+	})
+	c := &http.Client{Timeout: 10 * time.Second}
+	resp, err := c.Post(s.Hook, "application/json", bytes.NewReader(b))
+	if err != nil {
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err // the URL holds the token; keep it out of the log
+		}
+		log.Printf("hook %s: %v", ref, err)
+		return
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		log.Printf("hook %s: status %d", ref, resp.StatusCode)
+	}
 }
 
 func (s *Server) attach(id string, bundle []byte) error {

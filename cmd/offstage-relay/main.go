@@ -68,6 +68,15 @@ func main() {
 		Keys:       keys,
 		Identifier: need("PLANE_IDENTIFIER"),
 	}
+	// RELAY_HOOK_FILE holds the URL of the automatic fix hook. The URL
+	// carries a token, so it stays out of the environment and the logs.
+	if f := os.Getenv("RELAY_HOOK_FILE"); f != "" {
+		hook, err := os.ReadFile(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		srv.Hook = strings.TrimSpace(string(hook))
+	}
 	addr := os.Getenv("RELAY_LISTEN")
 	if addr == "" {
 		addr = ":8080"
