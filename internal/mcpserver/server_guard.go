@@ -30,6 +30,9 @@ type guardCall struct {
 // label of the target from the last snapshot of the screen, so it adds no
 // perception call: without a snapshot the guard does not block on keywords.
 func (s *Server) guard(c guardCall) error {
+	if err := s.promptGuard(c); err != nil {
+		return err
+	}
 	onDesktop := desktop.IsDesktop(c.Screen)
 	if s.cfg.Guard.Enabled == "off" || (!onDesktop && s.cfg.Guard.Enabled != "all") {
 		return nil

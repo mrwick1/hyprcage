@@ -27,6 +27,7 @@ import (
 	"github.com/hexadecimil/offstage/internal/desktop"
 	"github.com/hexadecimil/offstage/internal/devtools"
 	"github.com/hexadecimil/offstage/internal/headless"
+	"github.com/hexadecimil/offstage/internal/osfeat"
 	"github.com/hexadecimil/offstage/internal/perceive"
 	"github.com/hexadecimil/offstage/internal/record"
 	"github.com/hexadecimil/offstage/internal/registry"
@@ -62,6 +63,7 @@ type Server struct {
 	// browsers holds one headless Browser per headless screen instance (tableKey), guarded by mu.
 	browsers map[string]*headless.Browser
 	bare     map[string]*mcp.ClientSession
+	osf      osfeat.Set // backends that depend on the operating system
 }
 
 // Run serves MCP on stdin/stdout until the client goes away, then applies
@@ -97,7 +99,7 @@ func Run() error {
 	return nil
 }
 
-func newServer(cfg config.Config) *Server { return &Server{cfg: cfg} }
+func newServer(cfg config.Config) *Server { return &Server{cfg: cfg, osf: osfeat.Detect(cfg)} }
 
 // mcpServer builds the MCP server with every tool registered.
 func (s *Server) mcpServer() *mcp.Server {

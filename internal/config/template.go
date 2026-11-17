@@ -62,6 +62,7 @@ apps = []             # allowlist of app ids (window classes); empty means no al
 keywords = ["delete", "remove", "erase", "format", "uninstall", "close all", "quit", "shut down"]
                       # a click on a target whose label has one of these words needs ack
 combos = ["Ctrl+W", "Ctrl+Q", "Alt+F4"] # these key combinations need ack
+prompt_classes = []   # extra app ids of password prompts. No input tool acts on a prompt window, even with ack or enabled = "off"
 
 [report]
 url = "https://beta.mrwick.dev" # the beta relay that report_issue and offstage report send to

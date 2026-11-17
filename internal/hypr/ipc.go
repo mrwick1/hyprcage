@@ -133,6 +133,8 @@ type Client struct {
 	Fullscreen FullscreenState `json:"fullscreen"`
 	Size       [2]int          `json:"size"`
 	At         [2]int          `json:"at"`
+	// FocusHistoryID is 0 for the focused window.
+	FocusHistoryID int `json:"focusHistoryID"`
 }
 
 // CursorPos is the reply of `hyprctl -j cursorpos`.
