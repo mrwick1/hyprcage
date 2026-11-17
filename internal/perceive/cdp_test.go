@@ -38,6 +38,7 @@ type fakeCaller struct {
 	hit       map[string]int    // by session: backend id that DOM.getNodeForLocation returns; missing: the node whose box centre is there
 	hitErr    error             // returned by DOM.getNodeForLocation when set
 	contains  map[string]bool   // by session: the target holds the hit in the composed tree
+	labelled  map[string]bool   // by session: the hit is inside a <label> of the target
 	exception bool              // Runtime.callFunctionOn throws
 
 	mu       sync.Mutex
@@ -135,6 +136,7 @@ func (f *fakeCaller) Call(_ context.Context, session, method string, params any)
 		var fn struct{ FunctionDeclaration string }
 		json.Unmarshal(b, &fn)
 		in := f.contains[session] && strings.Contains(fn.FunctionDeclaration, ".host")
+		in = in || f.labelled[session] && strings.Contains(fn.FunctionDeclaration, ".labels")
 		return fmt.Appendf(nil, `{"result":{"type":"boolean","value":%t}}`, in), nil
 	case "Input.dispatchMouseEvent":
 		var ev struct{ Type string }
@@ -643,6 +645,19 @@ func TestCDPHitTestSameNode(t *testing.T) {
 	f := newFake(t)
 	if err := hitTest(t, f, "cdp:T1:929"); err != nil || len(f.called) != 0 {
 		t.Fatalf("err %v, calls %v; want the fast path", err, f.called)
+	}
+}
+
+// A click on a <label> of a control reaches the control, so a label over
+// a hidden checkbox or radio is not an occlusion.
+func TestCDPHitTestLabelOfNode(t *testing.T) {
+	f := newFake(t)
+	f.hit = map[string]int{"S-T1": 1}
+	wantCode(t, hitTest(t, f, "cdp:T1:929"), screen.CodeRefOccluded)
+
+	f.labelled = map[string]bool{"S-T1": true}
+	if err := hitTest(t, f, "cdp:T1:929"); err != nil {
+		t.Fatalf("err = %v; the hit is inside a label of the node", err)
 	}
 }
 
