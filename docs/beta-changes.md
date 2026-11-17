@@ -6,6 +6,30 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.11 (2026-11-17)
+
+- Change: `report_issue` returns at once. The report is queued and sent in
+  the background, with retries after 30 s, 2 min and 10 min. A report that
+  an ended session left in the queue goes with the next session.
+- New: offstage files some reports by itself, with the title prefix
+  `[auto] `: an internal error, a capture or transport failure, the same
+  tool failing 3 times in a row on one screen, or a desktop call after a
+  failure on the agent's screen. At most 20 for each session. Nothing is
+  filed with `[report] confirm = true`.
+- New: each failed tool call, `browser_*` included, adds one redacted line
+  to `blocks.jsonl` in the state directory. The log stays on the machine.
+  Reports carry the lines of the session.
+- New: reports carry the tool calls of the whole session in
+  `session-trace.jsonl`, the agent client, and on Linux the cage renderer.
+- New: the installers and the session start add a short reporting rule to
+  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, between offstage markers.
+  Text outside the markers never changes. A symlinked file is skipped.
+  `offstage agent-rule remove` removes it; `[report] agent_rule = false`
+  keeps it out.
+- Retest: nothing by hand. Use offstage as usual; the reports arrive by
+  themselves. Check that your instruction file has the offstage block, or
+  run `offstage doctor`.
+
 ## v0.11.0-beta.10 (2026-11-17)
 
 - Change: offstage no longer pins a Bare release. The installers take the
