@@ -142,6 +142,31 @@ func TestInput(t *testing.T) {
 	}
 }
 
+// TestTypeControlChars checks that \n and \t in typed text press Return and
+// Tab as real keys, as the type tool documents.
+func TestTypeControlChars(t *testing.T) {
+	b := start(t)
+	if err := screen.Click(b, 450, 65, wl.ButtonLeft, 1, nil); err != nil {
+		t.Fatal(err)
+	}
+	eval(t, b, "window.keys=[];q.addEventListener('keydown',e=>keys.push(e.key));1")
+	if err := b.Type("hi\n"); err != nil {
+		t.Fatal(err)
+	}
+	if got := eval(t, b, "out.textContent"); got != "submit:hi" {
+		t.Errorf("out = %q, want submit:hi", got)
+	}
+	if got := eval(t, b, "keys.join(',')"); got != "Enter" {
+		t.Errorf("keydown keys = %q, want Enter", got)
+	}
+	if err := b.Type("\t"); err != nil {
+		t.Fatal(err)
+	}
+	if got := eval(t, b, "document.activeElement.id"); got != "b" {
+		t.Errorf("focus after \\t = %q, want b", got)
+	}
+}
+
 func TestClicks(t *testing.T) {
 	b := start(t)
 	if err := screen.Click(b, 450, 170, wl.ButtonLeft, 2, nil); err != nil {
