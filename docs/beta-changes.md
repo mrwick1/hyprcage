@@ -6,6 +6,15 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.14 (2026-11-17)
+
+- Fix (Linux, OFS-22): `type` on a headless screen now presses Return for
+  each `\n` and Tab for each `\t`. Before, they went in as characters, so
+  form submit and key handlers did not run. Cage screens and Bare do not
+  change. Windows builds do not expose `act`, so Windows does not change.
+- Internal: PR checks and a relay hook for automatic fixes.
+- Retest: nothing by hand; the build arrives within an hour.
+
 ## v0.11.0-beta.13 (2026-11-17)
 
 - New: the offstage MCP server updates itself while it runs. About once an
