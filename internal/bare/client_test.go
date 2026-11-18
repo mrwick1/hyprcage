@@ -13,9 +13,10 @@ func TestEnvironment(t *testing.T) {
 	t.Setenv("DISPLAY", ":0")
 	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "human")
 	t.Setenv("GDK_SCALE", "2")
+	t.Setenv("BARE_MCP_REPORT", "offstage")
 	for _, display := range []string{"", "cage-socket"} {
-		env := strings.Join(Environment(display), "\n")
-		if !strings.Contains(env, "WAYLAND_DISPLAY="+display+"\n") || strings.Contains(env, "human") || strings.Contains(env, "DISPLAY=:0") || strings.Contains(env, "GDK_SCALE=") {
+		env := strings.Join(Environment(display), "\n") + "\n"
+		if !strings.Contains(env, "WAYLAND_DISPLAY="+display+"\n") || strings.Contains(env, "human") || strings.Contains(env, "DISPLAY=:0") || strings.Contains(env, "GDK_SCALE=") || strings.Contains(env, "BARE_MCP_REPORT") {
 			t.Fatal(env)
 		}
 	}

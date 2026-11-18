@@ -27,7 +27,7 @@
 #                            claude, codex, gemini, cursor, windsurf, opencode,
 #                            or none (default: every agent found on the machine)
 #   --binary-only            step 2 only, bare included (what the plugin's launcher runs)
-#   --bare-only              bare only (what the plugin's bare launcher runs)
+#   --bare-only              bare only (what the plugin's launcher and hook run)
 #   --uninstall              remove the binary, the registrations and offstage's state
 #   OFFSTAGE_VERSION=vX.Y.Z  pin a release (default: the latest)
 #   OFFSTAGE_FROM_SOURCE=1|0 build with go (1) or download (0); default 1 in a

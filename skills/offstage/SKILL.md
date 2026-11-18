@@ -63,8 +63,8 @@ session creation when testing another screen size.
 
 `offstage browser` serves Bare's native MCP protocol on stdin/stdout for a
 standalone client. The former `offstage browser [screen] [url]` command is removed.
-A previously registered standalone `bare` MCP server can remain installed;
-prefer offstage's `browser_*` tools so visible sessions stay isolated.
+Use only offstage's `browser_*` tools. If a standalone `bare` MCP server is
+also registered, do not use it: visible sessions stay isolated only through offstage.
 
 ## How (MCP tools)
 
