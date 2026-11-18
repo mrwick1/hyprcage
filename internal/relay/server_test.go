@@ -13,7 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakePlane records what the relay sends.
@@ -359,6 +361,7 @@ func TestHookGetsNewItemsOnly(t *testing.T) {
 	m.Title = "[auto] click failed"
 	post(t, s, "osk_joel", m, nil)
 	post(t, s, "osk_aswin", m, nil) // same fingerprint: a comment, no hook
+	s.bg.Wait()
 	if len(got) != 1 {
 		t.Fatalf("hook calls %d, want 1", len(got))
 	}
@@ -368,13 +371,24 @@ func TestHookGetsNewItemsOnly(t *testing.T) {
 	}
 	m.Area, m.Fingerprint = "bare", "beef0002"
 	post(t, s, "osk_joel", m, nil)
+	s.bg.Wait()
 	if len(got) != 2 || got[1]["project"] != "bare" {
 		t.Errorf("bare item: %v", got)
 	}
 }
 
+// fastHook sets the retry delays to milliseconds for one test. Each test
+// that sends to a hook must call s.bg.Wait() before it reads results.
+func fastHook(t *testing.T) {
+	t.Helper()
+	old := hookDelays
+	hookDelays = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
+	t.Cleanup(func() { hookDelays = old })
+}
+
 func TestHookFailureStillFiles(t *testing.T) {
 	s, _ := setup(t)
+	fastHook(t)
 	s.Hook = "http://127.0.0.1:1/hook-token-secret"
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
@@ -382,7 +396,79 @@ func TestHookFailureStillFiles(t *testing.T) {
 	if code, out := post(t, s, "osk_joel", meta(), nil); code != 201 || out["id"] != "OFS-1" {
 		t.Fatalf("code %d, out %v", code, out)
 	}
-	if strings.Contains(logs.String(), "hook-token-secret") || !strings.Contains(logs.String(), "hook OFS-1") {
+	s.bg.Wait()
+	if strings.Contains(logs.String(), "hook-token-secret") || !strings.Contains(logs.String(), "hook OFS-1") || !strings.Contains(logs.String(), "gave up") {
 		t.Errorf("log %q", logs.String())
+	}
+}
+
+func TestHookRetriesServerErrors(t *testing.T) {
+	s, _ := setup(t)
+	fastHook(t)
+	var calls atomic.Int32
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) <= 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	t.Cleanup(hs.Close)
+	s.Hook = hs.URL
+	if code, _ := post(t, s, "osk_joel", meta(), nil); code != 201 {
+		t.Fatalf("code %d", code)
+	}
+	s.bg.Wait()
+	if n := calls.Load(); n != 3 {
+		t.Errorf("hook requests %d, want 3", n)
+	}
+}
+
+func TestHookDoesNotRetryClientErrors(t *testing.T) {
+	s, _ := setup(t)
+	fastHook(t)
+	var calls atomic.Int32
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	t.Cleanup(hs.Close)
+	s.Hook = hs.URL
+	if code, _ := post(t, s, "osk_joel", meta(), nil); code != 201 {
+		t.Fatalf("code %d", code)
+	}
+	s.bg.Wait()
+	if n := calls.Load(); n != 1 {
+		t.Errorf("hook requests %d, want 1", n)
+	}
+}
+
+func TestHookDoesNotDelayReply(t *testing.T) {
+	s, _ := setup(t)
+	arrived := make(chan struct{})
+	release := make(chan struct{})
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(arrived)
+		<-release // a slow hook: it answers only after the reply
+	}))
+	t.Cleanup(hs.Close)
+	t.Cleanup(func() { close(release) }) // runs before hs.Close
+	s.Hook = hs.URL
+
+	replied := make(chan int, 1)
+	go func() {
+		code, _ := post(t, s, "osk_joel", meta(), nil)
+		replied <- code
+	}()
+	select {
+	case code := <-replied:
+		if code != 201 {
+			t.Errorf("code %d, want 201", code)
+		}
+	case <-time.After(5 * time.Second): // a failure guard, not a wait
+		t.Fatal("the reply waited for the hook")
+	}
+	select {
+	case <-arrived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the hook never got the request")
 	}
 }
