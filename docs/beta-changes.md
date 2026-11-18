@@ -6,6 +6,18 @@ their agents read it after an update. "Retest" names what to try again.
 Each build is a GitHub pre-release with the same name. The plugin from the
 `beta` branch pins the newest build.
 
+## v0.11.0-beta.15 (2026-11-18)
+
+- Change: the offstage instructions now teach the Bare loop: verify on the
+  page, not on the click receipt; refs end at navigation; read the page
+  before you retry a side effect. Report a Bare problem with `report_issue`,
+  area `bare`. Before, this text came from Bare and did not reach the agent.
+- Change: offstage no longer sets `BARE_MCP_REPORT`. The next Bare release
+  drops it and the `--workspace` option.
+- Remove a standalone `bare` MCP registration. Use only `browser_*`.
+- Internal: the unused `bin/offstage-bare-mcp` launcher is removed.
+- Retest: nothing by hand; the build arrives within an hour.
+
 ## v0.11.0-beta.14 (2026-11-17)
 
 - Fix (Linux, OFS-22): `type` on a headless screen now presses Return for
