@@ -18,3 +18,14 @@ func TestInstructionsAskForReports(t *testing.T) {
 		}
 	}
 }
+
+// Bare's own initialize text does not reach the agent, so offstage teaches the loop.
+func TestInstructionsTeachTheBareLoop(t *testing.T) {
+	for name, text := range map[string]string{"linux": instructions, "off linux": instructionsOffLinux} {
+		for _, w := range []string{"Refs end at navigation", "never the click receipt alone", "before you retry a side effect", "report_issue, area bare"} {
+			if !strings.Contains(text, w) {
+				t.Errorf("%s instructions do not say %q", name, w)
+			}
+		}
+	}
+}

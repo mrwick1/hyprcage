@@ -48,7 +48,7 @@ func Environment(display string) []string {
 		}
 		env = append(env, kv)
 	}
-	return append(env, "WAYLAND_DISPLAY="+display, "BARE_MCP_REPORT=offstage")
+	return append(env, "WAYLAND_DISPLAY="+display)
 }
 
 // Start creates a browser process. Close the returned session to reap it.

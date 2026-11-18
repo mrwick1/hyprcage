@@ -44,8 +44,9 @@ the target app.
 
 `offstage browser` now serves Bare MCP on stdin/stdout. Its former screen/URL
 arguments and Chrome profile option are removed. The `OFFSTAGE_NO_BARE` and
-Windows `-NoBare` options are rejected. Existing standalone Bare registrations
-are kept; new installs need only the offstage MCP registration.
+Windows `-NoBare` options are rejected. offstage is the only agent route to
+Bare. Remove a standalone `bare` MCP registration: it gives the agent a second
+set of browser tools, and Bare no longer accepts `--workspace`.
 
 ## Install
 
