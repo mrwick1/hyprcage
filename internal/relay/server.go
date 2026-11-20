@@ -218,7 +218,16 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 	}
 	m.redact()
 
-	if id, dup := s.Store.Item(m.Fingerprint); m.Fingerprint != "" && dup {
+	id, dup := s.Store.Item(m.Fingerprint)
+	if m.Fingerprint != "" && dup {
+		closed, err := s.closed(id)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		dup = !closed
+	}
+	if m.Fingerprint != "" && dup {
 		if err := s.Plane.Comment(id, m.html(tester, true)); err != nil {
 			s.fail(w, err)
 			return
@@ -265,6 +274,20 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request, tester string) {
 		return
 	}
 	reply(w, http.StatusCreated, map[string]any{"id": ref, "duplicate": false})
+}
+
+// closed reports whether a work item is Closed. A report that matches a
+// closed item gets a new item, so the hook sees it.
+func (s *Server) closed(id string) (bool, error) {
+	it, err := s.Plane.Get(id)
+	if err != nil {
+		return false, err
+	}
+	states, err := s.Plane.States()
+	if err != nil {
+		return false, err
+	}
+	return it.State != "" && it.State == states["Closed"], nil
 }
 
 // notify tells the hook about a new work item. It sends only checked fields,

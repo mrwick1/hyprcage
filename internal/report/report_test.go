@@ -59,10 +59,17 @@ func TestTraceKeepsOneScreenFromItsCreate(t *testing.T) {
 func TestFingerprintFollowsTheLastError(t *testing.T) {
 	a := []audit.Entry{{Tool: "click", Error: "capture_failed"}}
 	b := []audit.Entry{{Tool: "type"}, {Tool: "click", Error: "capture_failed"}}
-	if Fingerprint(a) == "" || Fingerprint(a) != Fingerprint(b) {
-		t.Errorf("same failure, fingerprints %q and %q", Fingerprint(a), Fingerprint(b))
+	if Fingerprint(a, "t") == "" || Fingerprint(a, "t") != Fingerprint(b, "t") {
+		t.Errorf("same failure, fingerprints %q and %q", Fingerprint(a, "t"), Fingerprint(b, "t"))
 	}
-	if Fingerprint([]audit.Entry{{Tool: "click"}}) != "" {
+	generic := []audit.Entry{{Tool: "browser_open", Error: "error"}}
+	if Fingerprint(generic, "page A fails") == Fingerprint(generic, "page B fails") {
+		t.Error("two reports with only a generic error share a fingerprint")
+	}
+	if Fingerprint(a, "one title") != Fingerprint(a, "another title") {
+		t.Error("a specific error code depends on the title")
+	}
+	if Fingerprint([]audit.Entry{{Tool: "click"}}, "t") != "" {
 		t.Error("a trace with no error has a fingerprint")
 	}
 }

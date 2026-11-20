@@ -64,6 +64,9 @@ func TestBuildAddsSessionTraceAndBlocks(t *testing.T) {
 	if st == "" || bl == "" {
 		t.Fatalf("missing files: %v", got)
 	}
+	if strings.Contains(got["trace.jsonl"], "s2") {
+		t.Errorf("a report with no screen holds another session:\n%s", got["trace.jsonl"])
+	}
 	if strings.Contains(st, "s2") || strings.Contains(bl, "s2") {
 		t.Errorf("another session leaked:\n%s\n%s", st, bl)
 	}
