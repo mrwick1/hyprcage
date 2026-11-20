@@ -23,6 +23,7 @@ type fakePlane struct {
 	comments []string
 	uploads  [][]byte
 	seq      int
+	state    string // state of every item on GET; empty means s-fixed
 }
 
 func (f *fakePlane) handler(t *testing.T) http.Handler {
@@ -32,7 +33,7 @@ func (f *fakePlane) handler(t *testing.T) http.Handler {
 		_, _ = io.WriteString(w, `{"results":[{"id":"l-agent","name":"agent-report"},{"id":"l-linux","name":"linux"},{"id":"l-crash","name":"crash"},{"id":"l-bug","name":"bug"},{"id":"l-doubt","name":"doubt"},{"id":"l-auto","name":"auto"}]}`)
 	})
 	mux.HandleFunc(base+"/states/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"results":[{"id":"s-new","name":"New"},{"id":"s-fixed","name":"Fixed in build"}]}`)
+		_, _ = io.WriteString(w, `{"results":[{"id":"s-new","name":"New"},{"id":"s-fixed","name":"Fixed in build"},{"id":"s-closed","name":"Closed"}]}`)
 	})
 	mux.HandleFunc(base+"/work-items/", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -55,7 +56,11 @@ func (f *fakePlane) handler(t *testing.T) http.Handler {
 		case strings.Contains(rest, "/attachments/"):
 			w.WriteHeader(204)
 		case r.Method == "GET":
-			_, _ = io.WriteString(w, `{"id":"item-1","sequence_id":1,"state":"s-fixed"}`)
+			state := f.state
+			if state == "" {
+				state = "s-fixed"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "item-1", "sequence_id": 1, "state": state})
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
@@ -192,6 +197,26 @@ func TestSameFingerprintComments(t *testing.T) {
 	}
 	if len(fp.created) != 1 || len(fp.comments) != 1 || !strings.Contains(fp.comments[0], "Seen again</strong> by aswin") {
 		t.Errorf("created %d, comments %v", len(fp.created), fp.comments)
+	}
+}
+
+func TestClosedItemGetsANewItem(t *testing.T) {
+	s, fp := setup(t)
+	var hooks int
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hooks++ }))
+	t.Cleanup(hs.Close)
+	s.Hook = hs.URL
+	post(t, s, "osk_joel", meta(), nil)
+	fp.state = "s-closed"
+	code, out := post(t, s, "osk_aswin", meta(), nil)
+	if code != 201 || out["id"] != "OFS-2" || out["duplicate"] != false {
+		t.Fatalf("code %d, out %v", code, out)
+	}
+	if len(fp.created) != 2 || len(fp.comments) != 0 || hooks != 2 {
+		t.Fatalf("created %d, comments %v, hooks %d", len(fp.created), fp.comments, hooks)
+	}
+	if id, _ := s.Store.Item(meta().Fingerprint); id != "item-2" {
+		t.Errorf("fingerprint points at %q, want item-2", id)
 	}
 }
 

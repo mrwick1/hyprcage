@@ -104,12 +104,15 @@ func Build(r Request) (*Bundle, error) {
 		return nil, fmt.Errorf("reports are for linux and windows, not %s", runtime.GOOS)
 	}
 	entries := readEntries(audit.Path())
+	id, _ := audit.Session()
 	trace := traceOf(entries, r.Screen)
+	if r.Screen == "" && id != "" {
+		trace = traceOf(sessionTrace(entries, id), "")
+	}
 	files := map[string][]byte{
 		"trace.jsonl": joinLines(trace),
 		"env.txt":     []byte(Env()),
 	}
-	id, _ := audit.Session()
 	if st := sessionTrace(entries, id); len(st) > 0 {
 		files["session-trace.jsonl"] = joinLines(st)
 	}
@@ -129,7 +132,7 @@ func Build(r Request) (*Bundle, error) {
 		files[name] = data
 	}
 	var crashes []string
-	fingerprint := Fingerprint(trace)
+	fingerprint := Fingerprint(trace, r.Title)
 	if r.Area == "crash" {
 		for _, p := range Crashes() {
 			data, err := os.ReadFile(p)
@@ -303,12 +306,17 @@ func traceOf(all []audit.Entry, name string) []audit.Entry {
 }
 
 // Fingerprint names a problem by the last failed call: its tool, its error
-// code and the platform. A report with no failed call has none, so it is
+// code and the platform. The generic code "error" names no problem, so the
+// report title is added. A report with no failed call has none, so it is
 // never merged with another.
-func Fingerprint(trace []audit.Entry) string {
+func Fingerprint(trace []audit.Entry, title string) string {
 	for i := len(trace) - 1; i >= 0; i-- {
 		if e := trace[i]; e.Error != "" {
-			sum := sha256.Sum256([]byte(e.Tool + "|" + e.Error + "|" + runtime.GOOS))
+			key := e.Tool + "|" + e.Error + "|" + runtime.GOOS
+			if e.Error == "error" {
+				key += "|" + title
+			}
+			sum := sha256.Sum256([]byte(key))
 			return hex.EncodeToString(sum[:8])
 		}
 	}
